@@ -1,4 +1,4 @@
-.PHONY: setup dev backend frontend reset test fmt clean
+.PHONY: setup dev backend frontend build-web desktop package-mac reset test fmt clean
 
 PY ?= python3.11
 VENV := backend/.venv
@@ -16,10 +16,19 @@ dev:
 	@bash scripts/dev.sh
 
 backend:
-	cd backend && .venv/bin/trace-api
+	cd backend && .venv/bin/trace-api --mode development --reload
 
 frontend:
 	cd frontend && npm run dev
+
+build-web:
+	cd frontend && npm run build
+
+desktop:
+	cd backend && .venv/bin/pip install -e '.[desktop]' && TRACE_RUNTIME=desktop .venv/bin/trace-desktop
+
+package-mac:
+	@bash scripts/release/build-mac.sh
 
 test:
 	cd backend && .venv/bin/pytest -q

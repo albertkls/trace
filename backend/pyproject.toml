@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trace-api"
-version = "0.1.0"
+version = "1.0.0"
 description = "Trace backend — FastAPI + SQLite"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,6 +13,7 @@ dependencies = [
   "pydantic>=2.9",
   "httpx>=0.28",
   "python-multipart>=0.0.20",
+  "platformdirs>=4.3",
 ]
 
 [project.optional-dependencies]
@@ -20,9 +21,16 @@ dev = [
   "pytest>=8",
   "ruff>=0.8",
 ]
+desktop = [
+  "pywebview>=5.4",
+]
+build = [
+  "pyinstaller>=6.16",
+]
 
 [project.scripts]
 trace-api = "trace_api.main:run"
+trace-desktop = "trace_api.desktop:run_desktop"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

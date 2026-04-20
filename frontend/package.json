@@ -1,11 +1,12 @@
 {
   "name": "trace-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:desktop": "TRACE_RUNTIME=desktop vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"
   },

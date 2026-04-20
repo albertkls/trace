@@ -150,7 +150,7 @@ if (( RUN_API )); then
   log "backend  → http://${API_HOST}:${API_PORT}   log → logs/backend.log"
   : > "$LOG_DIR/backend.log"
   run_prefixed api "$C_CYAN" "$LOG_DIR/backend.log" -- \
-    bash -c "cd '$BACKEND_DIR' && exec ./.venv/bin/trace-api"
+    bash -c "cd '$BACKEND_DIR' && exec ./.venv/bin/trace-api --mode development --reload"
   PIDS+=("$!")
 
   if ! wait_for_url "$HEALTH_URL"; then

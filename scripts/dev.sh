@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "◆ backend  → http://127.0.0.1:8787"
-(cd "$BACKEND_DIR" && ./.venv/bin/trace-api) &
+(cd "$BACKEND_DIR" && ./.venv/bin/trace-api --mode development --reload) &
 BACK_PID=$!
 
 echo "◆ frontend → http://127.0.0.1:5173"

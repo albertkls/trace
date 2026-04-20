@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
 import QuickCapture from "./QuickCapture";
 import SearchModal from "./SearchModal";
+import { APP_VERSION, appRuntimeLabel } from "@/lib/appInfo";
 import { QuickCaptureContext } from "@/lib/quickCapture";
 import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
 
@@ -21,6 +22,7 @@ export default function Shell() {
   const today = new Date();
   const week = isoWeekLabel(today).split("-W")[1];
   const dateLabel = toISODateTimeMinute(today).replace("T", " ");
+  const runtimeLabel = appRuntimeLabel();
 
   const [captureOpen, setCaptureOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -63,10 +65,10 @@ export default function Shell() {
               <div className="font-display text-[15px] font-semibold tracking-tight text-ink">
                 Trace
               </div>
-              <span className="ml-auto mono-meta text-[10px]">v0.1</span>
+              <span className="ml-auto mono-meta text-[10px]">v{APP_VERSION}</span>
             </div>
             <div className="mt-1.5 eyebrow text-[9px]">
-              WORK · SIGNAL · LOCAL
+              WORK · SIGNAL · {runtimeLabel.toUpperCase()}
             </div>
           </div>
 
@@ -136,7 +138,7 @@ export default function Shell() {
             <div className="flex items-center justify-between mono-meta">
               <span className="flex items-center gap-1.5">
                 <span className="dot-pulse" />
-                <span>LOCAL</span>
+                <span>{runtimeLabel.toUpperCase()}</span>
               </span>
               <span>
                 W{week} · {dateLabel}

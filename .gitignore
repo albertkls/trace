@@ -31,6 +31,9 @@ frontend/.omc/
 .playwright-cli/
 logs/
 output/
+build/
+dist/
+*.spec
 frontend/tsconfig.tsbuildinfo
 
 # env

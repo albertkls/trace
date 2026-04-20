@@ -56,12 +56,11 @@ export default function Shell() {
 
           <div className="px-2 pb-5">
             <div className="flex items-center gap-2">
-              <span
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-accent/40 bg-accent/10 font-mono text-[11px] font-semibold text-accent"
-                style={{ boxShadow: "inset 0 0 10px rgba(94,230,197,0.25)" }}
-              >
-                T
-              </span>
+              <img
+                src="/trace-icon.svg"
+                alt="Trace"
+                className="h-6 w-6 rounded-md border border-white/10 shadow-soft"
+              />
               <div className="font-display text-[15px] font-semibold tracking-tight text-ink">
                 Trace
               </div>

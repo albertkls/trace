@@ -9,6 +9,9 @@ DMG_STAGE="$OUT_DIR/dmg-root"
 PYI_BUILD_DIR="$OUT_DIR/pyinstaller-build"
 PYI_DIST_DIR="$OUT_DIR/pyinstaller-dist"
 PYI_SPEC_DIR="$OUT_DIR/pyinstaller-spec"
+ICON_DIR="$ROOT/assets/icons"
+ICONSET_DIR="$ICON_DIR/Trace.iconset"
+ICNS_PATH="$ICON_DIR/Trace.icns"
 PY="${PY:-python3.11}"
 APP_NAME="Trace"
 VENV="$BACKEND_DIR/.venv"
@@ -38,6 +41,7 @@ need_cmd npm
 need_cmd hdiutil
 need_cmd /usr/libexec/PlistBuddy
 need_cmd codesign
+need_cmd iconutil
 
 VERSION="$($PY - <<'PY'
 import tomllib
@@ -64,6 +68,11 @@ echo "◆ installing backend release dependencies"
 echo "◆ installing frontend dependencies"
 (cd "$FRONTEND_DIR" && npm install --silent)
 
+echo "◆ generating app icon assets"
+"$VENV/bin/python" "$ROOT/scripts/release/generate_icon_assets.py" >/dev/null
+rm -f "$ICNS_PATH"
+iconutil -c icns "$ICONSET_DIR" -o "$ICNS_PATH"
+
 echo "◆ building frontend desktop bundle"
 (
   cd "$FRONTEND_DIR"
@@ -77,6 +86,7 @@ rm -rf "$DMG_STAGE" "$PYI_BUILD_DIR" "$PYI_DIST_DIR" "$PYI_SPEC_DIR"
   --clean \
   --windowed \
   --name "$APP_NAME" \
+  --icon "$ICNS_PATH" \
   --specpath "$PYI_SPEC_DIR" \
   --workpath "$PYI_BUILD_DIR" \
   --distpath "$PYI_DIST_DIR" \

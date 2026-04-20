@@ -1,0 +1,221 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-feature-settings: "ss01", "cv11", "ss02";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background:
+      radial-gradient(
+        1200px 600px at 85% -10%,
+        rgba(94, 230, 197, 0.06),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 520px at -10% 110%,
+        rgba(139, 149, 255, 0.05),
+        transparent 60%
+      ),
+      theme("colors.canvas.DEFAULT");
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: rgba(94, 230, 197, 0.32);
+    color: theme("colors.ink.DEFAULT");
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px theme("colors.canvas.DEFAULT"),
+      0 0 0 4px rgba(139, 149, 255, 0.55);
+    border-radius: 8px;
+  }
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+  /* native date pickers on WebKit */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7) brightness(1.2);
+    opacity: 0.55;
+    cursor: pointer;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+  /* Scrollbar — slim, accent on hover */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(200, 210, 230, 0.08);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(94, 230, 197, 0.28);
+    background-clip: padding-box;
+  }
+}
+
+@layer components {
+  /* ───── Surfaces ───── */
+  .panel {
+    @apply relative rounded-2xl border border-line shadow-soft;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
+      theme("colors.canvas.raised");
+  }
+  .panel-flat {
+    @apply relative rounded-xl border border-line;
+    background: theme("colors.canvas.raised");
+  }
+  .panel-sunken {
+    @apply relative rounded-xl border border-line bg-canvas-sunken/70;
+  }
+
+  /* ───── Chips ───── */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-pill border border-line bg-canvas-raised/60 px-2.5 py-0.5 text-[11px] font-medium text-ink-soft;
+  }
+  .chip-accent {
+    @apply border-accent/40 bg-accent/10 text-accent;
+  }
+  .chip-iris {
+    @apply border-iris/40 bg-iris/10 text-iris;
+  }
+  .chip-go {
+    @apply border-signal-go/40 bg-signal-go/10 text-signal-go;
+  }
+  .chip-hold {
+    @apply border-signal-hold/40 bg-signal-hold/10 text-signal-hold;
+  }
+  .chip-stop {
+    @apply border-signal-stop/40 bg-signal-stop/10 text-signal-stop;
+  }
+
+  /* ───── Buttons ───── */
+  .btn {
+    @apply relative inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas-raised/80 px-3.5 py-1.5 text-sm font-medium text-ink transition-all duration-150 hover:border-line-strong hover:bg-canvas-contrast active:scale-[0.98];
+  }
+  .btn-accent {
+    @apply border-accent/60 bg-accent text-accent-ink hover:border-accent hover:bg-accent/90 hover:text-accent-ink;
+    box-shadow:
+      0 0 0 1px rgba(94, 230, 197, 0.25),
+      0 8px 22px -8px rgba(94, 230, 197, 0.45);
+  }
+  .btn-accent:hover {
+    box-shadow:
+      0 0 0 1px rgba(94, 230, 197, 0.5),
+      0 10px 26px -6px rgba(94, 230, 197, 0.55);
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent text-ink-soft hover:bg-canvas-contrast hover:text-ink;
+  }
+  .btn-danger {
+    @apply border-signal-stop/30 bg-signal-stop/10 text-signal-stop hover:border-signal-stop/60 hover:bg-signal-stop/20 hover:text-signal-stop;
+  }
+  .btn-icon {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-canvas-raised/60 text-ink-soft transition hover:border-accent/50 hover:text-accent;
+  }
+  .btn:disabled,
+  .btn-accent:disabled {
+    @apply cursor-not-allowed opacity-50 hover:border-line hover:bg-canvas-raised/80 hover:text-ink;
+    transform: none;
+  }
+
+  /* ───── Form ───── */
+  .input {
+    @apply w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent/60 focus:bg-canvas-raised;
+  }
+
+  /* ───── Keyboard ───── */
+  .kbd {
+    @apply inline-flex items-center rounded-md border border-line bg-canvas-sunken px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-tight text-ink-mute;
+  }
+
+  /* ───── Labels / metadata ───── */
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-ink-mute;
+  }
+  .mono-meta {
+    @apply font-mono text-[11px] tracking-tight text-ink-mute;
+  }
+
+  /* ───── Signal dots ───── */
+  .dot {
+    @apply inline-block h-1.5 w-1.5 rounded-full;
+  }
+  .dot-go {
+    @apply bg-signal-go;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.16);
+  }
+  .dot-stop {
+    @apply bg-signal-stop;
+    box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2);
+  }
+  .dot-hold {
+    @apply bg-signal-hold;
+    box-shadow: 0 0 0 3px rgba(245, 196, 81, 0.2);
+  }
+  .dot-mute {
+    @apply bg-ink-faint;
+  }
+  .dot-pulse {
+    @apply relative inline-flex h-2 w-2 rounded-full bg-accent;
+  }
+  .dot-pulse::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    border: 1px solid rgba(94, 230, 197, 0.55);
+    animation: pulse_ring 1.8s infinite;
+  }
+
+  /* ───── Dividers / background ───── */
+  .divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-line-strong to-transparent;
+  }
+  .gridbg {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(200, 210, 230, 0.06) 1px,
+      transparent 0
+    );
+    background-size: 24px 24px;
+  }
+  .scanline {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 3px,
+      rgba(255, 255, 255, 0.02) 3px,
+      rgba(255, 255, 255, 0.02) 4px
+    );
+  }
+
+  /* ───── Tabs ───── */
+  .tab {
+    @apply rounded-lg px-3 py-1.5 text-sm text-ink-soft transition hover:text-ink;
+  }
+  .tab-active {
+    @apply bg-canvas-contrast text-ink shadow-chip;
+  }
+}

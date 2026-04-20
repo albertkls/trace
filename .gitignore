@@ -1,0 +1,39 @@
+# python
+backend/.venv/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/.pytest_cache/
+backend/.ruff_cache/
+*.egg-info/
+
+# node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.claude/
+
+# trace local data (user home default; guard against in-tree use)
+.trace/
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+.omx/
+.omc/
+backend/.omc/
+frontend/.omc/
+.playwright-cli/
+logs/
+output/
+frontend/tsconfig.tsbuildinfo
+
+# env
+.env
+.env.*
+!.env.example

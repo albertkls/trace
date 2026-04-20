@@ -10,18 +10,13 @@ from .config import default_data_dir
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SCHEMA_PATH = PACKAGE_DIR / "schema.sql"
-LEGACY_DB_PATH = (Path.home() / ".trace" / "db.sqlite").resolve()
 
 
 def default_db_path() -> Path:
     override = os.getenv("TRACE_DB_PATH")
     if override:
         return Path(override).expanduser().resolve()
-
-    packaged = (default_data_dir() / "db.sqlite").resolve()
-    if packaged.exists() or not LEGACY_DB_PATH.exists():
-        return packaged
-    return LEGACY_DB_PATH
+    return (default_data_dir() / "db.sqlite").resolve()
 
 
 def connect(db_path: Path | None = None) -> sqlite3.Connection:

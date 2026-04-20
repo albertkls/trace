@@ -37,8 +37,8 @@ fmt:
 	cd backend && .venv/bin/ruff check --fix . && .venv/bin/ruff format .
 
 reset:
-	@echo "Removing ~/.trace/db.sqlite — will be re-seeded on next boot."
-	rm -f $$HOME/.trace/db.sqlite
+	@echo "Removing ~/Library/Application Support/Trace/db.sqlite"
+	rm -f "$$HOME/Library/Application Support/Trace/db.sqlite"
 
 clean:
 	rm -rf $(VENV) frontend/node_modules frontend/dist

@@ -24,7 +24,7 @@
 新增/改造内容：
 
 - `backend/src/trace_api/config.py`
-  - 统一读取运行模式、端口、CORS、seed 策略
+  - 统一读取运行模式、端口、数据目录、CORS 配置
 - `backend/src/trace_api/web.py`
   - 自动探测 `frontend/dist`
   - 为 SPA 路由提供 `index.html` fallback
@@ -46,18 +46,7 @@
 ~/Library/Application Support/Trace/db.sqlite
 ```
 
-但为了兼容旧项目数据，如果发现历史数据库：
-
-```text
-~/.trace/db.sqlite
-```
-
-则会优先沿用旧库。
-
-### 4. 桌面版默认不注入演示数据
-
-开发态仍然保留 demo seed，方便你继续做交互开发；
-桌面发行版默认使用空库启动，更像正式产品而不是 demo。
+桌面发行版默认使用空库启动，不再内置演示数据，也不再自动读取旧开发数据库。
 
 ## 构建前提
 

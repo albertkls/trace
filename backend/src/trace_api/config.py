@@ -11,7 +11,6 @@ from platformdirs import PlatformDirs
 from . import __version__
 
 APP_NAME = "Trace"
-LEGACY_DATA_DIR = Path.home() / ".trace"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -43,11 +42,7 @@ def default_data_dir() -> Path:
         return Path(override).expanduser().resolve()
 
     data_dir = PlatformDirs(appname=APP_NAME, appauthor=False).user_data_path
-    data_dir = Path(data_dir).expanduser().resolve()
-
-    if data_dir.exists() or not LEGACY_DATA_DIR.exists():
-        return data_dir
-    return LEGACY_DATA_DIR.resolve()
+    return Path(data_dir).expanduser().resolve()
 
 
 @dataclass(frozen=True)
@@ -81,7 +76,7 @@ def get_settings() -> Settings:
         host=os.getenv("TRACE_HOST", "127.0.0.1"),
         port=int(os.getenv("TRACE_PORT", "8787")),
         reload=_env_bool("TRACE_RELOAD", mode == "development"),
-        seed_demo=_env_bool("TRACE_SEED_DEMO", mode != "desktop"),
+        seed_demo=_env_bool("TRACE_SEED_DEMO", False),
         allowed_origins=_env_list("TRACE_ALLOWED_ORIGINS", default_origins),
         log_level=os.getenv("TRACE_LOG_LEVEL", "info"),
     )

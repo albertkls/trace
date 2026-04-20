@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .config import get_settings, reset_settings_cache
 from .db import ensure_schema
-from .seed import seed
 from .routers import captures, llm, notes, reports, search, threads, todos
 from .web import mount_frontend
 
@@ -18,8 +17,6 @@ from .web import mount_frontend
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_schema()
-    if get_settings().seed_demo:
-        seed()
     yield
 
 
@@ -80,7 +77,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--seed-demo",
         action="store_true",
         default=settings.seed_demo,
-        help="Seed the demo dataset on first boot",
+        help="Reserved flag; demo seed data has been removed",
     )
     return parser.parse_args(argv)
 

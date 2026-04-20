@@ -14,8 +14,8 @@ import urllib.request
 import uvicorn
 import webview
 
-from . import __version__
-from .main import create_app
+from trace_api import __version__
+from trace_api.main import create_app
 
 APP_TITLE = f"Trace {__version__}"
 WINDOW_MIN_SIZE = (1180, 760)

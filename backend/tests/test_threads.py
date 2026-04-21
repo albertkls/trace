@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from .helpers import create_thread
+from .helpers import create_project, create_thread
 
 
 def test_patch_thread_updates_editable_fields(client):
@@ -49,3 +49,19 @@ def test_patch_thread_rejects_future_started_at(client):
     r = client.patch(f"/api/threads/{thread_id}", json={'started_at': tomorrow})
     assert r.status_code == 400
     assert 'future' in r.text
+
+
+def test_thread_can_bind_project_by_id_and_filter(client):
+    project = create_project(client, name='平台侧')
+    response = client.post(
+        '/api/threads',
+        json={'title': '项目线程', 'project_id': project['id']},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body['project_id'] == project['id']
+    assert body['project'] == '平台侧'
+
+    filtered = client.get(f"/api/threads?project_id={project['id']}")
+    assert filtered.status_code == 200
+    assert [thread['id'] for thread in filtered.json()] == [body['id']]

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import ProjectSelect from "@/components/ProjectSelect";
 import { toISODate } from "@/lib/periods";
 import type {
   ThreadDetail,
@@ -24,7 +25,7 @@ const STATUS_OPTIONS: Array<{ value: ThreadStatus; label: string }> = [
 export default function EditThreadModal({ open, onClose, thread }: Props) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
-  const [project, setProject] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [owner, setOwner] = useState("");
   const [status, setStatus] = useState<ThreadStatus>("active");
   const [startedAt, setStartedAt] = useState("");
@@ -36,7 +37,7 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
   useEffect(() => {
     if (!open) return;
     setTitle(thread.title);
-    setProject(thread.project ?? "");
+    setProjectId(thread.project_id ?? "");
     setOwner(thread.owner ?? "");
     setStatus(thread.status);
     setStartedAt(thread.started_at.slice(0, 10));
@@ -47,7 +48,7 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
     thread.id,
     thread.owner,
     thread.pinned,
-    thread.project,
+    thread.project_id,
     thread.started_at,
     thread.status,
     thread.title,
@@ -57,7 +58,8 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
     mutationFn: () => {
       const payload: ThreadPatchInput = {
         title: title.trim(),
-        project: project.trim() || null,
+        project_id: projectId || null,
+        clear_project: !projectId,
         owner: owner.trim() || null,
         status,
         pinned,
@@ -69,6 +71,8 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
       setError(null);
       qc.invalidateQueries({ queryKey: ["thread", thread.id] });
       qc.invalidateQueries({ queryKey: ["threads"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       onClose();
     },
     onError: (e: Error) => setError(e.message),
@@ -135,12 +139,7 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <div className="mb-1.5 eyebrow">项目</div>
-              <input
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                placeholder="例如：平台侧"
-                className="input w-full"
-              />
+              <ProjectSelect value={projectId} onChange={setProjectId} />
             </label>
 
             <label className="block">

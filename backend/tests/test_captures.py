@@ -78,6 +78,30 @@ def test_capture_allows_duplicate_text(client):
     assert first.json()['id'] != second.json()['id']
 
 
+def test_promote_note_to_evidence_allows_duplicate_text(client):
+    note = client.post('/api/notes', json={'title': '重复记事', 'body_md': '重复文本'}).json()
+    first = client.post(f"/api/captures/from-note/{note['id']}", json={})
+    second = client.post(f"/api/captures/from-note/{note['id']}", json={})
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert first.json()['id'] != second.json()['id']
+
+
+def test_promote_note_to_inbox_respects_explicit_empty_thread(client):
+    thread = create_thread(client, title='笔记默认线程')
+    note = client.post(
+        '/api/notes',
+        json={'title': '线程记事', 'body_md': '进入收件箱', 'thread_ids': [thread['id']]},
+    ).json()
+
+    promoted = client.post(
+        f"/api/captures/from-note/{note['id']}",
+        json={'thread_id': ''},
+    )
+    assert promoted.status_code == 201, promoted.text
+    assert promoted.json()['thread_id'] is None
+
+
 def test_create_thread_with_adopt(client):
     cap = client.post('/api/captures', json={'text': '新课题：供应链洞察', 'category': 'plan'}).json()
     r = client.post('/api/threads', json={'title': '供应链洞察', 'adopt_evidence_id': cap['id']})

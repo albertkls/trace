@@ -40,6 +40,7 @@ def build_report_messages(
     period_end: str,
     audience: str,
     evidence_lines: list[str],
+    project_context: dict | None = None,
     context_note: str | None = None,
 ) -> list[ChatMessage]:
     tone = AUDIENCE_TONE.get(audience, AUDIENCE_TONE["boss"])
@@ -48,12 +49,28 @@ def build_report_messages(
     user_body = [
         f"周期：{period_label}（{period_start} — {period_end}）",
         f"读者/口吻：{tone}",
+    ]
+    if project_context:
+        user_body.extend(
+            [
+                f"所属项目：{project_context.get('name') or '未命名项目'}",
+                f"项目状态：{project_context.get('status') or 'active'}",
+            ]
+        )
+        if project_context.get("summary"):
+            user_body.extend(["项目摘要：", str(project_context["summary"])])
+        thread_titles = project_context.get("thread_titles") or []
+        if thread_titles:
+            user_body.extend(["项目下线程：", " / ".join(thread_titles)])
+    user_body.extend(
+        [
         "",
         "建议大纲（可调整；但请保留主要章节）：",
         outline_hint,
         "",
         "证据列表（用 [编号] 引用）：",
-    ]
+        ]
+    )
     if evidence_lines:
         user_body.extend(evidence_lines)
     else:
@@ -122,6 +139,7 @@ def build_rewrite_messages(
     period_end: str,
     audience: str,
     evidence_lines: list[str],
+    project_context: dict | None = None,
     target_chars: int | None = None,
     target_audience: str | None = None,
     instruction: str | None = None,
@@ -154,6 +172,19 @@ def build_rewrite_messages(
         "",
         op_block,
     ]
+    if project_context:
+        user_body.extend(
+            [
+                "",
+                f"所属项目：{project_context.get('name') or '未命名项目'}",
+                f"项目状态：{project_context.get('status') or 'active'}",
+            ]
+        )
+        if project_context.get("summary"):
+            user_body.extend(["项目摘要：", str(project_context["summary"])])
+        thread_titles = project_context.get("thread_titles") or []
+        if thread_titles:
+            user_body.extend(["项目下线程：", " / ".join(thread_titles)])
     if extra:
         user_body.append("")
         user_body.extend(extra)

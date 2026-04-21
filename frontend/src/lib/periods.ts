@@ -185,3 +185,49 @@ export const AUDIENCE_OPTIONS: { value: ReportAudience; label: string; hint: str
 export const AUDIENCE_LABEL: Record<ReportAudience, string> = Object.fromEntries(
   AUDIENCE_OPTIONS.map((o) => [o.value, o.label])
 ) as Record<ReportAudience, string>;
+
+export type ReportTemplate = {
+  key: string;
+  label: string;
+  hint: string;
+  body: string;
+};
+
+export const REPORT_TEMPLATES: ReportTemplate[] = [
+  {
+    key: "standard",
+    label: "标准周报",
+    hint: "三段式：成果 / 进展 / 下周计划",
+    body: `## 本周成果\n\n-\n\n## 进展与挑战\n\n-\n\n## 下周计划\n\n- `,
+  },
+  {
+    key: "boss",
+    label: "向上汇报",
+    hint: "结果导向，突出里程碑与风险",
+    body: `## 核心成果\n\n-\n\n## 关键进展\n\n-\n\n## 风险与阻塞\n\n-\n\n## 下一步`,
+  },
+  {
+    key: "retro",
+    label: "复盘",
+    hint: "得失分析，改进举措",
+    body: `## 本次目标\n\n-\n\n## 做得好\n\n-\n\n## 待改进\n\n-\n\n## 改进计划\n\n- `,
+  },
+  {
+    key: "1on1",
+    label: "1:1 对齐",
+    hint: "个人发展，协同诉求",
+    body: `## 这周怎么样\n\n-\n\n## 有什么想聊的\n\n-\n\n## 需要什么支持\n\n-\n\n## 下次聊什么`,
+  },
+  {
+    key: "project",
+    label: "项目报告",
+    hint: "项目综述、推进、风险、下一步",
+    body: `## 项目综述\n\n-\n\n## 关键推进\n\n-\n\n## 风险与阻塞\n\n-\n\n## 下一步\n\n- `,
+  },
+  {
+    key: "blank",
+    label: "空白文档",
+    hint: "从零开始",
+    body: ``,
+  },
+];

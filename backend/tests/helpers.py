@@ -27,6 +27,20 @@ def create_thread(client: TestClient, *, title: str = "测试线程") -> dict[st
     return response.json()
 
 
+def create_project(
+    client: TestClient,
+    *,
+    name: str = "测试项目",
+    status: str = "active",
+) -> dict[str, Any]:
+    response = client.post(
+        "/api/projects",
+        json={"name": name, "status": status, "summary": ""},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def create_report(client: TestClient, **overrides: Any) -> dict[str, Any]:
     payload = {**DEFAULT_REPORT_RANGE, **overrides}
     response = client.post("/api/reports", json=payload)

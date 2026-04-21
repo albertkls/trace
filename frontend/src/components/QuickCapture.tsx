@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import CategoryChoiceChips from "@/components/CategoryChoiceChips";
+import ProjectSelect from "@/components/ProjectSelect";
+import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import { api } from "@/lib/api";
+import { recommendProjects } from "@/lib/projectRecommendations";
 import type { Category, CaptureInput } from "@/lib/types";
 import { toISODateTimeMinute } from "@/lib/periods";
-
-const CATEGORIES: { value: Category; label: string }[] = [
-  { value: "progress", label: "进展" },
-  { value: "decision", label: "决定" },
-  { value: "risk", label: "风险" },
-  { value: "plan", label: "计划" },
-  { value: "support", label: "协同" },
-];
 
 type ThreadChoice =
   | { kind: "inbox" }
@@ -31,6 +27,8 @@ export default function QuickCapture({
   const [text, setText] = useState("");
   const [category, setCategory] = useState<Category>("progress");
   const [date, setDate] = useState(() => toISODateTimeMinute(new Date()));
+  const [projectId, setProjectId] = useState("");
+  const [projectTouched, setProjectTouched] = useState(false);
   const [choice, setChoice] = useState<ThreadChoice>(() =>
     defaultThreadId ? { kind: "existing", id: defaultThreadId } : { kind: "inbox" }
   );
@@ -38,6 +36,11 @@ export default function QuickCapture({
   const [error, setError] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
+    enabled: open,
+  });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
     queryFn: api.threads.list,
@@ -48,17 +51,61 @@ export default function QuickCapture({
     () => [...threads].sort((a, b) => (b.pinned ?? 0) - (a.pinned ?? 0)),
     [threads]
   );
+  const visibleThreads = useMemo(
+    () =>
+      projectId
+        ? orderedThreads.filter((thread) => thread.project_id === projectId)
+        : orderedThreads,
+    [orderedThreads, projectId]
+  );
+  const recommendations = useMemo(
+    () => recommendProjects({ text, projects, threads }),
+    [projects, text, threads]
+  );
 
   useEffect(() => {
     if (!open) return;
     setText("");
     setCategory("progress");
     setDate(toISODateTimeMinute(new Date()));
+    setProjectId("");
+    setProjectTouched(Boolean(defaultThreadId));
     setChoice(defaultThreadId ? { kind: "existing", id: defaultThreadId } : { kind: "inbox" });
     setNewTitle("");
     setError(null);
     requestAnimationFrame(() => textRef.current?.focus());
-  }, [open]);
+  }, [defaultThreadId, open]);
+
+  useEffect(() => {
+    if (!open || !defaultThreadId) return;
+    const defaultThread = threads.find((thread) => thread.id === defaultThreadId);
+    if (defaultThread?.project_id) {
+      setProjectId(defaultThread.project_id);
+    }
+  }, [defaultThreadId, open, threads]);
+
+  useEffect(() => {
+    if (!open || projectTouched || choice.kind === "existing") return;
+    const top = recommendations[0];
+    if (top && top.score >= 80) {
+      setProjectId(top.projectId);
+    } else if (!top && !defaultThreadId) {
+      setProjectId("");
+    }
+  }, [choice.kind, defaultThreadId, open, projectTouched, recommendations]);
+
+  useEffect(() => {
+    if (choice.kind !== "existing") return;
+    if (visibleThreads.some((thread) => thread.id === choice.id)) return;
+    setChoice({ kind: "inbox" });
+  }, [choice, visibleThreads]);
+
+  useEffect(() => {
+    if (choice.kind !== "existing") return;
+    const selectedThread = threads.find((thread) => thread.id === choice.id);
+    if (!selectedThread?.project_id) return;
+    setProjectId(selectedThread.project_id);
+  }, [choice, threads]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -66,7 +113,7 @@ export default function QuickCapture({
       if (choice.kind === "existing") threadId = choice.id;
       if (choice.kind === "new") {
         const title = newTitle.trim() || text.slice(0, 24);
-        const t = await api.threads.create({ title, summary: "" });
+        const t = await api.threads.create({ title, summary: "", project_id: projectId || null });
         threadId = t.id;
       }
       const payload: CaptureInput = {
@@ -77,9 +124,15 @@ export default function QuickCapture({
       if (threadId) payload.thread_id = threadId;
       return api.captures.create(payload);
     },
-    onSuccess: () => {
+    onSuccess: (capture) => {
       qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["threads"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
+      // Refresh the thread detail page if evidence was added to a specific thread
+      if (capture?.thread_id) {
+        qc.invalidateQueries({ queryKey: ["thread", capture.thread_id] });
+      }
       onClose();
     },
     onError: (e: Error) => setError(e.message),
@@ -149,21 +202,7 @@ export default function QuickCapture({
           <div className="mt-4 grid grid-cols-[1fr_auto] items-start gap-4">
             <div>
               <div className="mb-1.5 eyebrow">分类</div>
-              <div className="flex flex-wrap gap-1.5">
-                {CATEGORIES.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setCategory(c.value)}
-                    className={clsx(
-                      "chip cursor-pointer",
-                      category === c.value && "chip-accent"
-                    )}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
+              <CategoryChoiceChips value={category} onChange={setCategory} />
             </div>
             <div>
               <div className="mb-1.5 eyebrow">时间</div>
@@ -174,6 +213,29 @@ export default function QuickCapture({
                 className="rounded-lg border border-line bg-canvas-sunken/70 px-3 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent/60 focus:bg-canvas-raised"
               />
             </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-1.5 eyebrow">项目（可选）</div>
+            <ProjectSelect
+              value={projectId}
+              onChange={(value) => {
+                setProjectTouched(true);
+                setProjectId(value);
+              }}
+            />
+          </div>
+
+          <div className="mt-4">
+            <ProjectRecommendationBar
+              recommendations={recommendations}
+              selectedProjectId={projectId}
+              onSelect={(value) => {
+                setProjectTouched(true);
+                setProjectId(value);
+              }}
+              hint="根据当前输入自动推荐"
+            />
           </div>
 
           <div className="mt-4">
@@ -199,7 +261,7 @@ export default function QuickCapture({
               >
                 ＋新建线程
               </button>
-              {orderedThreads.slice(0, 6).map((t) => (
+              {visibleThreads.slice(0, 6).map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -223,6 +285,11 @@ export default function QuickCapture({
                 placeholder="新线程的名字（留空则使用首段文字）"
                 className="input mt-3"
               />
+            )}
+            {choice.kind === "inbox" && projectId && (
+              <div className="mt-3 text-xs text-ink-mute">
+                当前已选项目，但如果仍保存到收件箱，这条记录不会直接挂到项目；项目只会在归入线程或新建线程时生效。
+              </div>
             )}
           </div>
 

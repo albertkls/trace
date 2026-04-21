@@ -1,4 +1,4 @@
-# Trace 1.0 · Mac 发行说明
+# Trace 1.1 · Mac 发行说明
 
 本文档说明当前仓库如何从开发环境构建出可分发的 Mac 安装包，以及产物包含什么。
 
@@ -75,7 +75,7 @@ bash scripts/release/build-mac.sh
 
 ```text
 output/macos/Trace.app
-output/macos/Trace-1.0.0-macOS.dmg
+output/macos/Trace-1.1.0-macOS.dmg
 output/macos/SHA256SUMS.txt
 ```
 
@@ -104,7 +104,7 @@ output/macos/Trace.app
 优先分发：
 
 ```text
-output/macos/Trace-1.0.0-macOS.dmg
+output/macos/Trace-1.1.0-macOS.dmg
 ```
 
 用户打开后，将 `Trace.app` 拖入 `Applications` 即可。

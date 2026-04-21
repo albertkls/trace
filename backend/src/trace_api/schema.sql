@@ -26,10 +26,22 @@ CREATE TABLE IF NOT EXISTS capture (
     created_at    TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS project (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'active',
+    owner       TEXT,
+    summary     TEXT NOT NULL DEFAULT '',
+    color       TEXT,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS thread (
     id              TEXT PRIMARY KEY,
     title           TEXT NOT NULL,
     project         TEXT,
+    project_id      TEXT REFERENCES project(id) ON DELETE SET NULL,
     owner           TEXT,
     status          TEXT NOT NULL DEFAULT 'active',
     started_at      TEXT NOT NULL,
@@ -67,6 +79,7 @@ CREATE TABLE IF NOT EXISTS note (
     title           TEXT NOT NULL,
     body_md         TEXT NOT NULL DEFAULT '',
     day             TEXT NOT NULL,
+    project_id      TEXT REFERENCES project(id) ON DELETE SET NULL,
     thread_ids_json TEXT NOT NULL DEFAULT '[]',
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL
@@ -78,6 +91,7 @@ CREATE TABLE IF NOT EXISTS report (
     period_start         TEXT NOT NULL,
     period_end           TEXT NOT NULL,
     audience             TEXT NOT NULL DEFAULT 'boss',
+    project_id           TEXT REFERENCES project(id) ON DELETE SET NULL,
     thread_ids_json      TEXT NOT NULL DEFAULT '[]',
     title                TEXT NOT NULL,
     body_md              TEXT NOT NULL DEFAULT '',
@@ -110,6 +124,11 @@ CREATE INDEX IF NOT EXISTS idx_source_hash ON source(hash);
 CREATE INDEX IF NOT EXISTS idx_capture_source ON capture(source_id, seq);
 CREATE INDEX IF NOT EXISTS idx_evidence_thread ON evidence(thread_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_thread_last_active ON thread(last_active_at DESC);
+CREATE INDEX IF NOT EXISTS idx_thread_project_id ON thread(project_id, last_active_at DESC);
 CREATE INDEX IF NOT EXISTS idx_report_period ON report(period_label, audience, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_report_project_id ON report(project_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_todo_thread ON todo(thread_id, done);
 CREATE INDEX IF NOT EXISTS idx_note_day ON note(day DESC);
+CREATE INDEX IF NOT EXISTS idx_note_project_id ON note(project_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_project_status ON project(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_project_updated ON project(updated_at DESC);

@@ -1,28 +1,35 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import ProjectSelect from "@/components/ProjectSelect";
 import type { Thread } from "@/lib/types";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  defaultProjectId?: string;
   onCreated?: (t: Thread) => void;
 };
 
-export default function NewThreadModal({ open, onClose, onCreated }: Props) {
+export default function NewThreadModal({
+  open,
+  onClose,
+  defaultProjectId,
+  onCreated,
+}: Props) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
-  const [project, setProject] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [owner, setOwner] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setTitle("");
-    setProject("");
+    setProjectId(defaultProjectId ?? "");
     setOwner("");
     setError(null);
-  }, [open]);
+  }, [open, defaultProjectId]);
 
   useEffect(() => {
     if (!open) return;
@@ -40,11 +47,13 @@ export default function NewThreadModal({ open, onClose, onCreated }: Props) {
     mutationFn: () =>
       api.threads.create({
         title: title.trim(),
-        project: project.trim() || null,
+        project_id: projectId || null,
         owner: owner.trim() || null,
       }),
     onSuccess: (t) => {
       qc.invalidateQueries({ queryKey: ["threads"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       onCreated?.(t);
       onClose();
     },
@@ -91,12 +100,7 @@ export default function NewThreadModal({ open, onClose, onCreated }: Props) {
 
           <label className="block">
             <div className="mb-1.5 eyebrow">项目（可选）</div>
-            <input
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              placeholder="例如：平台侧"
-              className="input w-full"
-            />
+            <ProjectSelect value={projectId} onChange={setProjectId} />
           </label>
 
           <label className="block">

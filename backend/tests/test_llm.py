@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .helpers import create_profile, create_report, create_thread
+from .helpers import create_profile, create_project, create_report, create_thread
 
 
 def test_profiles_start_empty(client):
@@ -173,5 +173,37 @@ def test_rewrite_rejects_when_no_key(client):
 def test_summarize_rejects_when_no_profile(client):
     tid = create_thread(client, title='待总结线程')['id']
     r = client.post(f"/api/threads/{tid}/summarize")
+    assert r.status_code == 400
+    assert 'no llm profile configured' in r.json()['detail']
+
+
+def test_project_summarize_updates_summary(client, monkeypatch):
+    from trace_api.llm import base as llm_base
+    import trace_api.routers.projects as projects_module
+
+    class FakeProvider:
+        def __init__(self, profile):
+            self.profile = profile
+
+        async def stream_chat(self, messages):
+            for piece in ['项目聚焦权限治理，', '本周完成关键联调并进入验收。']:
+                yield llm_base.ChatChunk(delta=piece)
+            yield llm_base.ChatChunk(done=True)
+
+    monkeypatch.setattr(projects_module, 'build_provider', lambda profile: FakeProvider(profile))
+
+    project = create_project(client, name='权限治理')
+    thread = client.post('/api/threads', json={'title': '联调推进', 'project_id': project['id']}).json()
+    client.post('/api/captures', json={'text': '完成关键联调', 'thread_id': thread['id']})
+    create_profile(client, api_key='fake')
+
+    r = client.post(f"/api/projects/{project['id']}/summarize")
+    assert r.status_code == 200, r.text
+    assert '权限治理' in r.json()['summary']
+
+
+def test_project_summarize_rejects_when_no_profile(client):
+    project = create_project(client, name='项目待总结')
+    r = client.post(f"/api/projects/{project['id']}/summarize")
     assert r.status_code == 400
     assert 'no llm profile configured' in r.json()['detail']

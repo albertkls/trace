@@ -10,9 +10,14 @@ import type { Thread } from "@/lib/types";
 export default function Threads() {
   const navigate = useNavigate();
   const [newThreadOpen, setNewThreadOpen] = useState(false);
+  const [projectFilter, setProjectFilter] = useState("");
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
+  });
   const { data: threads = [], isLoading } = useQuery({
-    queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryKey: ["threads", projectFilter],
+    queryFn: () => api.threads.list(projectFilter || undefined),
   });
 
   return (
@@ -39,6 +44,24 @@ export default function Threads() {
           ＋ 新建线程
         </button>
       </header>
+
+      <div className="mb-6 flex items-center gap-3">
+        <span className="eyebrow">按项目过滤</span>
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          className="input w-72"
+        >
+          <option value="">全部项目</option>
+          {projects
+            .filter((project) => project.status !== "archived")
+            .map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+        </select>
+      </div>
 
       {isLoading ? (
         <div className="panel py-12 text-center text-sm text-ink-mute">

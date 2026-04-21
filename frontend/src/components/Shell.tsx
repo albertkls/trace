@@ -10,11 +10,12 @@ import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
 const NAV: { to: string; label: string; key: string; glyph: string }[] = [
   { to: "/", label: "今日", key: "1", glyph: "◐" },
   { to: "/inbox", label: "收件箱", key: "2", glyph: "◲" },
-  { to: "/threads", label: "工作线", key: "3", glyph: "≋" },
-  { to: "/timeline", label: "时间线", key: "4", glyph: "↻" },
-  { to: "/notes", label: "记事", key: "5", glyph: "✎" },
-  { to: "/todos", label: "待办", key: "6", glyph: "☐" },
-  { to: "/reports", label: "汇报", key: "7", glyph: "❡" },
+  { to: "/projects", label: "项目", key: "3", glyph: "▣" },
+  { to: "/threads", label: "工作线", key: "4", glyph: "≋" },
+  { to: "/timeline", label: "时间线", key: "5", glyph: "↻" },
+  { to: "/notes", label: "记事", key: "6", glyph: "✎" },
+  { to: "/todos", label: "待办", key: "7", glyph: "☐" },
+  { to: "/reports", label: "汇报", key: "8", glyph: "❡" },
   { to: "/settings", label: "设置", key: "0", glyph: "⚙" },
 ];
 

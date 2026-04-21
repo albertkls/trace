@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ..db import connect, row_to_dict
 from ..llm import LLMError, build_provider
 from ..llm.base import ChatMessage
+from ..project_utils import resolve_project_reference
 from .llm import get_default_profile
 
 router = APIRouter(prefix="/threads", tags=["threads"])
@@ -62,6 +63,7 @@ def _id(prefix: str) -> str:
 class ThreadIn(BaseModel):
     title: str
     project: str | None = None
+    project_id: str | None = None
     owner: str | None = None
     summary: str = ""
     pinned: bool = False
@@ -71,6 +73,8 @@ class ThreadIn(BaseModel):
 class ThreadPatch(BaseModel):
     title: str | None = None
     project: str | None = None
+    project_id: str | None = None
+    clear_project: bool | None = None
     owner: str | None = None
     status: str | None = None
     summary: str | None = None
@@ -85,16 +89,22 @@ def create_thread(body: ThreadIn) -> dict:
     conn = connect()
     try:
         cur = conn.cursor()
+        project_id, project_name = resolve_project_reference(
+            cur,
+            project_id=body.project_id,
+            project_name=body.project,
+        )
         thread_id = _id("th")
         now = _now()
         today = _today()
         cur.execute(
-            "INSERT INTO thread (id,title,project,owner,status,started_at,last_active_at,summary,pinned) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO thread (id,title,project,project_id,owner,status,started_at,last_active_at,summary,pinned) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 thread_id,
                 body.title.strip(),
-                body.project,
+                project_name,
+                project_id,
                 body.owner,
                 "active",
                 today,
@@ -114,8 +124,18 @@ def create_thread(body: ThreadIn) -> dict:
                 (thread_id, body.adopt_evidence_id),
             )
         conn.commit()
-        row = cur.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
-        return row_to_dict(row)
+        row = cur.execute(
+            """
+            SELECT t.*, COALESCE(p.name, t.project) AS project_name
+            FROM thread t
+            LEFT JOIN project p ON p.id = t.project_id
+            WHERE t.id = ?
+            """,
+            (thread_id,),
+        ).fetchone()
+        thread = row_to_dict(row)
+        thread["project"] = thread.pop("project_name") or thread.get("project")
+        return thread
     finally:
         conn.close()
 
@@ -141,15 +161,33 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
         else:
             started_at = current["started_at"]
 
+        if patch.clear_project:
+            project_id = None
+            project_name = None
+        elif "project_id" in provided or "project" in provided:
+            if (
+                ("project_id" in provided and patch.project_id is None)
+                and "project" not in provided
+            ) or (
+                ("project" in provided and patch.project is None)
+                and "project_id" not in provided
+            ):
+                project_id = None
+                project_name = None
+            else:
+                project_id, project_name = resolve_project_reference(
+                    conn,
+                    project_id=patch.project_id,
+                    project_name=patch.project,
+                )
+        else:
+            project_id = current.get("project_id")
+            project_name = current.get("project")
+
         fields = {
             "title": patch.title.strip() if "title" in provided else current["title"],
-            "project": (
-                patch.project.strip() or None
-                if isinstance(patch.project, str)
-                else None
-                if "project" in provided
-                else current["project"]
-            ),
+            "project": project_name,
+            "project_id": project_id,
             "owner": (
                 patch.owner.strip() or None
                 if isinstance(patch.owner, str)
@@ -171,10 +209,11 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
             "started_at": started_at,
         }
         conn.execute(
-            "UPDATE thread SET title=?, project=?, owner=?, status=?, started_at=?, summary=?, pinned=?, last_active_at=? WHERE id=?",
+            "UPDATE thread SET title=?, project=?, project_id=?, owner=?, status=?, started_at=?, summary=?, pinned=?, last_active_at=? WHERE id=?",
             (
                 fields["title"],
                 fields["project"],
+                fields["project_id"],
                 fields["owner"],
                 fields["status"],
                 fields["started_at"],
@@ -185,24 +224,44 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
             ),
         )
         conn.commit()
-        refreshed = conn.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
-        return row_to_dict(refreshed)
+        refreshed = conn.execute(
+            """
+            SELECT t.*, COALESCE(p.name, t.project) AS project_name
+            FROM thread t
+            LEFT JOIN project p ON p.id = t.project_id
+            WHERE t.id = ?
+            """,
+            (thread_id,),
+        ).fetchone()
+        thread = row_to_dict(refreshed)
+        thread["project"] = thread.pop("project_name") or thread.get("project")
+        return thread
     finally:
         conn.close()
 
 
 @router.get("")
-def list_threads() -> list[dict]:
+def list_threads(project_id: str | None = None) -> list[dict]:
     conn = connect()
     try:
-        rows = conn.execute(
-            """SELECT t.*, COUNT(e.id) AS evidence_count
-               FROM thread t
-               LEFT JOIN evidence e ON e.thread_id = t.id
-               GROUP BY t.id
-               ORDER BY t.pinned DESC, t.last_active_at DESC"""
-        ).fetchall()
-        return [row_to_dict(r) for r in rows]
+        sql = """
+            SELECT t.*, COALESCE(p.name, t.project) AS project_name, COUNT(e.id) AS evidence_count
+            FROM thread t
+            LEFT JOIN project p ON p.id = t.project_id
+            LEFT JOIN evidence e ON e.thread_id = t.id
+        """
+        params: list[str] = []
+        if project_id:
+            sql += " WHERE t.project_id = ?"
+            params.append(project_id)
+        sql += " GROUP BY t.id ORDER BY t.pinned DESC, t.last_active_at DESC"
+        rows = conn.execute(sql, tuple(params)).fetchall()
+        out = []
+        for row in rows:
+            thread = row_to_dict(row)
+            thread["project"] = thread.pop("project_name") or thread.get("project")
+            out.append(thread)
+        return out
     finally:
         conn.close()
 
@@ -283,10 +342,19 @@ async def summarize_thread(thread_id: str) -> dict:
 def get_thread(thread_id: str) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
+        row = conn.execute(
+            """
+            SELECT t.*, COALESCE(p.name, t.project) AS project_name
+            FROM thread t
+            LEFT JOIN project p ON p.id = t.project_id
+            WHERE t.id = ?
+            """,
+            (thread_id,),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "thread not found")
         thread = row_to_dict(row)
+        thread["project"] = thread.pop("project_name") or thread.get("project")
         evidences = [
             row_to_dict(r)
             for r in conn.execute(

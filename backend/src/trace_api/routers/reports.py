@@ -16,6 +16,7 @@ from ..llm.prompts import (
     build_rewrite_messages,
     rewrite_apply_mode,
 )
+from ..project_utils import require_project
 from .llm import get_default_profile
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -67,20 +68,28 @@ def _parse_iso_moment(s: str) -> datetime:
         raise HTTPException(400, f"invalid datetime '{s}': {e}") from None
 
 
-def _validated_thread_ids(conn, thread_ids: list[str] | None) -> list[str]:
+def _validated_thread_ids(
+    conn, thread_ids: list[str] | None, project_id: str | None = None
+) -> list[str]:
     """De-duplicate + verify each id exists. Empty list means all-scope."""
     cleaned = [tid for tid in dict.fromkeys(thread_ids or []) if tid]
     if not cleaned:
         return []
     placeholders = ",".join("?" for _ in cleaned)
     rows = conn.execute(
-        f"SELECT id FROM thread WHERE id IN ({placeholders})",
+        f"SELECT id, project_id FROM thread WHERE id IN ({placeholders})",
         tuple(cleaned),
     ).fetchall()
     found = {r["id"] for r in rows}
     missing = [tid for tid in cleaned if tid not in found]
     if missing:
         raise HTTPException(404, f"threads not found: {', '.join(missing)}")
+    if project_id is not None:
+        outside = [r["id"] for r in rows if r["project_id"] != project_id]
+        if outside:
+            raise HTTPException(
+                400, f"threads do not belong to project: {', '.join(outside)}"
+            )
     return cleaned
 
 
@@ -121,9 +130,11 @@ class ReportCreate(BaseModel):
     period_start: str
     period_end: str
     audience: str = "boss"
+    project_id: str | None = None
     thread_ids: list[str] | None = None
     period_label: str | None = None
     title: str | None = None
+    body_md: str | None = None
 
 
 class ReportPatch(BaseModel):
@@ -135,18 +146,32 @@ class ReportPatch(BaseModel):
     period_end: str | None = None
     period_label: str | None = None
     audience: str | None = None
+    project_id: str | None = None
+    clear_project: bool | None = None
     thread_ids: list[str] | None = None
 
 
 @router.get("")
-def list_reports() -> list[dict]:
+def list_reports(project_id: str | None = None) -> list[dict]:
     conn = connect()
     try:
-        rows = conn.execute(
-            "SELECT id, period_label, period_start, period_end, audience, title, status, updated_at "
-            "FROM report ORDER BY updated_at DESC"
-        ).fetchall()
-        return [row_to_dict(r) for r in rows]
+        sql = (
+            "SELECT r.id, r.period_label, r.period_start, r.period_end, r.audience, "
+            "r.project_id, p.name AS project_name, r.thread_ids_json, r.title, r.status, r.updated_at "
+            "FROM report r LEFT JOIN project p ON p.id = r.project_id"
+        )
+        params: list[str] = []
+        if project_id:
+            sql += " WHERE r.project_id = ?"
+            params.append(project_id)
+        sql += " ORDER BY r.updated_at DESC"
+        rows = conn.execute(sql, tuple(params)).fetchall()
+        out = []
+        for row in rows:
+            report = row_to_dict(row)
+            report["thread_ids"] = json.loads(report.pop("thread_ids_json") or "[]")
+            out.append(report)
+        return out
     finally:
         conn.close()
 
@@ -171,20 +196,24 @@ def create_report(body: ReportCreate) -> dict:
     now = _now_iso()
     conn = connect()
     try:
-        thread_ids = _validated_thread_ids(conn, body.thread_ids)
+        project_id = body.project_id
+        if project_id:
+            require_project(conn, project_id)
+        thread_ids = _validated_thread_ids(conn, body.thread_ids, project_id)
         conn.execute(
-            "INSERT INTO report (id,period_label,period_start,period_end,audience,thread_ids_json,"
+            "INSERT INTO report (id,period_label,period_start,period_end,audience,project_id,thread_ids_json,"
             "title,body_md,outline_json,cited_evidence_json,status,created_at,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 rp_id,
                 label,
                 body.period_start,
                 body.period_end,
                 audience,
+                project_id,
                 json.dumps(thread_ids, ensure_ascii=False),
                 title,
-                "",
+                body.body_md or "",
                 "[]",
                 "[]",
                 "draft",
@@ -202,7 +231,15 @@ def create_report(body: ReportCreate) -> dict:
 def get_report(report_id: str) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM report WHERE id = ?", (report_id,)).fetchone()
+        row = conn.execute(
+            """
+            SELECT r.*, p.name AS project_name
+            FROM report r
+            LEFT JOIN project p ON p.id = r.project_id
+            WHERE r.id = ?
+            """,
+            (report_id,),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
         report = row_to_dict(row)
@@ -227,8 +264,10 @@ def _hydrate_evidence(conn, ids: list[str]) -> list[dict]:
     rows = conn.execute(
         f"""SELECT e.id, e.text, e.event_date, e.category, e.status, e.importance,
                    e.owners_json, e.tags_json, e.thread_id,
-                   t.title AS thread_title, t.project AS thread_project
-            FROM evidence e LEFT JOIN thread t ON t.id = e.thread_id
+                   t.title AS thread_title, COALESCE(p.name, t.project) AS thread_project
+            FROM evidence e
+            LEFT JOIN thread t ON t.id = e.thread_id
+            LEFT JOIN project p ON p.id = t.project_id
             WHERE e.id IN ({placeholders})""",
         tuple(ids),
     ).fetchall()
@@ -305,6 +344,7 @@ def _collect_evidence_lines(
     period_start: str,
     period_end: str,
     thread_ids: list[str] | None = None,
+    project_id: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (lines, evidence_ids) for evidence whose event_date falls in [start, end].
 
@@ -314,12 +354,16 @@ def _collect_evidence_lines(
     """
     sql = """
         SELECT e.id, e.text, e.event_date, e.category, e.owners_json,
-               t.title AS thread_title, t.project AS thread_project
+               t.title AS thread_title, COALESCE(p.name, t.project) AS thread_project
         FROM evidence e LEFT JOIN thread t ON t.id = e.thread_id
+        LEFT JOIN project p ON p.id = t.project_id
         WHERE e.event_date IS NOT NULL
           AND datetime(e.event_date) BETWEEN datetime(?) AND datetime(?)
     """
     params: list[str] = [period_start, period_end]
+    if project_id:
+        sql += " AND t.project_id = ?"
+        params.append(project_id)
     if thread_ids:
         placeholders = ",".join("?" for _ in thread_ids)
         sql += f" AND e.thread_id IN ({placeholders})"
@@ -366,9 +410,23 @@ async def compose_report(report_id: str, body: ComposeRequest):
             raise HTTPException(404, "report not found")
         report = row_to_dict(row)
         thread_ids = json.loads(report.get("thread_ids_json") or "[]")
+        project_id = report.get("project_id")
         lines, ev_ids = _collect_evidence_lines(
-            conn, report["period_start"], report["period_end"], thread_ids
+            conn, report["period_start"], report["period_end"], thread_ids, project_id
         )
+        project_context = None
+        if project_id:
+            prow = conn.execute(
+                "SELECT id, name, status, summary FROM project WHERE id = ?",
+                (project_id,),
+            ).fetchone()
+            if prow:
+                thread_rows = conn.execute(
+                    "SELECT title FROM thread WHERE project_id = ? ORDER BY pinned DESC, last_active_at DESC",
+                    (project_id,),
+                ).fetchall()
+                project_context = row_to_dict(prow)
+                project_context["thread_titles"] = [r["title"] for r in thread_rows]
     finally:
         conn.close()
 
@@ -380,6 +438,7 @@ async def compose_report(report_id: str, body: ComposeRequest):
         period_end=report["period_end"],
         audience=report["audience"],
         evidence_lines=lines,
+        project_context=project_context,
         context_note=body.note,
     )
     provider = build_provider(profile)
@@ -444,9 +503,23 @@ async def rewrite_report(report_id: str, body: RewriteRequest):
             raise HTTPException(404, "report not found")
         report = row_to_dict(row)
         thread_ids = json.loads(report.get("thread_ids_json") or "[]")
+        project_id = report.get("project_id")
         lines, _ev_ids = _collect_evidence_lines(
-            conn, report["period_start"], report["period_end"], thread_ids
+            conn, report["period_start"], report["period_end"], thread_ids, project_id
         )
+        project_context = None
+        if project_id:
+            prow = conn.execute(
+                "SELECT id, name, status, summary FROM project WHERE id = ?",
+                (project_id,),
+            ).fetchone()
+            if prow:
+                thread_rows = conn.execute(
+                    "SELECT title FROM thread WHERE project_id = ? ORDER BY pinned DESC, last_active_at DESC",
+                    (project_id,),
+                ).fetchall()
+                project_context = row_to_dict(prow)
+                project_context["thread_titles"] = [r["title"] for r in thread_rows]
     finally:
         conn.close()
 
@@ -466,6 +539,7 @@ async def rewrite_report(report_id: str, body: RewriteRequest):
             period_end=report["period_end"],
             audience=report["audience"],
             evidence_lines=lines,
+            project_context=project_context,
             target_chars=body.target_chars,
             target_audience=body.target_audience,
             instruction=body.instruction,
@@ -541,6 +615,14 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
                 )
             new_audience = patch.audience
 
+        if patch.clear_project:
+            new_project_id = None
+        elif patch.project_id is not None:
+            require_project(conn, patch.project_id)
+            new_project_id = patch.project_id
+        else:
+            new_project_id = current.get("project_id")
+
         new_label = current["period_label"]
         if patch.period_label is not None:
             if not patch.period_label.strip():
@@ -552,14 +634,17 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
 
         if patch.thread_ids is not None:
             new_thread_ids_json = json.dumps(
-                _validated_thread_ids(conn, patch.thread_ids), ensure_ascii=False
+                _validated_thread_ids(conn, patch.thread_ids, new_project_id),
+                ensure_ascii=False,
             )
         else:
+            current_thread_ids = json.loads(current.get("thread_ids_json") or "[]")
+            _validated_thread_ids(conn, current_thread_ids, new_project_id)
             new_thread_ids_json = current.get("thread_ids_json") or "[]"
 
         conn.execute(
             "UPDATE report SET title=?, body_md=?, outline_json=?, status=?, "
-            "period_start=?, period_end=?, period_label=?, audience=?, "
+            "period_start=?, period_end=?, period_label=?, audience=?, project_id=?, "
             "thread_ids_json=?, updated_at=? "
             "WHERE id=?",
             (
@@ -571,6 +656,7 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
                 new_end,
                 new_label,
                 new_audience,
+                new_project_id,
                 new_thread_ids_json,
                 _now_iso(),
                 report_id,

@@ -1,26 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import CategoryChoiceChips from "@/components/CategoryChoiceChips";
+import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
+import ProjectSelect from "@/components/ProjectSelect";
 import { api } from "@/lib/api";
-import type { Category, InboxItem, Thread } from "@/lib/types";
+import type { InboxItem, Thread } from "@/lib/types";
+import { recommendProjects } from "@/lib/projectRecommendations";
 import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
-
-const CATEGORIES: Category[] = [
-  "progress",
-  "decision",
-  "risk",
-  "plan",
-  "support",
-];
-
-const CATEGORY_LABEL: Record<Category, string> = {
-  progress: "进展",
-  decision: "决定",
-  risk: "风险",
-  plan: "计划",
-  support: "协同",
-};
 
 export default function Inbox() {
   const qc = useQueryClient();
@@ -32,6 +20,10 @@ export default function Inbox() {
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
     queryFn: api.threads.list,
+  });
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
   });
 
   const invalidate = () => {
@@ -83,6 +75,7 @@ export default function Inbox() {
             <InboxCard
               key={item.id}
               item={item}
+              projects={projects}
               threads={threads}
               onChanged={invalidate}
             />
@@ -95,17 +88,25 @@ export default function Inbox() {
 
 function InboxCard({
   item,
+  projects,
   threads,
   onChanged,
 }: {
   item: InboxItem;
+  projects: Array<{ id: string; name: string; status: string; summary: string }>;
   threads: Thread[];
   onChanged: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerProjectId, setPickerProjectId] = useState("");
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [promoted, setPromoted] = useState(false);
+  const recommendations = recommendProjects({
+    text: [item.source_title, item.text].filter(Boolean).join(" · "),
+    projects,
+    threads,
+  });
 
   const onMutError = (e: Error) => setError(e.message);
 
@@ -127,8 +128,8 @@ function InboxCard({
     onError: onMutError,
   });
   const createThread = useMutation({
-    mutationFn: (title: string) =>
-      api.threads.create({ title, adopt_evidence_id: item.id }),
+    mutationFn: ({ title, projectId }: { title: string; projectId?: string }) =>
+      api.threads.create({ title, project_id: projectId || null, adopt_evidence_id: item.id }),
     onSuccess: () => { setError(null); onChanged(); },
     onError: onMutError,
   });
@@ -153,19 +154,22 @@ function InboxCard({
           </div>
           <p className="text-[15px] leading-relaxed text-ink">{item.text}</p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c}
-                className={clsx(
-                  "chip cursor-pointer",
-                  item.category === c && "chip-accent"
-                )}
-                onClick={() => update.mutate({ category: c })}
-              >
-                {CATEGORY_LABEL[c]}
-              </button>
-            ))}
+          <CategoryChoiceChips
+            value={item.category}
+            onChange={(category) => update.mutate({ category })}
+            className="mt-3 items-center"
+          />
+
+          <div className="mt-3">
+            <ProjectRecommendationBar
+              recommendations={recommendations}
+              selectedProjectId={pickerProjectId}
+              onSelect={(projectId) => {
+                setPickerProjectId(projectId);
+                setPickerOpen(true);
+              }}
+              hint="点击后在该项目下筛线程"
+            />
           </div>
         </div>
 
@@ -208,12 +212,13 @@ function InboxCard({
           {pickerOpen && (
             <ThreadPicker
               threads={threads}
+              initialProjectId={pickerProjectId}
               onPickExisting={(id) => {
                 update.mutate({ thread_id: id });
                 setPickerOpen(false);
               }}
-              onCreate={(title) => {
-                createThread.mutate(title);
+              onCreate={(title, projectId) => {
+                createThread.mutate({ title, projectId });
                 setPickerOpen(false);
               }}
               onClose={() => setPickerOpen(false)}
@@ -283,23 +288,37 @@ function PromoteDialog({
 
 function ThreadPicker({
   threads,
+  initialProjectId,
   onPickExisting,
   onCreate,
   onClose,
 }: {
   threads: Thread[];
+  initialProjectId?: string;
   onPickExisting: (id: string) => void;
-  onCreate: (title: string) => void;
+  onCreate: (title: string, projectId?: string) => void;
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId ?? "");
+  const scopedThreads = projectId
+    ? threads.filter((thread) => thread.project_id === projectId)
+    : threads;
   const filtered = q
-    ? threads.filter((t) =>
+    ? scopedThreads.filter((t) =>
         t.title.toLowerCase().includes(q.toLowerCase())
       )
-    : threads;
+    : scopedThreads;
   return (
-    <div className="panel absolute right-0 top-9 z-30 w-64 p-2">
+    <div className="panel absolute right-0 top-9 z-30 w-72 p-2">
+      <div className="mb-2">
+        <ProjectSelect
+          value={projectId}
+          onChange={setProjectId}
+          emptyLabel="全部项目"
+          className="input w-full !py-1 !text-sm"
+        />
+      </div>
       <input
         autoFocus
         value={q}
@@ -308,7 +327,7 @@ function ThreadPicker({
         className="input mb-1 !py-1 !text-sm"
         onKeyDown={(e) => {
           if (e.key === "Enter" && q.trim() && filtered.length === 0) {
-            onCreate(q.trim());
+            onCreate(q.trim(), projectId || undefined);
           }
           if (e.key === "Escape") onClose();
         }}
@@ -327,7 +346,7 @@ function ThreadPicker({
         {q.trim() && !filtered.some((t) => t.title === q.trim()) && (
           <li>
             <button
-              onClick={() => onCreate(q.trim())}
+              onClick={() => onCreate(q.trim(), projectId || undefined)}
               className="block w-full rounded-md px-2 py-1.5 text-left text-sm text-accent transition hover:bg-canvas-contrast"
             >
               ＋ 新建线程「{q.trim()}」

@@ -63,6 +63,7 @@ export default function SearchModal({
 
   const total = results
     ? results.threads.length +
+      results.projects.length +
       results.evidence.length +
       results.todos.length +
       results.notes.length
@@ -90,7 +91,7 @@ export default function SearchModal({
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="搜索线程、证据、待办、笔记…"
+            placeholder="搜索项目、线程、证据、待办、笔记…"
             className="flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-faint"
           />
           {loading && (
@@ -110,6 +111,31 @@ export default function SearchModal({
             </div>
           ) : results ? (
             <div className="divide-y divide-line/50">
+              {results.projects.length > 0 && (
+                <section className="px-2 py-2">
+                  <div className="mb-1 px-2 eyebrow text-[9px]">项目</div>
+                  {results.projects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => go(`/projects/${project.id}`)}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-canvas-contrast/50"
+                    >
+                      <span className="text-accent">▣</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-ink">
+                          {project.name}
+                        </div>
+                        {project.summary && (
+                          <div className="truncate text-xs text-ink-mute">
+                            {project.summary}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </section>
+              )}
+
               {results.threads.length > 0 && (
                 <section className="px-2 py-2">
                   <div className="mb-1 px-2 eyebrow text-[9px]">工作线</div>

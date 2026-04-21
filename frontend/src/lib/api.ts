@@ -6,6 +6,10 @@ import type {
   Note,
   NoteInput,
   NotePatch,
+  Project,
+  ProjectDetail,
+  ProjectInput,
+  ProjectPatch,
   ProfileInput,
   ProfilePatch,
   Report,
@@ -45,8 +49,27 @@ export const api = {
   health: () => req<{ status: string }>("/health"),
   search: (q: string) =>
     req<SearchResult>(`/search?q=${encodeURIComponent(q)}`),
+  projects: {
+    list: () => req<Project[]>("/projects"),
+    get: (id: string) => req<ProjectDetail>(`/projects/${id}`),
+    create: (body: ProjectInput) =>
+      req<Project>("/projects", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    patch: (id: string, body: ProjectPatch) =>
+      req<ProjectDetail>(`/projects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    summarize: (id: string) =>
+      req<ProjectDetail>(`/projects/${id}/summarize`, { method: "POST" }),
+  },
   threads: {
-    list: () => req<Thread[]>("/threads"),
+    list: (projectId?: string | unknown) => {
+      const id = typeof projectId === "string" ? projectId : undefined;
+      return req<Thread[]>(`/threads${id ? `?project_id=${encodeURIComponent(id)}` : ""}`);
+    },
     get: (id: string) => req<ThreadDetail>(`/threads/${id}`),
     create: (body: ThreadInput) =>
       req<Thread>("/threads", { method: "POST", body: JSON.stringify(body) }),
@@ -85,9 +108,17 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    promoteNoteToEvidence: (noteId: string, body: { text?: string; category?: string; event_date?: string; thread_id?: string | null } = {}) =>
+      req<InboxItem>(`/captures/from-note/${noteId}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
   },
   reports: {
-    list: () => req<ReportSummary[]>("/reports"),
+    list: (projectId?: string | unknown) => {
+      const id = typeof projectId === "string" ? projectId : undefined;
+      return req<ReportSummary[]>(`/reports${id ? `?project_id=${encodeURIComponent(id)}` : ""}`);
+    },
     get: (id: string) => req<Report>(`/reports/${id}`),
     create: (body: ReportCreate) =>
       req<Report>("/reports", {
@@ -146,7 +177,10 @@ export const api = {
     remove: (id: string) => req<void>(`/todos/${id}`, { method: "DELETE" }),
   },
   notes: {
-    list: () => req<Note[]>("/notes"),
+    list: (projectId?: string | unknown) => {
+      const id = typeof projectId === "string" ? projectId : undefined;
+      return req<Note[]>(`/notes${id ? `?project_id=${encodeURIComponent(id)}` : ""}`);
+    },
     get: (id: string) => req<Note>(`/notes/${id}`),
     create: (body: NoteInput) =>
       req<Note>("/notes", { method: "POST", body: JSON.stringify(body) }),

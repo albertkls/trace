@@ -79,12 +79,15 @@ export default function ThreadReportModal({
         period_start: start,
         period_end: end,
         audience,
+        project_id: thread.project_id || null,
         title: title.trim() || defaultTitle,
         thread_ids: [thread.id],
       }),
     onSuccess: (report) => {
       setError(null);
       qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       onCreated?.(report);
       onClose();
     },

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from .helpers import attach_citations, create_capture, create_report, create_thread, db_path
+from .helpers import attach_citations, create_capture, create_project, create_report, create_thread, db_path
 
 
 def test_create_weekly_report_autolabels(client):
@@ -22,6 +22,45 @@ def test_create_weekly_report_autolabels(client):
 
     listed = client.get('/api/reports').json()
     assert any(x['id'] == rp['id'] for x in listed)
+
+
+def test_report_list_hydrates_thread_ids(client):
+    thread = create_thread(client, title='周报范围线程')
+    report = create_report(client, thread_ids=[thread['id']])
+    listed = client.get('/api/reports')
+    assert listed.status_code == 200
+    row = next(item for item in listed.json() if item['id'] == report['id'])
+    assert row['thread_ids'] == [thread['id']]
+
+
+def test_report_supports_project_and_filter(client):
+    project = create_project(client, name='汇报项目')
+    thread = client.post(
+        '/api/threads',
+        json={'title': '项目线程', 'project_id': project['id']},
+    ).json()
+    report = create_report(client, project_id=project['id'], thread_ids=[thread['id']])
+    assert report['project_id'] == project['id']
+    assert report['project_name'] == '汇报项目'
+
+    listed = client.get(f"/api/reports?project_id={project['id']}")
+    assert listed.status_code == 200
+    assert [item['id'] for item in listed.json()] == [report['id']]
+
+
+def test_report_rejects_threads_outside_project(client):
+    project = create_project(client, name='边界项目')
+    thread = create_thread(client, title='外部线程')
+    response = client.post(
+        '/api/reports',
+        json={
+            'period_start': '2026-04-13',
+            'period_end': '2026-04-19',
+            'project_id': project['id'],
+            'thread_ids': [thread['id']],
+        },
+    )
+    assert response.status_code == 400
 
 
 def test_create_monthly_report_autolabels(client):

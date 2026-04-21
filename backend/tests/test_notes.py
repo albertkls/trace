@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from .helpers import create_thread
+import sqlite3
+from pathlib import Path
+
+from trace_api.db import ensure_schema
+
+from .helpers import create_project, create_thread
 
 
 def test_note_crud(client):
@@ -50,9 +55,62 @@ def test_note_create_with_threads(client):
     assert r.json()['thread_ids'] == [thread_id]
 
 
+def test_note_dedupes_thread_ids(client):
+    thread_id = create_thread(client, title='去重线程')['id']
+    r = client.post('/api/notes', json={'title': '去重', 'thread_ids': [thread_id, thread_id]})
+    assert r.status_code == 201
+    assert r.json()['thread_ids'] == [thread_id]
+
+
+def test_note_migration_adds_thread_ids_json(tmp_path: Path):
+    db_path = tmp_path / 'trace.sqlite'
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            '''
+            CREATE TABLE note (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                body_md TEXT NOT NULL DEFAULT '',
+                day TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            '''
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    ensure_schema(db_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(note)").fetchall()}
+    finally:
+        conn.close()
+    assert 'thread_ids_json' in cols
+
+
 def test_note_create_rejects_bad_thread(client):
     r = client.post('/api/notes', json={'thread_ids': ['th_nope']})
     assert r.status_code == 404
+
+
+def test_note_supports_project_and_filter(client):
+    project = create_project(client, name='增长项目')
+    response = client.post(
+        '/api/notes',
+        json={'title': '增长想法', 'project_id': project['id']},
+    )
+    assert response.status_code == 201, response.text
+    note = response.json()
+    assert note['project_id'] == project['id']
+    assert note['project_name'] == '增长项目'
+
+    filtered = client.get(f"/api/notes?project_id={project['id']}")
+    assert filtered.status_code == 200
+    assert [item['id'] for item in filtered.json()] == [note['id']]
 
 
 def test_note_list_ordered_by_day_desc(client):

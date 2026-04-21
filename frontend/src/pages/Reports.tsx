@@ -22,9 +22,14 @@ const STATUS_CHIP: Record<string, string> = {
 export default function Reports() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [projectFilter, setProjectFilter] = useState("");
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
+  });
   const { data: reports = [], isLoading } = useQuery({
-    queryKey: ["reports"],
-    queryFn: api.reports.list,
+    queryKey: ["reports", projectFilter],
+    queryFn: () => api.reports.list(projectFilter || undefined),
   });
 
   return (
@@ -43,6 +48,24 @@ export default function Reports() {
           ＋ 新建周期报告
         </button>
       </header>
+
+      <div className="mb-6 flex items-center gap-3">
+        <span className="eyebrow">按项目过滤</span>
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          className="input w-72"
+        >
+          <option value="">全部项目</option>
+          {projects
+            .filter((project) => project.status !== "archived")
+            .map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+        </select>
+      </div>
 
       {isLoading ? (
         <div className="panel p-12 text-center text-sm text-ink-mute">
@@ -82,6 +105,11 @@ export default function Reports() {
                 <div className="mt-3 text-[15px] font-medium text-ink">
                   {r.title}
                 </div>
+                {r.project_name && (
+                  <div className="mt-2">
+                    <span className="chip">{r.project_name}</span>
+                  </div>
+                )}
                 <div className="mt-3 flex items-center gap-2 mono-meta">
                   <span>
                     {r.period_start} → {r.period_end}
@@ -101,6 +129,7 @@ export default function Reports() {
       <NewReportModal
         open={open}
         onClose={() => setOpen(false)}
+        defaultProjectId={projectFilter || undefined}
         onCreated={(r) => navigate(`/reports/${r.id}`)}
       />
     </div>

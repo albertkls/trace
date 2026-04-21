@@ -36,6 +36,41 @@ def _hash(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _insert_source(
+    conn,
+    *,
+    source_id: str,
+    kind: str,
+    title: str,
+    text: str,
+    imported_at: str,
+    event_time: str,
+) -> None:
+    try:
+        conn.execute(
+            "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (source_id, kind, title, text, _hash(text), imported_at, event_time, "{}"),
+        )
+    except sqlite3.IntegrityError as e:
+        if "source.hash" not in str(e):
+            raise
+        conn.execute(
+            "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (
+                source_id,
+                kind,
+                title,
+                text,
+                _hash(f"{text}\n{event_time}\n{uuid.uuid4().hex}"),
+                imported_at,
+                event_time,
+                "{}",
+            ),
+        )
+
+
 class CaptureIn(BaseModel):
     text: str
     event_date: str | None = None  # local datetime (YYYY-MM-DDTHH:MM), defaults to now
@@ -96,42 +131,15 @@ def create_capture(body: CaptureIn) -> dict:
         evidence_id = _id("ev")
         now = _now()
         event_date = body.event_date or _current_local_minute()
-        source_hash = _hash(body.text)
-
-        try:
-            cur.execute(
-                "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (
-                    source_id,
-                    body.source_kind,
-                    body.source_title or "闪记",
-                    body.text,
-                    source_hash,
-                    now,
-                    event_date,
-                    "{}",
-                ),
-            )
-        except sqlite3.IntegrityError as e:
-            # Quick captures should tolerate repeated text instead of surfacing a 500
-            # from the source.hash uniqueness constraint.
-            if "source.hash" not in str(e):
-                raise
-            cur.execute(
-                "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (
-                    source_id,
-                    body.source_kind,
-                    body.source_title or "闪记",
-                    body.text,
-                    _hash(f"{body.text}\n{event_date}\n{uuid.uuid4().hex}"),
-                    now,
-                    event_date,
-                    "{}",
-                ),
-            )
+        _insert_source(
+            cur,
+            source_id=source_id,
+            kind=body.source_kind,
+            title=body.source_title or "闪记",
+            text=body.text,
+            imported_at=now,
+            event_time=event_date,
+        )
         cur.execute(
             "INSERT INTO capture (id,source_id,seq,section_title,text,speaker,time_hint,confidence,created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -261,5 +269,89 @@ def promote_to_todo(evidence_id: str, body: PromoteTodoIn) -> dict:
         conn.commit()
         todo = conn.execute("SELECT * FROM todo WHERE id = ?", (todo_id,)).fetchone()
         return row_to_dict(todo)
+    finally:
+        conn.close()
+
+
+class PromoteNoteIn(BaseModel):
+    text: str | None = None
+    category: str = "progress"
+    event_date: str | None = None
+    thread_id: str | None = None  # "" means explicit inbox; null falls back to note attachment
+
+
+@router.post("/from-note/{note_id}", status_code=201)
+def promote_note_to_evidence(note_id: str, body: PromoteNoteIn) -> dict:
+    """Promote a note to an evidence record."""
+    conn = connect()
+    try:
+        row = conn.execute("SELECT * FROM note WHERE id = ?", (note_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "note not found")
+        note = row_to_dict(row)
+        note_thread_ids = json.loads(note.get("thread_ids_json") or "[]")
+
+        text = (body.text or "").strip() or note.get("body_md", "") or note.get("title", "")
+        if not text:
+            raise HTTPException(400, "note has no content to promote")
+
+        if body.category not in VALID_CATEGORIES:
+            raise HTTPException(400, f"invalid category: {body.category}")
+
+        if body.thread_id == "":
+            target_thread = None
+        else:
+            target_thread = body.thread_id
+
+        if body.thread_id is None and not target_thread and note_thread_ids:
+            target_thread = note_thread_ids[0]
+        if target_thread:
+            tr = conn.execute("SELECT 1 FROM thread WHERE id = ?", (target_thread,)).fetchone()
+            if not tr:
+                raise HTTPException(404, "thread not found")
+
+        event_date = body.event_date or note.get("day") or _current_local_minute()
+
+        source_id = _id("src")
+        capture_id = _id("cap")
+        evidence_id = _id("ev")
+        now = _now()
+
+        _insert_source(
+            conn,
+            source_id=source_id,
+            kind="quicknote",
+            title=note.get("title") or "记事晋升",
+            text=text,
+            imported_at=now,
+            event_time=event_date,
+        )
+        conn.execute(
+            "INSERT INTO capture (id,source_id,seq,section_title,text,speaker,time_hint,confidence,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (capture_id, source_id, 0, None, text, None, event_date, 1.0, now),
+        )
+        conn.execute(
+            "INSERT INTO evidence "
+            "(id,capture_id,thread_id,text,event_date,owners_json,tags_json,category,status,importance,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (evidence_id, capture_id, target_thread, text, event_date, "[]", "[]", body.category, "ongoing", 0.6, now),
+        )
+
+        if target_thread:
+            conn.execute("UPDATE thread SET last_active_at = ? WHERE id = ?", (now, target_thread))
+
+        conn.commit()
+
+        row = conn.execute(
+            """SELECT e.*, s.title AS source_title, s.kind AS source_kind
+               FROM evidence e LEFT JOIN capture c ON c.id = e.capture_id LEFT JOIN source s ON s.id = c.source_id
+               WHERE e.id = ?""",
+            (evidence_id,),
+        ).fetchone()
+        d = row_to_dict(row)
+        d["owners"] = json.loads(d.pop("owners_json") or "[]")
+        d["tags"] = json.loads(d.pop("tags_json") or "[]")
+        return d
     finally:
         conn.close()

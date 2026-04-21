@@ -1,11 +1,27 @@
 export type ThreadStatus = "active" | "blocked" | "done" | "archived";
 export type Category = "progress" | "decision" | "risk" | "plan" | "support";
 export type ItemStatus = "done" | "ongoing" | "blocked" | "planned";
+export type ProjectStatus = "active" | "paused" | "done" | "archived";
+
+export interface Project {
+  id: string;
+  name: string;
+  status: ProjectStatus;
+  owner: string | null;
+  summary: string;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+  thread_count?: number;
+  note_count?: number;
+  report_count?: number;
+}
 
 export interface Thread {
   id: string;
   title: string;
   project: string | null;
+  project_id?: string | null;
   owner: string | null;
   status: ThreadStatus;
   started_at: string;
@@ -18,6 +34,8 @@ export interface Thread {
 export interface Evidence {
   id: string;
   thread_id: string | null;
+  thread_title?: string | null;
+  thread_project?: string | null;
   text: string;
   event_date: string | null;
   owners: string[];
@@ -59,6 +77,8 @@ export interface Note {
   title: string;
   body_md: string;
   day: string;
+  project_id?: string | null;
+  project_name?: string | null;
   thread_ids: string[];
   created_at: string;
   updated_at: string;
@@ -68,6 +88,7 @@ export interface NoteInput {
   title?: string;
   body_md?: string;
   day?: string;
+  project_id?: string | null;
   thread_ids?: string[];
 }
 
@@ -75,6 +96,8 @@ export interface NotePatch {
   title?: string;
   body_md?: string;
   day?: string;
+  project_id?: string | null;
+  clear_project?: boolean;
   thread_ids?: string[];
 }
 
@@ -110,6 +133,8 @@ export interface Report {
   period_start: string;
   period_end: string;
   audience: "boss" | "internal" | "1on1" | "retro" | "self";
+  project_id?: string | null;
+  project_name?: string | null;
   thread_ids: string[];
   title: string;
   body_md: string;
@@ -130,6 +155,8 @@ export interface ReportSummary {
   period_start: string;
   period_end: string;
   audience: ReportAudience;
+  project_id?: string | null;
+  project_name?: string | null;
   thread_ids: string[];
   title: string;
   status: ReportStatus;
@@ -140,9 +167,11 @@ export interface ReportCreate {
   period_start: string;
   period_end: string;
   audience?: ReportAudience;
+  project_id?: string | null;
   thread_ids?: string[];
   period_label?: string;
   title?: string;
+  body_md?: string;
 }
 
 export interface ReportPatch {
@@ -154,7 +183,33 @@ export interface ReportPatch {
   period_end?: string;
   period_label?: string;
   audience?: ReportAudience;
+  project_id?: string | null;
+  clear_project?: boolean;
   thread_ids?: string[];
+}
+
+export interface ProjectDetail extends Project {
+  threads: Thread[];
+  notes: Note[];
+  reports: ReportSummary[];
+  todos: Todo[];
+  evidence: Evidence[];
+}
+
+export interface ProjectInput {
+  name: string;
+  status?: ProjectStatus;
+  owner?: string | null;
+  summary?: string;
+  color?: string | null;
+}
+
+export interface ProjectPatch {
+  name?: string;
+  status?: ProjectStatus;
+  owner?: string | null;
+  summary?: string;
+  color?: string | null;
 }
 
 export type LLMProtocol = "openai-compat" | "anthropic";
@@ -219,6 +274,7 @@ export interface InboxItem extends Evidence {
 }
 
 export interface SearchResult {
+  projects: Array<{ id: string; name: string; status: string; summary: string }>;
   threads: Array<{ id: string; title: string; project: string | null; status: string; summary: string }>;
   evidence: Array<{ id: string; text: string; category: string; event_date: string | null; thread_id: string | null; thread_title: string | null }>;
   todos: Array<{ id: string; text: string; done: number; due_date: string | null; thread_id: string | null }>;
@@ -237,6 +293,7 @@ export interface CaptureInput {
 export interface ThreadInput {
   title: string;
   project?: string | null;
+  project_id?: string | null;
   owner?: string | null;
   summary?: string;
   pinned?: boolean;
@@ -246,6 +303,8 @@ export interface ThreadInput {
 export interface ThreadPatchInput {
   title?: string;
   project?: string | null;
+  project_id?: string | null;
+  clear_project?: boolean;
   owner?: string | null;
   status?: ThreadStatus;
   summary?: string;

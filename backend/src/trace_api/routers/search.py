@@ -11,17 +11,29 @@ router = APIRouter(prefix="/search", tags=["search"])
 def search(q: str = "", limit: int = 10) -> dict:
     q = q.strip()
     if not q:
-        return {"threads": [], "evidence": [], "todos": [], "notes": []}
+        return {"projects": [], "threads": [], "evidence": [], "todos": [], "notes": []}
 
     pattern = f"%{q}%"
     conn = connect()
     try:
+        projects = [
+            row_to_dict(r)
+            for r in conn.execute(
+                """SELECT id, name, status, summary
+                   FROM project
+                   WHERE name LIKE ? OR summary LIKE ?
+                   ORDER BY updated_at DESC LIMIT ?""",
+                (pattern, pattern, limit),
+            ).fetchall()
+        ]
+
         threads = [
             row_to_dict(r)
             for r in conn.execute(
-                """SELECT id, title, project, status, summary
-                   FROM thread
-                   WHERE title LIKE ? OR summary LIKE ? OR project LIKE ?
+                """SELECT t.id, t.title, COALESCE(p.name, t.project) AS project, t.status, t.summary
+                   FROM thread t
+                   LEFT JOIN project p ON p.id = t.project_id
+                   WHERE t.title LIKE ? OR t.summary LIKE ? OR COALESCE(p.name, t.project, '') LIKE ?
                    ORDER BY last_active_at DESC LIMIT ?""",
                 (pattern, pattern, pattern, limit),
             ).fetchall()
@@ -60,6 +72,7 @@ def search(q: str = "", limit: int = 10) -> dict:
         ]
 
         return {
+            "projects": projects,
             "threads": threads,
             "evidence": evidence,
             "todos": todos,

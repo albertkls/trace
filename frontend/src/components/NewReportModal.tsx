@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import ProjectSelect from "@/components/ProjectSelect";
+import ThreadMultiSelectChips from "@/components/ThreadMultiSelectChips";
 import { api } from "@/lib/api";
 import type { Report, ReportAudience } from "@/lib/types";
 import {
   AUDIENCE_OPTIONS,
   PRESETS,
+  REPORT_TEMPLATES,
   toISODateTimeMinute,
   toDateTimeInputValue,
 } from "@/lib/periods";
@@ -13,18 +16,38 @@ import {
 type Props = {
   open: boolean;
   onClose: () => void;
+  defaultProjectId?: string;
   onCreated?: (r: Report) => void;
 };
 
-export default function NewReportModal({ open, onClose, onCreated }: Props) {
+export default function NewReportModal({
+  open,
+  onClose,
+  defaultProjectId,
+  onCreated,
+}: Props) {
   const qc = useQueryClient();
   const [presetKey, setPresetKey] = useState<string>("this_week");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [audience, setAudience] = useState<ReportAudience>("boss");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [customLabel, setCustomLabel] = useState("");
   const [customTitle, setCustomTitle] = useState("");
+  const [selectedThreads, setSelectedThreads] = useState<string[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("standard");
   const [error, setError] = useState<string | null>(null);
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
+    enabled: open,
+  });
+  const { data: threads = [] } = useQuery({
+    queryKey: ["threads"],
+    queryFn: api.threads.list,
+    enabled: open,
+  });
 
   const preset = useMemo(
     () => PRESETS.find((p) => p.key === presetKey) ?? PRESETS[0],
@@ -45,25 +68,83 @@ export default function NewReportModal({ open, onClose, onCreated }: Props) {
     if (!open) return;
     setPresetKey("this_week");
     setAudience("boss");
+    setSelectedProjectId(defaultProjectId ?? "");
     setCustomLabel("");
     setCustomTitle("");
+    setSelectedThreads([]);
+    setSelectedTemplate("standard");
     setError(null);
     const now = toISODateTimeMinute(new Date());
     if (!start) setStart(now);
     if (!end) setEnd(now);
-  }, [open]);
+  }, [open, defaultProjectId]);
+
+  const visibleThreads = useMemo(
+    () =>
+      selectedProjectId
+        ? threads.filter((thread) => thread.project_id === selectedProjectId)
+        : threads,
+    [selectedProjectId, threads]
+  );
+  const selectedThreadObjects = useMemo(
+    () => threads.filter((thread) => selectedThreads.includes(thread.id)),
+    [selectedThreads, threads]
+  );
+  const selectedThreadProjectNames = useMemo(
+    () =>
+      Array.from(
+        new Set(selectedThreadObjects.map((thread) => thread.project).filter(Boolean))
+      ) as string[],
+    [selectedThreadObjects]
+  );
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+
+  useEffect(() => {
+    setSelectedThreads((prev) =>
+      prev.filter((threadId) => visibleThreads.some((thread) => thread.id === threadId))
+    );
+  }, [visibleThreads]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (selectedProjectId && !customTitle.trim()) {
+      setCustomTitle(`${selectedProject?.name || "项目"} · 本周项目报告`);
+    } else if (!selectedProjectId && defaultProjectId) {
+      setCustomTitle("");
+    }
+  }, [defaultProjectId, open, selectedProject?.name, selectedProjectId]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (selectedProjectId && selectedTemplate === "standard") {
+      setSelectedTemplate("project");
+    }
+  }, [open, selectedProjectId, selectedTemplate]);
+
+  const toggleThread = (id: string) => {
+    setSelectedThreads(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+  };
 
   const create = useMutation({
-    mutationFn: () =>
-      api.reports.create({
+    mutationFn: () => {
+      const template = REPORT_TEMPLATES.find(t => t.key === selectedTemplate);
+      return api.reports.create({
         period_start: start,
         period_end: end,
         audience,
+        project_id: selectedProjectId || null,
         period_label: customLabel.trim() || undefined,
         title: customTitle.trim() || undefined,
-      }),
+        thread_ids: selectedThreads.length > 0 ? selectedThreads : undefined,
+        body_md: template?.body || "",
+      });
+    },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       onCreated?.(r);
       onClose();
     },
@@ -178,6 +259,48 @@ export default function NewReportModal({ open, onClose, onCreated }: Props) {
                   title={o.hint}
                 >
                   {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="mb-1.5 eyebrow">项目（可选）</div>
+            <ProjectSelect value={selectedProjectId} onChange={setSelectedProjectId} />
+          </div>
+
+          <div className="mb-4">
+            <div className="mb-1.5 eyebrow">限定线程（可选）</div>
+            <p className="mb-2 text-xs text-ink-mute">不选则包含所有线程的证据</p>
+            <ThreadMultiSelectChips
+              threads={visibleThreads}
+              selectedIds={selectedThreads}
+              onToggle={toggleThread}
+              className="max-h-32 overflow-y-auto"
+            />
+          </div>
+
+          {!selectedProjectId && selectedThreadProjectNames.length > 1 && (
+            <div className="mb-4 rounded-xl border border-signal-hold/40 bg-signal-hold/10 px-4 py-2 text-xs text-signal-hold">
+              当前选择的线程跨多个项目，建议绑定一个明确项目，或只保留同一项目下的线程。
+            </div>
+          )}
+
+          <div className="mb-4">
+            <div className="mb-1.5 eyebrow">模板</div>
+            <div className="flex flex-wrap gap-1.5">
+              {REPORT_TEMPLATES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setSelectedTemplate(t.key)}
+                  className={clsx(
+                    "chip cursor-pointer text-xs",
+                    selectedTemplate === t.key && "chip-accent"
+                  )}
+                  title={t.hint}
+                >
+                  {t.label}
                 </button>
               ))}
             </div>

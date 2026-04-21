@@ -9,6 +9,11 @@ import QuickCapture from "@/components/QuickCapture";
 import EditThreadModal from "@/components/EditThreadModal";
 import MergeThreadModal from "@/components/MergeThreadModal";
 import ThreadReportModal from "@/components/ThreadReportModal";
+import {
+  CATEGORY_OPTIONS,
+  CATEGORY_TIMELINE_MARKER_STYLE,
+} from "@/lib/categories";
+import type { Category, Evidence } from "@/lib/types";
 
 export default function ThreadDetail() {
   const { id = "" } = useParams();
@@ -18,6 +23,7 @@ export default function ThreadDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [editingEvidence, setEditingEvidence] = useState<string | null>(null);
 
   const { data: thread, isLoading } = useQuery({
     queryKey: ["thread", id],
@@ -28,6 +34,15 @@ export default function ThreadDetail() {
   const summarize = useMutation({
     mutationFn: () => api.threads.summarize(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["thread", id] }),
+  });
+
+  const updateEvidence = useMutation({
+    mutationFn: ({ evId, patch }: { evId: string; patch: { text?: string; event_date?: string; category?: Category } }) =>
+      api.captures.update(evId, patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["thread", id] });
+      setEditingEvidence(null);
+    },
   });
 
   if (isLoading || !thread) {
@@ -81,7 +96,14 @@ export default function ThreadDetail() {
               <StatusDot status={thread.status} />
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-mute">
-              {thread.project && <span className="chip">{thread.project}</span>}
+              {thread.project &&
+                (thread.project_id ? (
+                  <Link to={`/projects/${thread.project_id}`} className="chip transition hover:border-accent/40 hover:text-accent">
+                    {thread.project}
+                  </Link>
+                ) : (
+                  <span className="chip">{thread.project}</span>
+                ))}
               {thread.owner && (
                 <span className="chip">负责人 · {thread.owner}</span>
               )}
@@ -126,47 +148,16 @@ export default function ThreadDetail() {
 
           <ol className="relative space-y-5 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-accent/40 before:via-line-strong before:to-transparent">
             {thread.evidence.map((ev, idx) => (
-              <li key={ev.id} className="relative pl-9">
-                <span
-                  className={clsx(
-                    "absolute left-0 top-2 flex h-6 w-6 items-center justify-center rounded-full border bg-canvas-raised text-[11px]",
-                    ev.category === "risk"
-                      ? "border-signal-stop/50 text-signal-stop"
-                      : ev.category === "decision"
-                      ? "border-accent/50 text-accent"
-                      : ev.category === "plan"
-                      ? "border-signal-hold/50 text-signal-hold"
-                      : ev.category === "support"
-                      ? "border-iris/50 text-iris"
-                      : "border-signal-go/50 text-signal-go"
-                  )}
-                  style={{
-                    boxShadow:
-                      "inset 0 0 8px rgba(255,255,255,0.04), 0 0 10px rgba(94,230,197,0.08)",
-                  }}
-                >
-                  ◆
-                </span>
-                <div className="panel p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs text-ink-mute">
-                    <CategoryChip category={ev.category} />
-                    <span className="mono-meta">
-                      {ev.event_date ?? "未定日期"}
-                    </span>
-                    <span className="mono-meta ml-auto text-ink-faint">
-                      #{String(idx + 1).padStart(2, "0")}
-                    </span>
-                  </div>
-                  <p className="text-[15px] leading-relaxed text-ink">
-                    {ev.text}
-                  </p>
-                  {ev.owners.length > 0 && (
-                    <div className="mt-2 mono-meta">
-                      {ev.owners.join(" · ")}
-                    </div>
-                  )}
-                </div>
-              </li>
+              <EvidenceTimelineItem
+                key={ev.id}
+                evidence={ev}
+                index={idx}
+                editing={editingEvidence === ev.id}
+                saving={updateEvidence.isPending}
+                onEdit={() => setEditingEvidence(ev.id)}
+                onCancelEdit={() => setEditingEvidence(null)}
+                onSave={(patch) => updateEvidence.mutate({ evId: ev.id, patch })}
+              />
             ))}
           </ol>
         </section>
@@ -243,6 +234,128 @@ export default function ThreadDetail() {
             </button>
           </div>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+function EvidenceTimelineItem({
+  evidence,
+  index,
+  editing,
+  saving,
+  onEdit,
+  onCancelEdit,
+  onSave,
+}: {
+  evidence: Evidence;
+  index: number;
+  editing: boolean;
+  saving: boolean;
+  onEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: (patch: { text?: string; event_date?: string; category?: Category }) => void;
+}) {
+  return (
+    <li className="relative pl-9">
+      <span
+        className={clsx(
+          "absolute left-0 top-2 flex h-6 w-6 items-center justify-center rounded-full border bg-canvas-raised text-[11px]",
+          CATEGORY_TIMELINE_MARKER_STYLE[evidence.category]
+        )}
+        style={{
+          boxShadow:
+            "inset 0 0 8px rgba(255,255,255,0.04), 0 0 10px rgba(94,230,197,0.08)",
+        }}
+      >
+        ◆
+      </span>
+      {editing ? (
+        <EvidenceEditor
+          evidence={evidence}
+          onSave={onSave}
+          onCancel={onCancelEdit}
+          saving={saving}
+        />
+      ) : (
+        <div className="panel p-4">
+          <div className="mb-2 flex items-center gap-2 text-xs text-ink-mute">
+            <CategoryChip category={evidence.category} />
+            <span className="mono-meta">{evidence.event_date ?? "未定日期"}</span>
+            <button
+              className="ml-auto text-[10px] text-ink-mute transition hover:text-accent"
+              onClick={onEdit}
+            >
+              编辑
+            </button>
+            <span className="mono-meta text-ink-faint">
+              #{String(index + 1).padStart(2, "0")}
+            </span>
+          </div>
+          <p className="text-[15px] leading-relaxed text-ink">{evidence.text}</p>
+          {evidence.owners.length > 0 && (
+            <div className="mt-2 mono-meta">{evidence.owners.join(" · ")}</div>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function EvidenceEditor({
+  evidence,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  evidence: Evidence;
+  onSave: (patch: { text?: string; event_date?: string; category?: Category }) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [text, setText] = useState(evidence.text);
+  const [date, setDate] = useState(evidence.event_date ?? "");
+  const [category, setCategory] = useState<Category>(evidence.category);
+
+  return (
+    <div className="panel space-y-3 p-4">
+      <div className="flex items-center gap-2">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as Category)}
+          className="rounded-md border border-line bg-canvas-sunken/70 px-2 py-1 text-xs outline-none focus:border-accent/60"
+        >
+          {CATEGORY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <input
+          type="datetime-local"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="flex-1 rounded-md border border-line bg-canvas-sunken/70 px-2 py-1 font-mono text-xs outline-none focus:border-accent/60"
+        />
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        className="w-full rounded-lg border border-line bg-canvas-sunken/60 px-3 py-2 font-mono text-[13px] leading-relaxed text-ink outline-none transition focus:border-accent/50"
+        autoFocus
+      />
+      <div className="flex justify-end gap-2">
+        <button className="btn btn-ghost text-xs" onClick={onCancel} disabled={saving}>
+          取消
+        </button>
+        <button
+          className="btn btn-accent text-xs"
+          onClick={() => onSave({ text, event_date: date || undefined, category })}
+          disabled={saving || !text.trim()}
+        >
+          {saving ? "保存中…" : "保存"}
+        </button>
       </div>
     </div>
   );

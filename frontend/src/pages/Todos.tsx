@@ -6,7 +6,6 @@ import { api } from "@/lib/api";
 import {
   formatDateTime,
   toDateTimeInputValue,
-  toISODateTimeMinute,
 } from "@/lib/periods";
 import type { Thread, Todo, TodoPatch } from "@/lib/types";
 
@@ -109,7 +108,7 @@ function QuickAdd({
   pending: boolean;
 }) {
   const [text, setText] = useState("");
-  const [due, setDue] = useState(() => toISODateTimeMinute(new Date()));
+  const [due, setDue] = useState("");
   const [threadId, setThreadId] = useState<string>("");
 
   const submit = async () => {

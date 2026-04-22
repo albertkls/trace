@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import ProjectModal from "@/components/ProjectModal";
 import ProjectSelect from "@/components/ProjectSelect";
-import type { Thread } from "@/lib/types";
+import type { Project, Thread } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -22,6 +23,7 @@ export default function NewThreadModal({
   const [projectId, setProjectId] = useState("");
   const [owner, setOwner] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +73,14 @@ export default function NewThreadModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
+      <ProjectModal
+        open={projectModalOpen}
+        onClose={() => setProjectModalOpen(false)}
+        onSaved={(project: Project) => {
+          setProjectId(project.id);
+          setProjectModalOpen(false);
+        }}
+      />
       <div
         className="panel w-full max-w-md overflow-hidden"
         style={{
@@ -99,7 +109,16 @@ export default function NewThreadModal({
           </label>
 
           <label className="block">
-            <div className="mb-1.5 eyebrow">项目（可选）</div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="eyebrow">项目（可选）</span>
+              <button
+                type="button"
+                className="text-xs text-accent"
+                onClick={() => setProjectModalOpen(true)}
+              >
+                ＋ 新建项目
+              </button>
+            </div>
             <ProjectSelect value={projectId} onChange={setProjectId} />
           </label>
 

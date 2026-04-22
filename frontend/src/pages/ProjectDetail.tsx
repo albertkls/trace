@@ -25,6 +25,7 @@ export default function ProjectDetail() {
   const [newThreadOpen, setNewThreadOpen] = useState(false);
   const [newReportOpen, setNewReportOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
@@ -147,9 +148,11 @@ export default function ProjectDetail() {
   const summarize = useMutation({
     mutationFn: () => api.projects.summarize(id),
     onSuccess: () => {
+      setActionError(null);
       qc.invalidateQueries({ queryKey: ["project", id] });
       qc.invalidateQueries({ queryKey: ["projects"] });
     },
+    onError: (e: Error) => setActionError(`项目摘要生成失败：${e.message}`),
   });
 
   const createWeeklyReport = useMutation({
@@ -166,11 +169,13 @@ export default function ProjectDetail() {
       });
     },
     onSuccess: (report) => {
+      setActionError(null);
       qc.invalidateQueries({ queryKey: ["reports"] });
       qc.invalidateQueries({ queryKey: ["project", id] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/reports/${report.id}`);
     },
+    onError: (e: Error) => setActionError(`创建本周项目报告失败：${e.message}`),
   });
 
   if (isLoading || !project) {
@@ -258,6 +263,12 @@ export default function ProjectDetail() {
         <MetricCard label="记事" value={project.note_count ?? project.notes.length} />
         <MetricCard label="汇报" value={project.report_count ?? project.reports.length} />
       </div>
+
+      {actionError && (
+        <div className="mb-6 rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-3 text-sm text-signal-stop">
+          {actionError}
+        </div>
+      )}
 
       <div className="mb-8">
         <input

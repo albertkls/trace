@@ -24,6 +24,7 @@ export default function ThreadDetail() {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [editingEvidence, setEditingEvidence] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const { data: thread, isLoading } = useQuery({
     queryKey: ["thread", id],
@@ -33,7 +34,11 @@ export default function ThreadDetail() {
 
   const summarize = useMutation({
     mutationFn: () => api.threads.summarize(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["thread", id] }),
+    onSuccess: () => {
+      setActionError(null);
+      qc.invalidateQueries({ queryKey: ["thread", id] });
+    },
+    onError: (e: Error) => setActionError(`线程摘要生成失败：${e.message}`),
   });
 
   const updateEvidence = useMutation({
@@ -133,6 +138,12 @@ export default function ThreadDetail() {
           </div>
         </div>
       </header>
+
+      {actionError && (
+        <div className="mb-6 rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-3 text-sm text-signal-stop">
+          {actionError}
+        </div>
+      )}
 
       <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-8">
         <section>

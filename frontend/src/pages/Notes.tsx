@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useSearchParams } from "react-router-dom";
 import CategoryChoiceChips from "@/components/CategoryChoiceChips";
+import ProjectModal from "@/components/ProjectModal";
 import ProjectSelect from "@/components/ProjectSelect";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import ThreadMultiSelectChips from "@/components/ThreadMultiSelectChips";
 import { api } from "@/lib/api";
 import { recommendProjects } from "@/lib/projectRecommendations";
-import type { Note, NotePatch, Thread, Category } from "@/lib/types";
+import type { Note, NotePatch, Thread, Category, Project } from "@/lib/types";
 import { dateKey, formatDateTime, toDateTimeInputValue } from "@/lib/periods";
 
 export default function Notes() {
@@ -250,6 +251,7 @@ function NoteEditor({
   const [promoting, setPromoting] = useState(false);
   const [promoteCategory, setPromoteCategory] = useState<Category>("progress");
   const [promoteThreadId, setPromoteThreadId] = useState<string>("");
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
 
   useEffect(() => {
     setTitle(note.title);
@@ -363,6 +365,14 @@ function NoteEditor({
 
   return (
     <div className="flex h-full flex-col gap-3">
+      <ProjectModal
+        open={projectModalOpen}
+        onClose={() => setProjectModalOpen(false)}
+        onSaved={(project: Project) => {
+          setProjectId(project.id);
+          setProjectModalOpen(false);
+        }}
+      />
       <div className="flex items-center gap-3">
         <input
           value={title}
@@ -402,6 +412,13 @@ function NoteEditor({
         <div className="w-64">
           <ProjectSelect value={projectId} onChange={setProjectId} />
         </div>
+        <button
+          type="button"
+          className="btn btn-ghost text-xs"
+          onClick={() => setProjectModalOpen(true)}
+        >
+          ＋ 新建项目
+        </button>
       </div>
 
       <ProjectRecommendationBar

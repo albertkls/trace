@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import ProjectModal from "@/components/ProjectModal";
@@ -100,9 +100,19 @@ export default function Projects() {
       ) : (
         <ul className="grid grid-cols-2 gap-4">
           {visibleProjects.map((project) => (
-            <li key={project.id} className="panel relative overflow-hidden p-5">
-              <Link to={`/projects/${project.id}`} className="absolute inset-0" aria-label={project.name} />
-              <div className="relative z-[1]">
+            <li key={project.id}>
+              <div
+                className="panel group flex cursor-pointer flex-col overflow-hidden p-5 transition hover:border-accent/40"
+                onClick={() => navigate(`/projects/${project.id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/projects/${project.id}`);
+                  }
+                }}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-[16px] font-medium text-ink">{project.name}</div>
@@ -113,8 +123,9 @@ export default function Projects() {
                   </div>
                   <button
                     type="button"
-                    className="btn btn-ghost relative z-[2] text-xs"
-                    onClick={() => {
+                    className="btn btn-ghost text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setEditingProject(project);
                       setOpen(true);
                     }}
@@ -122,7 +133,7 @@ export default function Projects() {
                     编辑
                   </button>
                 </div>
-                <p className="mt-4 min-h-12 text-sm leading-relaxed text-ink-soft">
+                <p className="mt-4 min-h-12 text-sm leading-relaxed text-ink-soft group-hover:text-ink">
                   {project.summary || "还没有摘要。"}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2 mono-meta">

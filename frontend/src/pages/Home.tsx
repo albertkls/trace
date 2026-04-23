@@ -115,9 +115,6 @@ export default function Home() {
                 key={i}
                 className="flex items-center gap-4 border-b border-line/60 px-5 py-3.5 text-sm text-ink-soft last:border-b-0"
               >
-                <span className="mono-meta w-8 text-ink-faint">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
                 <span className="flex-1">{it.text}</span>
               </li>
             )

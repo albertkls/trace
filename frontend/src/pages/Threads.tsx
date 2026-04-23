@@ -73,8 +73,7 @@ export default function Threads() {
         </div>
       ) : (
         <section className="panel overflow-hidden">
-          <div className="grid grid-cols-[40px_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line px-5 py-2.5 eyebrow">
-            <span>#</span>
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line px-5 py-2.5 eyebrow">
             <span>STATUS</span>
             <span>THREAD</span>
             <span>PROJECT</span>
@@ -82,15 +81,12 @@ export default function Threads() {
             <span className="w-4" />
           </div>
           <ul>
-            {threads.map((t, idx) => (
+            {threads.map((t) => (
               <li key={t.id}>
                 <Link
                   to={`/threads/${t.id}`}
-                  className="group grid grid-cols-[40px_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line/60 px-5 py-4 transition last:border-b-0 hover:bg-canvas-contrast/40"
+                  className="group grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line/60 px-5 py-4 transition last:border-b-0 hover:bg-canvas-contrast/40"
                 >
-                  <span className="mono-meta text-ink-faint group-hover:text-accent">
-                    {String(idx + 1).padStart(2, "0")}
-                  </span>
                   <StatusDot status={t.status} withLabel={false} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">

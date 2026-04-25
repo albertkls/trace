@@ -5,9 +5,13 @@
 ## 项目概述
 
 - **项目名**: Trace
-- **技术栈**: Tauri 2.x (Rust + React + TypeScript) + FastAPI (Python)
+- **技术栈**: FastAPI (Python) + React (TypeScript) + pywebview，使用 PyInstaller 打包成 macOS .app
 - **版本**: 1.1.0
 - **用途**: 个人使用的桌面应用
+
+> 仓库内同时保留了 `frontend/src-tauri/`（Tauri 2.x 实验外壳），但**正式发布不使用 Tauri**。
+> Tauri 打包只产出前端，没有捆绑后端，运行时所有 API 调用都会失败（典型报错：`The string did not match the expected pattern`）。
+> **不要使用** `npm run tauri:build` 来产出发布版本。
 
 ## 分支策略
 
@@ -61,17 +65,23 @@ git push origin dev
 类型可选: Feature | Fix | Refactor | Docs | Chore
 ```
 
-### 3. 构建测试
+### 3. 开发与构建命令
 
 ```bash
-# 前端开发
+# 一键启动后端 + 前端开发服务器（Vite + FastAPI）
+./start.sh
+
+# 只启动前端
 cd frontend && npm run dev
 
-# Tauri 开发模式
-cd frontend && npm run tauri:dev
+# 只启动后端
+cd backend && .venv/bin/trace-api --mode development --reload
 
-# 全量构建
-cd frontend && npm run tauri:build
+# 桌面联调（pywebview 运行真实后端窗口）
+make desktop
+
+# 类型检查
+cd frontend && npm run typecheck
 ```
 
 ## 发布流程
@@ -95,25 +105,46 @@ git tag v1.2.0              # 创建标签
 git push origin v1.2.0     # 推送标签
 ```
 
-### 步骤 3: 构建 DMG
+### 步骤 3: 打包 macOS .app + DMG
+
+> 这是**唯一**正确的发布打包路径。脚本会用 PyInstaller 把 FastAPI 后端、前端 dist、pywebview 打成一个独立的 `.app`，再生成 DMG。
 
 ```bash
-cd frontend
-npm run tauri:build
+make package-mac
+# 等价于
+PY=python3.11 bash scripts/release/build-mac.sh
 ```
 
-DMG 文件位置:
+产物位置:
+
 ```
-frontend/src-tauri/target/release/bundle/dmg/Trace_{版本号}_aarch64.dmg
+output/macos/Trace.app                     # 可直接拖到 /Applications
+output/macos/Trace-{版本号}-macOS.dmg      # 可分发的 DMG
+output/macos/SHA256SUMS.txt                # 校验和
 ```
 
-### 步骤 4: 创建 GitHub Release
+### 步骤 4: 安装到本机测试
+
+```bash
+# 删除旧版本（如果存在）
+rm -rf /Applications/Trace.app
+
+# 拷贝新版本
+cp -R output/macos/Trace.app /Applications/
+
+# 由于未签名，去掉 quarantine 标记
+xattr -dr com.apple.quarantine /Applications/Trace.app
+```
+
+打开 `/Applications/Trace.app` 验证：新建项目、新建线索、删除项目等核心流程不报错。
+
+### 步骤 5: 创建 GitHub Release
 
 ```bash
 gh release create v1.2.0 \
   --title "Trace v1.2.0" \
   --notes "版本说明" \
-  "frontend/src-tauri/target/release/bundle/dmg/Trace_1.2.0_aarch64.dmg"
+  "output/macos/Trace-1.2.0-macOS.dmg"
 ```
 
 或通过 GitHub 网页上传 DMG 文件。
@@ -122,12 +153,14 @@ gh release create v1.2.0 \
 
 ```
 Trace/
-├── frontend/               # Tauri 前端 (React)
+├── frontend/               # 前端 (React + Vite)
 │   ├── src/               # React 源码
-│   ├── src-tauri/         # Tauri/Rust 源码
-│   └── dist/              # 构建产物
+│   ├── src-tauri/         # 实验性 Tauri 外壳（不用于正式发布）
+│   └── dist/              # 前端构建产物（被 PyInstaller 打入 .app）
 ├── backend/               # FastAPI 后端 (Python)
-│   └── src/trace_api/    # API 源码
+│   └── src/trace_api/    # API 源码 + desktop.py（pywebview 入口）
+├── scripts/release/       # macOS 打包脚本
+├── output/macos/          # 打包产物（.app / .dmg）
 ├── docs/                  # 文档
 └── CLAUDE.md             # 本文件
 ```
@@ -135,25 +168,29 @@ Trace/
 ## 环境要求
 
 - Node.js 18+
-- Rust 1.77+
-- Python 3.10+
-- macOS (用于构建 DMG)
+- Python 3.11（脚本默认 `python3.11`，可用 `PY=...` 覆盖）
+- macOS（用于构建 DMG）
 
 ## 常用命令
 
 ```bash
 # 安装依赖
-cd frontend && npm install
-cd backend && pip install -r requirements.txt
+make setup            # 同时初始化 backend venv 和前端依赖
 
-# 开发模式
-cd frontend && npm run tauri:dev
+# 开发模式（同时启动 backend + frontend）
+./start.sh
 
-# 构建发布版
-cd frontend && npm run tauri:build
+# 桌面联调
+make desktop
 
-# 运行后端
-cd backend && uvicorn src.trace_api.main:app --reload
+# 打包发布版（macOS）
+make package-mac
+
+# 运行测试
+make test
+
+# 代码格式化
+make fmt
 ```
 
 ## 版本号规范
@@ -164,10 +201,17 @@ cd backend && uvicorn src.trace_api.main:app --reload
 - **次版本**: 新功能（向后兼容）
 - **修订号**: Bug 修复（向后兼容）
 
+发布前需要同步更新版本号的位置：
+
+- `frontend/package.json` → `version`
+- `frontend/src-tauri/tauri.conf.json` → `version`
+- `frontend/src-tauri/Cargo.toml` → `[package] version`
+- `backend/pyproject.toml` → `[project] version`（**打包脚本读取这里**）
+
 ## 注意事项
 
 1. 所有开发在 `dev` 分支进行
 2. `main` 分支保持稳定，不直接提交
-3. 发布前确保 DMG 能正常打开
-4. 每次发布前更新 `package.json` 和 `Cargo.toml` 中的版本号
+3. 发布前用 `make package-mac` 产出的 `.app` 实际打开测试一遍
+4. **不要使用** `npm run tauri:build` 产出发布版本——那条路径没有打包后端，运行时 API 调用全部失败
 5. 代码修改后运行 `npm run typecheck` 确保类型正确

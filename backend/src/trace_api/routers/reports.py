@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-import uuid
-from datetime import datetime, timezone, timedelta, date as date_cls
+from datetime import date as date_cls, datetime
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -17,11 +16,10 @@ from ..llm.prompts import (
     rewrite_apply_mode,
 )
 from ..project_utils import require_project
+from ..utils import TZ, new_id, now_iso
 from .llm import get_default_profile
 
 router = APIRouter(prefix="/reports", tags=["reports"])
-
-TZ = timezone(timedelta(hours=8))
 
 ALLOWED_AUDIENCES = {"boss", "internal", "1on1", "retro", "self"}
 ALLOWED_STATUS = {"draft", "final", "archived"}
@@ -36,11 +34,11 @@ AUDIENCE_SUFFIX = {
 
 
 def _new_id() -> str:
-    return f"rp_{uuid.uuid4().hex[:12]}"
+    return new_id("rp")
 
 
 def _now_iso() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
+    return now_iso()
 
 
 def _parse_iso_date(s: str) -> date_cls:

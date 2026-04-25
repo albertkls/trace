@@ -28,7 +28,7 @@ export default function Notes() {
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryFn: () => api.threads.list(),
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);

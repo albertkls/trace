@@ -1,30 +1,33 @@
 from __future__ import annotations
 
 import json
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..db import connect, row_to_dict
+from ..db import connect, cursor, row_to_dict
 from ..llm import LLMError, build_provider
 from ..llm.base import ChatMessage
 from ..project_utils import resolve_project_reference
+from ..utils import TZ, new_id, now_iso, today_iso
 from .llm import get_default_profile
 
 router = APIRouter(prefix="/threads", tags=["threads"])
 
-TZ = timezone(timedelta(hours=8))
 ALLOWED_THREAD_STATUS = {"active", "blocked", "done", "archived"}
 
 
 def _now() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
+    return now_iso()
 
 
 def _today() -> str:
-    return datetime.now(TZ).date().isoformat()
+    return today_iso()
+
+
+def _id(prefix: str) -> str:
+    return new_id(prefix)
 
 
 def _normalize_started_at(value: str) -> str:
@@ -54,10 +57,6 @@ def _normalize_started_at(value: str) -> str:
         raise HTTPException(400, "started_at cannot be in the future")
 
     return normalized
-
-
-def _id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
 class ThreadIn(BaseModel):
@@ -325,17 +324,25 @@ async def summarize_thread(thread_id: str) -> dict:
     except LLMError as e:
         raise HTTPException(502, f"LLM error: {e}") from e
 
-    conn2 = connect()
-    try:
-        conn2.execute(
+    with cursor() as cur:
+        cur.execute(
             "UPDATE thread SET summary=?, last_active_at=? WHERE id=?",
             (summary_text.strip(), _now(), thread_id),
         )
-        conn2.commit()
-        refreshed = conn2.execute("SELECT * FROM thread WHERE id=?", (thread_id,)).fetchone()
+        refreshed = cur.execute("SELECT * FROM thread WHERE id=?", (thread_id,)).fetchone()
         return row_to_dict(refreshed)
-    finally:
-        conn2.close()
+
+
+@router.delete("/{thread_id}", status_code=204)
+def delete_thread(thread_id: str) -> None:
+    with cursor() as cur:
+        row = cur.execute("SELECT id FROM thread WHERE id = ?", (thread_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "thread not found")
+        # Manually cascade-delete evidence and todos (schema uses ON DELETE SET NULL)
+        cur.execute("DELETE FROM evidence WHERE thread_id = ?", (thread_id,))
+        cur.execute("DELETE FROM todo WHERE thread_id = ?", (thread_id,))
+        cur.execute("DELETE FROM thread WHERE id = ?", (thread_id,))
 
 
 @router.get("/{thread_id}")

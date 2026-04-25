@@ -243,6 +243,20 @@ def get_project(project_id: str) -> dict:
         conn.close()
 
 
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: str) -> None:
+    conn = connect()
+    try:
+        row = conn.execute("SELECT id FROM project WHERE id = ?", (project_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "project not found")
+        # ON DELETE SET NULL in schema automatically unlinks threads/notes/reports
+        conn.execute("DELETE FROM project WHERE id = ?", (project_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @router.patch("/{project_id}")
 def patch_project(project_id: str, patch: ProjectPatch) -> dict:
     conn = connect()

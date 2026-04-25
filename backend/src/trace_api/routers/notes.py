@@ -1,31 +1,27 @@
 from __future__ import annotations
 
 import json
-import uuid
-from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, row_to_dict
 from ..project_utils import require_project
+from ..utils import local_minute, new_id, now_iso
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
-TZ = timezone(timedelta(hours=8))
-
 
 def _now() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
+    return now_iso()
 
 
 def _current_local_minute() -> str:
-    """Minute-precision local timestamp matching the frontend's datetime-local form."""
-    return datetime.now(TZ).strftime("%Y-%m-%dT%H:%M")
+    return local_minute()
 
 
 def _id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    return new_id(prefix)
 
 
 class NoteIn(BaseModel):

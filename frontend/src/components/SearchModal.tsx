@@ -16,6 +16,7 @@ export default function SearchModal({
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -38,17 +39,19 @@ export default function SearchModal({
 
   useEffect(() => {
     const trimmed = q.trim();
-    if (!trimmed) {
+    if (trimmed.length < 2) {
       setResults(null);
+      setSearchError(false);
       return;
     }
     const timer = window.setTimeout(async () => {
       setLoading(true);
+      setSearchError(false);
       try {
         const data = await api.search(trimmed);
         setResults(data);
       } catch {
-        // ignore transient search errors
+        setSearchError(true);
       } finally {
         setLoading(false);
       }
@@ -96,6 +99,9 @@ export default function SearchModal({
           />
           {loading && (
             <span className="mono-meta animate-pulse text-ink-mute">搜索中</span>
+          )}
+          {searchError && !loading && (
+            <span className="mono-meta text-signal-stop">搜索失败</span>
           )}
           <span className="mono-meta text-ink-faint">ESC 关闭</span>
         </div>
@@ -173,7 +179,7 @@ export default function SearchModal({
                       className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-canvas-contrast/50"
                     >
                       <div className="mt-0.5 shrink-0">
-                        <CategoryChip category={ev.category as any} />
+                        <CategoryChip category={ev.category} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="line-clamp-2 text-sm text-ink">

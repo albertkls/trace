@@ -19,7 +19,7 @@ export default function Inbox() {
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryFn: () => api.threads.list(),
   });
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],

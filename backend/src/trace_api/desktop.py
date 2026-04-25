@@ -17,7 +17,7 @@ import webview
 from trace_api import __version__
 from trace_api.main import create_app
 
-APP_TITLE = f"Trace {__version__}"
+APP_TITLE = "Trace"
 WINDOW_MIN_SIZE = (1180, 760)
 WINDOW_SIZE = (1440, 920)
 STARTUP_TIMEOUT_SECONDS = 20.0

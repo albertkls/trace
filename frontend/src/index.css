@@ -211,6 +211,25 @@
     );
   }
 
+  .desktop-titlebar {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 65%),
+      theme("colors.canvas.sunken");
+  }
+
+  .desktop-traffic {
+    @apply h-3 w-3 rounded-full border border-black/20 transition hover:brightness-110;
+  }
+  .desktop-traffic-close {
+    background: #ff5f57;
+  }
+  .desktop-traffic-minimize {
+    background: #febc2e;
+  }
+  .desktop-traffic-zoom {
+    background: #28c840;
+  }
+
   /* ───── Tabs ───── */
   .tab {
     @apply rounded-lg px-3 py-1.5 text-sm text-ink-soft transition hover:text-ink;

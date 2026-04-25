@@ -43,7 +43,7 @@ export default function QuickCapture({
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryFn: () => api.threads.list(),
     enabled: open,
   });
 

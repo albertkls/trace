@@ -10,11 +10,11 @@ export default function Home() {
   const { open: openCapture } = useQuickCapture();
   const { data: threads = [], isLoading } = useQuery({
     queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryFn: () => api.threads.list(),
   });
   const { data: reports = [] } = useQuery({
     queryKey: ["reports"],
-    queryFn: api.reports.list,
+    queryFn: () => api.reports.list(),
   });
   const { data: inbox = [] } = useQuery({
     queryKey: ["inbox"],
@@ -101,9 +101,6 @@ export default function Home() {
                   className="group relative flex items-center gap-4 border-b border-line/60 px-5 py-3.5 text-sm text-ink transition last:border-b-0 hover:bg-canvas-contrast/50"
                 >
                   <span className="absolute inset-y-0 left-0 w-px bg-accent/0 transition-all group-hover:w-[2px] group-hover:bg-accent" />
-                  <span className="mono-meta w-8 text-ink-faint transition group-hover:text-accent">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
                   <span className="flex-1">{it.text}</span>
                   <span className="text-ink-mute transition group-hover:translate-x-0.5 group-hover:text-accent">
                     →

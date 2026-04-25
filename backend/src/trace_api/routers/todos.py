@@ -1,24 +1,20 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, row_to_dict
+from ..utils import new_id, now_iso
 
 router = APIRouter(prefix="/todos", tags=["todos"])
 
-TZ = timezone(timedelta(hours=8))
-
 
 def _now() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
+    return now_iso()
 
 
 def _id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    return new_id(prefix)
 
 
 class TodoIn(BaseModel):

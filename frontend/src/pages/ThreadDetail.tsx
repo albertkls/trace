@@ -15,6 +15,9 @@ import {
 } from "@/lib/categories";
 import type { Category, Evidence } from "@/lib/types";
 
+const TIMELINE_MARKER_SHADOW =
+  "inset 0 0 8px rgba(255,255,255,0.04), 0 0 10px rgba(94,230,197,0.08)";
+
 export default function ThreadDetail() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -68,6 +71,7 @@ export default function ThreadDetail() {
       <EditThreadModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
+        onDeleted={() => navigate("/threads")}
         thread={thread}
       />
       <MergeThreadModal
@@ -231,19 +235,6 @@ export default function ThreadDetail() {
             )}
           </div>
 
-          <div className="panel p-5">
-            <div className="mb-2 eyebrow">建议</div>
-            <p className="text-sm text-ink-soft">
-              "数据权限" 相关证据可能与{" "}
-              <span className="text-accent">平台侧</span> 线程合并。
-            </p>
-            <button
-              className="btn mt-3 w-full justify-center"
-              onClick={() => setMergeOpen(true)}
-            >
-              查看合并建议
-            </button>
-          </div>
         </aside>
       </div>
     </div>
@@ -274,10 +265,7 @@ function EvidenceTimelineItem({
           "absolute left-0 top-2 flex h-6 w-6 items-center justify-center rounded-full border bg-canvas-raised text-[11px]",
           CATEGORY_TIMELINE_MARKER_STYLE[evidence.category]
         )}
-        style={{
-          boxShadow:
-            "inset 0 0 8px rgba(255,255,255,0.04), 0 0 10px rgba(94,230,197,0.08)",
-        }}
+        style={{ boxShadow: TIMELINE_MARKER_SHADOW }}
       >
         ◆
       </span>

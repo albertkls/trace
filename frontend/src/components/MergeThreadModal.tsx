@@ -27,7 +27,7 @@ export default function MergeThreadModal({
 
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryFn: () => api.threads.list(),
     enabled: open,
   });
 

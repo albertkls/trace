@@ -14,6 +14,7 @@ import type {
 type Props = {
   open: boolean;
   onClose: () => void;
+  onDeleted?: () => void;
   thread: ThreadDetail;
 };
 
@@ -24,7 +25,7 @@ const STATUS_OPTIONS: Array<{ value: ThreadStatus; label: string }> = [
   { value: "archived", label: "已归档" },
 ];
 
-export default function EditThreadModal({ open, onClose, thread }: Props) {
+export default function EditThreadModal({ open, onClose, onDeleted, thread }: Props) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -34,8 +35,13 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
   const [pinned, setPinned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const today = toISODate(new Date());
+
+  useEffect(() => {
+    if (!open) setConfirmDelete(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,6 +62,18 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
     thread.status,
     thread.title,
   ]);
+
+  const remove = useMutation({
+    mutationFn: () => api.threads.remove(thread.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["threads"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
+      onClose();
+      onDeleted?.();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
 
   const save = useMutation({
     mutationFn: () => {
@@ -236,21 +254,53 @@ export default function EditThreadModal({ open, onClose, thread }: Props) {
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              className="btn btn-ghost"
-              onClick={onClose}
-              disabled={save.isPending}
-            >
-              取消（Esc）
-            </button>
-            <button
-              className="btn btn-accent"
-              onClick={() => save.mutate()}
-              disabled={!canSubmit}
-            >
-              {save.isPending ? "保存中…" : "保存修改"}
-            </button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            {/* Delete with two-step confirmation */}
+            <div className="flex items-center gap-2">
+              {confirmDelete ? (
+                <>
+                  <button
+                    className="btn btn-ghost text-xs"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={remove.isPending}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="btn text-xs bg-signal-stop/20 border-signal-stop/40 text-signal-stop hover:bg-signal-stop/30"
+                    onClick={() => remove.mutate()}
+                    disabled={remove.isPending}
+                  >
+                    {remove.isPending ? "删除中…" : "确认删除线程及所有记录"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-ghost text-xs text-ink-mute hover:text-signal-stop"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={save.isPending || remove.isPending}
+                >
+                  删除线程
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                className="btn btn-ghost"
+                onClick={onClose}
+                disabled={save.isPending}
+              >
+                取消（Esc）
+              </button>
+              <button
+                className="btn btn-accent"
+                onClick={() => save.mutate()}
+                disabled={!canSubmit}
+              >
+                {save.isPending ? "保存中…" : "保存修改"}
+              </button>
+            </div>
           </div>
         </div>
       </div>

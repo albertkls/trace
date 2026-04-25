@@ -14,11 +14,12 @@ const STATUS_OPTIONS: Array<{ value: ProjectStatus; label: string }> = [
 type Props = {
   open: boolean;
   onClose: () => void;
+  onDeleted?: () => void;
   project?: Project | null;
   onSaved?: (project: Project) => void;
 };
 
-export default function ProjectModal({ open, onClose, project, onSaved }: Props) {
+export default function ProjectModal({ open, onClose, onDeleted, project, onSaved }: Props) {
   const qc = useQueryClient();
   const editing = !!project;
   const [name, setName] = useState("");
@@ -27,6 +28,11 @@ export default function ProjectModal({ open, onClose, project, onSaved }: Props)
   const [summary, setSummary] = useState("");
   const [color, setColor] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (!open) setConfirmDelete(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +43,19 @@ export default function ProjectModal({ open, onClose, project, onSaved }: Props)
     setColor(project?.color ?? "");
     setError(null);
   }, [open, project]);
+
+  const remove = useMutation({
+    mutationFn: () => api.projects.remove(project!.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["threads"] });
+      qc.invalidateQueries({ queryKey: ["notes"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      onClose();
+      onDeleted?.();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -160,13 +179,49 @@ export default function ProjectModal({ open, onClose, project, onSaved }: Props)
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <button className="btn btn-ghost" onClick={onClose} disabled={save.isPending}>
-              取消
-            </button>
-            <button className="btn btn-accent" onClick={() => save.mutate()} disabled={!canSubmit}>
-              {save.isPending ? "保存中…" : editing ? "保存项目" : "创建项目"}
-            </button>
+          <div className="flex items-center justify-between gap-2">
+            {/* Delete (edit mode only) with two-step confirmation */}
+            {editing ? (
+              <div className="flex items-center gap-2">
+                {confirmDelete ? (
+                  <>
+                    <button
+                      className="btn btn-ghost text-xs"
+                      onClick={() => setConfirmDelete(false)}
+                      disabled={remove.isPending}
+                    >
+                      取消
+                    </button>
+                    <button
+                      className="btn text-xs bg-signal-stop/20 border-signal-stop/40 text-signal-stop hover:bg-signal-stop/30"
+                      onClick={() => remove.mutate()}
+                      disabled={remove.isPending}
+                    >
+                      {remove.isPending ? "删除中…" : "确认删除项目"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn btn-ghost text-xs text-ink-mute hover:text-signal-stop"
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={save.isPending || remove.isPending}
+                  >
+                    删除项目
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-2">
+              <button className="btn btn-ghost" onClick={onClose} disabled={save.isPending}>
+                取消
+              </button>
+              <button className="btn btn-accent" onClick={() => save.mutate()} disabled={!canSubmit}>
+                {save.isPending ? "保存中…" : editing ? "保存项目" : "创建项目"}
+              </button>
+            </div>
           </div>
         </div>
       </div>

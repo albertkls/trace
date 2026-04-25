@@ -1,4 +1,3 @@
-import { APP_VERSION } from "@/lib/appInfo";
 import {
   desktopCloseWindow,
   desktopMinimizeWindow,
@@ -8,9 +7,10 @@ import {
 export default function DesktopTitlebar() {
   return (
     <div
-      className="desktop-titlebar flex h-10 items-center justify-between border-b border-line px-3"
+      className="desktop-titlebar flex h-10 shrink-0 items-center border-b border-line px-3"
       data-tauri-drag-region
     >
+      {/* Traffic light buttons — aligned with sidebar left edge */}
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -32,16 +32,8 @@ export default function DesktopTitlebar() {
         />
       </div>
 
-      <div className="pointer-events-none flex items-center gap-2" data-tauri-drag-region>
-        <img
-          src="/trace-icon.svg"
-          alt="Trace"
-          className="h-4 w-4 rounded-[4px] border border-white/10"
-        />
-        <span className="text-xs font-medium tracking-wide text-ink-soft">Trace</span>
-      </div>
-
-      <div className="mono-meta text-[10px] text-ink-faint">v{APP_VERSION}</div>
+      {/* Drag region — occupies remaining space, no redundant branding */}
+      <div className="flex-1" data-tauri-drag-region />
     </div>
   );
 }

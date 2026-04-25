@@ -1,22 +1,15 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timedelta, timezone
-
 from fastapi import HTTPException
 
 from .db import row_to_dict
+from .utils import new_id, now_iso
 
-TZ = timezone(timedelta(hours=8))
 PROJECT_STATUSES = {"active", "paused", "done", "archived"}
 
 
-def now_iso() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
-
-
 def new_project_id() -> str:
-    return f"prj_{uuid.uuid4().hex[:12]}"
+    return new_id("prj")
 
 
 def clean_optional_text(value: str | None) -> str | None:

@@ -2,3 +2,7 @@
 
 declare const __TRACE_VERSION__: string;
 declare const __TRACE_RUNTIME__: string;
+
+interface Window {
+  __TAURI_INTERNALS__?: unknown;
+}

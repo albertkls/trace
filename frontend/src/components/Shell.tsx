@@ -4,7 +4,7 @@ import clsx from "clsx";
 import DesktopTitlebar from "./DesktopTitlebar";
 import QuickCapture from "./QuickCapture";
 import SearchModal from "./SearchModal";
-import { APP_VERSION, appRuntimeLabel } from "@/lib/appInfo";
+import { APP_VERSION, appRuntimeLabel, isTauriDesktop } from "@/lib/appInfo";
 import { QuickCaptureContext } from "@/lib/quickCapture";
 import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
 
@@ -21,15 +21,32 @@ const NAV: { to: string; label: string; key: string; glyph: string }[] = [
 ];
 
 export default function Shell() {
-  const today = new Date();
-  const week = isoWeekLabel(today).split("-W")[1];
-  const dateLabel = toISODateTimeMinute(today).replace("T", " ");
   const runtimeLabel = appRuntimeLabel();
+  const [now, setNow] = useState(() => new Date());
+
+  const week = isoWeekLabel(now).split("-W")[1];
+  const dateLabel = toISODateTimeMinute(now).replace("T", " ");
 
   const [captureOpen, setCaptureOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const ctx = useMemo(() => ({ open: () => setCaptureOpen(true) }), []);
-  const isDesktop = runtimeLabel === "desktop";
+  // Only show custom titlebar when actually inside Tauri (frameless window).
+  // In the PyInstaller/pywebview build the native macOS title bar is used instead.
+  const showCustomTitlebar = isTauriDesktop();
+
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const ms = 60_000 - (Date.now() % 60_000);
+    let interval: number | undefined;
+    const initial = window.setTimeout(() => {
+      tick();
+      interval = window.setInterval(tick, 60_000);
+    }, ms);
+    return () => {
+      window.clearTimeout(initial);
+      if (interval !== undefined) window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,7 +67,7 @@ export default function Shell() {
   return (
     <QuickCaptureContext.Provider value={ctx}>
       <div className="relative flex h-full w-full flex-col bg-canvas text-ink">
-        {isDesktop ? (
+        {showCustomTitlebar ? (
           <DesktopTitlebar />
         ) : (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent" />
@@ -130,9 +147,6 @@ export default function Shell() {
                         {item.glyph}
                       </span>
                       <span className="flex-1">{item.label}</span>
-                      <span className="mono-meta text-[10px] opacity-50 group-hover:opacity-90">
-                        {item.key}
-                      </span>
                     </>
                   )}
                 </NavLink>

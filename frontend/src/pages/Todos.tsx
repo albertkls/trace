@@ -18,7 +18,7 @@ export default function Todos() {
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: api.threads.list,
+    queryFn: () => api.threads.list(),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["todos"] });

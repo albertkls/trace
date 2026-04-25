@@ -64,12 +64,11 @@ export const api = {
       }),
     summarize: (id: string) =>
       req<ProjectDetail>(`/projects/${id}/summarize`, { method: "POST" }),
+    remove: (id: string) => req<void>(`/projects/${id}`, { method: "DELETE" }),
   },
   threads: {
-    list: (projectId?: string | unknown) => {
-      const id = typeof projectId === "string" ? projectId : undefined;
-      return req<Thread[]>(`/threads${id ? `?project_id=${encodeURIComponent(id)}` : ""}`);
-    },
+    list: (projectId?: string) =>
+      req<Thread[]>(`/threads${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
     get: (id: string) => req<ThreadDetail>(`/threads/${id}`),
     create: (body: ThreadInput) =>
       req<Thread>("/threads", { method: "POST", body: JSON.stringify(body) }),
@@ -80,6 +79,7 @@ export const api = {
       }),
     summarize: (id: string) =>
       req<Thread>(`/threads/${id}/summarize`, { method: "POST" }),
+    remove: (id: string) => req<void>(`/threads/${id}`, { method: "DELETE" }),
   },
   captures: {
     inbox: () => req<InboxItem[]>("/captures/inbox"),
@@ -115,10 +115,8 @@ export const api = {
       }),
   },
   reports: {
-    list: (projectId?: string | unknown) => {
-      const id = typeof projectId === "string" ? projectId : undefined;
-      return req<ReportSummary[]>(`/reports${id ? `?project_id=${encodeURIComponent(id)}` : ""}`);
-    },
+    list: (projectId?: string) =>
+      req<ReportSummary[]>(`/reports${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
     get: (id: string) => req<Report>(`/reports/${id}`),
     create: (body: ReportCreate) =>
       req<Report>("/reports", {
@@ -177,10 +175,8 @@ export const api = {
     remove: (id: string) => req<void>(`/todos/${id}`, { method: "DELETE" }),
   },
   notes: {
-    list: (projectId?: string | unknown) => {
-      const id = typeof projectId === "string" ? projectId : undefined;
-      return req<Note[]>(`/notes${id ? `?project_id=${encodeURIComponent(id)}` : ""}`);
-    },
+    list: (projectId?: string) =>
+      req<Note[]>(`/notes${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
     get: (id: string) => req<Note>(`/notes/${id}`),
     create: (body: NoteInput) =>
       req<Note>("/notes", { method: "POST", body: JSON.stringify(body) }),

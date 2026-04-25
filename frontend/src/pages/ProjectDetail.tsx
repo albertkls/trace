@@ -191,6 +191,7 @@ export default function ProjectDetail() {
       <ProjectModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
+        onDeleted={() => navigate("/projects")}
         project={project}
       />
       <NewThreadModal

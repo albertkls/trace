@@ -3,33 +3,31 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-import uuid
-from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, row_to_dict
+import uuid
+
+from ..utils import local_minute, new_id, now_iso
 
 router = APIRouter(prefix="/captures", tags=["captures"])
 
-TZ = timezone(timedelta(hours=8))
 VALID_CATEGORIES = {"progress", "decision", "risk", "plan", "support"}
 
 
 def _now() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
+    return now_iso()
 
 
 def _current_local_minute() -> str:
-    """Minute-precision local timestamp without tz suffix — matches the
-    `YYYY-MM-DDTHH:MM` form the frontend stores in `event_date` / `due_date`."""
-    return datetime.now(TZ).strftime("%Y-%m-%dT%H:%M")
+    return local_minute()
 
 
 def _id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    return new_id(prefix)
 
 
 def _hash(text: str) -> str:

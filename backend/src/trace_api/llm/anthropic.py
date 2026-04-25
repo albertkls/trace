@@ -12,8 +12,11 @@ from .base import ChatChunk, ChatMessage, LLMError, Profile
 ANTHROPIC_VERSION = "2023-06-01"
 
 
+_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0)
+
+
 class AnthropicProvider:
-    def __init__(self, profile: Profile, *, timeout: float = 60.0) -> None:
+    def __init__(self, profile: Profile, *, timeout: httpx.Timeout = _TIMEOUT) -> None:
         self.profile = profile
         self.timeout = timeout
 

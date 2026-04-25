@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import uuid
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
 from .config import default_data_dir
+from .utils import new_id, now_iso
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SCHEMA_PATH = PACKAGE_DIR / "schema.sql"
-TZ = timezone(timedelta(hours=8))
 
 
 def default_db_path() -> Path:
@@ -41,10 +39,6 @@ MIGRATIONS: list[tuple[str, str]] = [
     ("report", "thread_ids_json TEXT NOT NULL DEFAULT '[]'"),
     ("report", "project_id TEXT"),
 ]
-
-
-def _now_iso() -> str:
-    return datetime.now(TZ).isoformat(timespec="seconds")
 
 
 def _backfill_projects(conn: sqlite3.Connection) -> None:
@@ -80,11 +74,11 @@ def _backfill_projects(conn: sqlite3.Connection) -> None:
         ).fetchone()
         if existing:
             continue
-        now = _now_iso()
+        now = now_iso()
         conn.execute(
             "INSERT INTO project (id,name,status,owner,summary,color,created_at,updated_at) "
             "VALUES (?,?,?,?,?,?,?,?)",
-            (f"prj_{uuid.uuid4().hex[:12]}", name, "active", None, "", None, now, now),
+            (new_id("prj"), name, "active", None, "", None, now, now),
         )
 
     rows = conn.execute(

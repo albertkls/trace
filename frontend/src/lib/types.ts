@@ -52,7 +52,7 @@ export interface Todo {
   thread_title?: string | null;
   text: string;
   due_date: string | null;
-  done: number;
+  done: number | boolean;
   done_at: string | null;
   created_at: string;
 }
@@ -276,7 +276,7 @@ export interface InboxItem extends Evidence {
 export interface SearchResult {
   projects: Array<{ id: string; name: string; status: string; summary: string }>;
   threads: Array<{ id: string; title: string; project: string | null; status: string; summary: string }>;
-  evidence: Array<{ id: string; text: string; category: string; event_date: string | null; thread_id: string | null; thread_title: string | null }>;
+  evidence: Array<{ id: string; text: string; category: Category; event_date: string | null; thread_id: string | null; thread_title: string | null }>;
   todos: Array<{ id: string; text: string; done: number; due_date: string | null; thread_id: string | null }>;
   notes: Array<{ id: string; title: string; day: string }>;
 }

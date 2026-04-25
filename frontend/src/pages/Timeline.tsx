@@ -82,11 +82,11 @@ export default function Timeline() {
 
   const results = useQueries({
     queries: [
-      { queryKey: ["threads"], queryFn: api.threads.list },
+      { queryKey: ["threads"], queryFn: () => api.threads.list() },
       { queryKey: ["inbox"], queryFn: api.captures.inbox },
       { queryKey: ["todos"], queryFn: () => api.todos.list() },
-      { queryKey: ["notes"], queryFn: api.notes.list },
-      { queryKey: ["reports"], queryFn: api.reports.list },
+      { queryKey: ["notes"], queryFn: () => api.notes.list() },
+      { queryKey: ["reports"], queryFn: () => api.reports.list() },
     ],
   });
   const [threadsQ, inboxQ, todosQ, notesQ, reportsQ] = results;

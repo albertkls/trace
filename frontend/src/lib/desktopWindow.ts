@@ -1,9 +1,3 @@
-declare global {
-  interface Window {
-    __TAURI_INTERNALS__?: unknown;
-  }
-}
-
 function isTauri(): boolean {
   return typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
 }

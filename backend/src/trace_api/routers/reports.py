@@ -637,8 +637,17 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
             )
         else:
             current_thread_ids = json.loads(current.get("thread_ids_json") or "[]")
-            _validated_thread_ids(conn, current_thread_ids, new_project_id)
-            new_thread_ids_json = current.get("thread_ids_json") or "[]"
+            # Filter out dead thread ids silently (threads may have been deleted)
+            # instead of raising 404 and blocking report edits.
+            if current_thread_ids:
+                placeholders = ",".join("?" for _ in current_thread_ids)
+                existing_rows = conn.execute(
+                    f"SELECT id FROM thread WHERE id IN ({placeholders})",
+                    tuple(current_thread_ids),
+                ).fetchall()
+                existing_ids = {r["id"] for r in existing_rows}
+                current_thread_ids = [t for t in current_thread_ids if t in existing_ids]
+            new_thread_ids_json = json.dumps(current_thread_ids, ensure_ascii=False)
 
         conn.execute(
             "UPDATE report SET title=?, body_md=?, outline_json=?, status=?, "
@@ -666,8 +675,8 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
         conn.close()
 
 
-@router.delete("/{report_id}")
-def delete_report(report_id: str) -> dict:
+@router.delete("/{report_id}", status_code=204)
+def delete_report(report_id: str) -> None:
     conn = connect()
     try:
         row = conn.execute("SELECT id FROM report WHERE id = ?", (report_id,)).fetchone()
@@ -677,4 +686,3 @@ def delete_report(report_id: str) -> dict:
         conn.commit()
     finally:
         conn.close()
-    return {"ok": True, "id": report_id}

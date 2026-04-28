@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
-import type { LLMProfile, ProfileInput } from "@/lib/types";
+import type { LLMProfile, LLMProtocol, ProfileInput } from "@/lib/types";
 
 const PROTOCOLS = [
   { value: "openai-compat", label: "OpenAI 兼容协议" },
@@ -73,12 +73,16 @@ export default function Settings() {
     is_default: false,
   });
 
+  const [mutError, setMutError] = useState<string | null>(null);
+
   const create = useMutation({
     mutationFn: () => api.llm.create(form),
     onSuccess: () => {
+      setMutError(null);
       qc.invalidateQueries({ queryKey: ["llm-profiles"] });
       resetForm();
     },
+    onError: (e: Error) => setMutError(e.message),
   });
 
   const update = useMutation({
@@ -95,16 +99,20 @@ export default function Settings() {
         is_default: form.is_default,
       }),
     onSuccess: () => {
+      setMutError(null);
       qc.invalidateQueries({ queryKey: ["llm-profiles"] });
       resetForm();
     },
+    onError: (e: Error) => setMutError(e.message),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.llm.remove(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      if (id === editId) resetForm();
       qc.invalidateQueries({ queryKey: ["llm-profiles"] });
     },
+    onError: (e: Error) => setMutError(e.message),
   });
 
   const [testedId, setTestedId] = useState<string | null>(null);
@@ -289,7 +297,7 @@ export default function Settings() {
                 onChange={(e) =>
                   setForm((f) => ({
                     ...f,
-                    protocol: e.target.value as any,
+                    protocol: e.target.value as LLMProtocol,
                   }))
                 }
               >
@@ -404,10 +412,16 @@ export default function Settings() {
             <span className="text-xs text-ink-soft">设为默认配置</span>
           </label>
 
+          {mutError && (
+            <div className="rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-2 text-xs text-signal-stop">
+              操作失败：{mutError}
+            </div>
+          )}
           <div className="flex gap-2 border-t border-line pt-4">
             <button
               className="btn btn-accent flex-1 justify-center"
               onClick={() => {
+                setMutError(null);
                 if (isEditing) {
                   update.mutate();
                 } else {

@@ -21,7 +21,11 @@ export default function Todos() {
     queryFn: () => api.threads.list(),
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["todos"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["todos"] });
+    qc.invalidateQueries({ queryKey: ["thread"] });
+    qc.invalidateQueries({ queryKey: ["project"] });
+  };
 
   const create = useMutation({
     mutationFn: api.todos.create,

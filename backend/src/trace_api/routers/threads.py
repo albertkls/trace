@@ -342,6 +342,35 @@ def delete_thread(thread_id: str) -> None:
         # Manually cascade-delete evidence and todos (schema uses ON DELETE SET NULL)
         cur.execute("DELETE FROM evidence WHERE thread_id = ?", (thread_id,))
         cur.execute("DELETE FROM todo WHERE thread_id = ?", (thread_id,))
+        # Scrub dead thread_id from note.thread_ids_json and report.thread_ids_json
+        for note_row in cur.execute(
+            "SELECT id, thread_ids_json FROM note WHERE thread_ids_json LIKE ?",
+            (f"%{thread_id}%",),
+        ).fetchall():
+            try:
+                ids: list[str] = json.loads(note_row["thread_ids_json"] or "[]")
+                if thread_id in ids:
+                    ids = [x for x in ids if x != thread_id]
+                    cur.execute(
+                        "UPDATE note SET thread_ids_json=? WHERE id=?",
+                        (json.dumps(ids, ensure_ascii=False), note_row["id"]),
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+        for report_row in cur.execute(
+            "SELECT id, thread_ids_json FROM report WHERE thread_ids_json LIKE ?",
+            (f"%{thread_id}%",),
+        ).fetchall():
+            try:
+                ids = json.loads(report_row["thread_ids_json"] or "[]")
+                if thread_id in ids:
+                    ids = [x for x in ids if x != thread_id]
+                    cur.execute(
+                        "UPDATE report SET thread_ids_json=? WHERE id=?",
+                        (json.dumps(ids, ensure_ascii=False), report_row["id"]),
+                    )
+            except Exception:  # noqa: BLE001
+                pass
         cur.execute("DELETE FROM thread WHERE id = ?", (thread_id,))
 
 

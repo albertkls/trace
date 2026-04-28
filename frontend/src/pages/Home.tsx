@@ -26,7 +26,11 @@ export default function Home() {
 
   const today = new Date();
   const weekLabel = isoWeekLabel(today);
-  const iso = today.toISOString().slice(0, 10);
+  const iso = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
 
   const items: { text: string; to?: string }[] = [];
   if (inbox.length > 0) {

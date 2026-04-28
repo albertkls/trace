@@ -30,6 +30,8 @@ export default function Inbox() {
     qc.invalidateQueries({ queryKey: ["inbox"] });
     qc.invalidateQueries({ queryKey: ["threads"] });
     qc.invalidateQueries({ queryKey: ["todos"] });
+    qc.invalidateQueries({ queryKey: ["projects"] });
+    qc.invalidateQueries({ queryKey: ["project"] });
   };
 
   return (

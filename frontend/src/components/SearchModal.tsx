@@ -226,7 +226,7 @@ export default function SearchModal({
                   {results.notes.map((n) => (
                     <button
                       key={n.id}
-                      onClick={() => go("/notes")}
+                      onClick={() => go(`/notes?note_id=${n.id}`)}
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-canvas-contrast/50"
                     >
                       <span className="text-ink-mute">✎</span>

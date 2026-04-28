@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..db import connect, row_to_dict
+from ..db import connect, cursor, row_to_dict
 from ..llm import LLMError, build_provider
 from ..llm.base import ChatMessage
 from ..project_utils import (
@@ -250,7 +250,11 @@ def delete_project(project_id: str) -> None:
         row = conn.execute("SELECT id FROM project WHERE id = ?", (project_id,)).fetchone()
         if not row:
             raise HTTPException(404, "project not found")
-        # ON DELETE SET NULL in schema automatically unlinks threads/notes/reports
+        # Clear denormalised thread.project text so list views don't show the ghost name.
+        # ON DELETE SET NULL handles thread.project_id / note.project_id / report.project_id.
+        conn.execute(
+            "UPDATE thread SET project = NULL WHERE project_id = ?", (project_id,)
+        )
         conn.execute("DELETE FROM project WHERE id = ?", (project_id,))
         conn.commit()
     finally:
@@ -381,13 +385,9 @@ async def summarize_project(project_id: str) -> dict:
     except LLMError as e:
         raise HTTPException(502, f"LLM error: {e}") from e
 
-    conn2 = connect()
-    try:
-        conn2.execute(
+    with cursor() as cur:
+        cur.execute(
             "UPDATE project SET summary=?, updated_at=? WHERE id=?",
             (summary_text.strip(), now_iso(), project_id),
         )
-        conn2.commit()
-    finally:
-        conn2.close()
     return get_project(project_id)

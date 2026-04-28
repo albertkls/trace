@@ -40,6 +40,7 @@ export default function ThreadDetail() {
     onSuccess: () => {
       setActionError(null);
       qc.invalidateQueries({ queryKey: ["thread", id] });
+      qc.invalidateQueries({ queryKey: ["threads"] });
     },
     onError: (e: Error) => setActionError(`线程摘要生成失败：${e.message}`),
   });

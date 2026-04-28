@@ -4,7 +4,12 @@ import clsx from "clsx";
 import DesktopTitlebar from "./DesktopTitlebar";
 import QuickCapture from "./QuickCapture";
 import SearchModal from "./SearchModal";
-import { APP_VERSION, appRuntimeLabel, isTauriDesktop } from "@/lib/appInfo";
+import {
+  APP_VERSION,
+  appRuntimeLabel,
+  isPywebviewDesktop,
+  isTauriDesktop,
+} from "@/lib/appInfo";
 import { QuickCaptureContext } from "@/lib/quickCapture";
 import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
 
@@ -31,8 +36,11 @@ export default function Shell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const ctx = useMemo(() => ({ open: () => setCaptureOpen(true) }), []);
   // Only show custom titlebar when actually inside Tauri (frameless window).
-  // In the PyInstaller/pywebview build the native macOS title bar is used instead.
+  // In the PyInstaller/pywebview build, desktop.py merges the native macOS title
+  // bar into the app (transparent + full-size content view) and the SPA reserves
+  // top-padding so the traffic light buttons don't overlap content.
   const showCustomTitlebar = isTauriDesktop();
+  const isPywebview = isPywebviewDesktop();
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -74,7 +82,15 @@ export default function Shell() {
         )}
 
         <div className="relative flex min-h-0 flex-1">
-          <aside className="relative flex w-56 shrink-0 flex-col border-r border-line bg-canvas-sunken/80 px-3 py-5 gridbg">
+          <aside
+            className={clsx(
+              "relative flex w-56 shrink-0 flex-col border-r border-line bg-canvas-sunken/80 px-3 pb-5 gridbg",
+              // Reserve room at the top of the sidebar for the macOS traffic
+              // light buttons (top-left ~80x28). In all other modes use the
+              // original 20px breathing room.
+              isPywebview ? "pt-12" : "pt-5"
+            )}
+          >
             <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-accent/30 to-transparent" />
 
             <div className="px-2 pb-5">

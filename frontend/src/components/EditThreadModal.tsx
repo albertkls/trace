@@ -234,14 +234,6 @@ export default function EditThreadModal({ open, onClose, onDeleted, thread }: Pr
             </div>
           </label>
 
-          <div className="rounded-xl border border-line bg-canvas-sunken/60 px-4 py-3">
-            <div className="eyebrow">AI 概览</div>
-            <div className="mt-2 text-xs leading-relaxed text-ink-mute">
-              本次先保持 AI-only，不在编辑表单里手改。仍然通过详情页右侧
-              “重写”按钮维护概览内容。
-            </div>
-          </div>
-
           {futureStartedAt && (
             <div className="rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-2 text-xs text-signal-stop">
               开始日期不能晚于今天。

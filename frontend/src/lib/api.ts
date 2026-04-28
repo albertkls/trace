@@ -128,8 +128,7 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    remove: (id: string) =>
-      req<{ ok: boolean; id: string }>(`/reports/${id}`, { method: "DELETE" }),
+    remove: (id: string) => req<void>(`/reports/${id}`, { method: "DELETE" }),
     compose: async function* (
       id: string,
       body: { profile_id?: string; note?: string } = {}

@@ -264,6 +264,8 @@ export default function ReportComposer() {
           setDirty(true);
           setSavedAt(new Date().toISOString());
           qc.invalidateQueries({ queryKey: ["report", id] });
+          qc.invalidateQueries({ queryKey: ["reports"] });
+          qc.invalidateQueries({ queryKey: ["project"] });
         } else if (chunk.type === "error") {
           flashToast(`LLM 错误: ${chunk.message}`);
         }

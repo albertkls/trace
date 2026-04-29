@@ -1,6 +1,7 @@
 import type {
   CaptureInput,
   ComposeChunk,
+  DailyActivity,
   InboxItem,
   LLMProfile,
   Note,
@@ -205,6 +206,10 @@ export const api = {
         `/llm/profiles/${id}/test`,
         { method: "POST" }
       ),
+  },
+  activity: {
+    daily: (date?: string) =>
+      req<DailyActivity>(`/activity/daily${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   },
 };
 

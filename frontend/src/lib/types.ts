@@ -311,3 +311,25 @@ export interface ThreadPatchInput {
   pinned?: boolean;
   started_at?: string;
 }
+
+export interface DailyActivity {
+  date: string;
+  evidence: Evidence[];
+  completed_todos: Array<{
+    id: string;
+    text: string;
+    due_date: string | null;
+    done_at: string | null;
+    thread_id: string | null;
+    thread_title: string | null;
+  }>;
+  active_threads: Array<{
+    id: string;
+    title: string;
+    status: ThreadStatus;
+    project_id: string | null;
+    project_name: string | null;
+  }>;
+  capture_count: number;
+  todo_done_count: number;
+}

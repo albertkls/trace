@@ -3,8 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import StatusDot from "@/components/StatusDot";
+import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
-import { isoWeekLabel } from "@/lib/periods";
+import { isoWeekLabel, toISODate, formatDateTime } from "@/lib/periods";
+
+function yesterdayISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toISODate(d);
+}
 
 export default function Home() {
   const { open: openCapture } = useQuickCapture();
@@ -19,6 +26,10 @@ export default function Home() {
   const { data: inbox = [] } = useQuery({
     queryKey: ["inbox"],
     queryFn: api.captures.inbox,
+  });
+  const { data: yesterday } = useQuery({
+    queryKey: ["activity", yesterdayISO()],
+    queryFn: () => api.activity.daily(yesterdayISO()),
   });
 
   const maxEv = Math.max(1, ...threads.map((t) => t.evidence_count ?? 0));
@@ -122,6 +133,86 @@ export default function Home() {
           )}
         </ul>
       </section>
+
+      {/* Yesterday Review */}
+      {yesterday && (
+        <section className="panel mb-6 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <div className="flex items-center gap-2">
+              <span className="eyebrow">YESTERDAY · {yesterday.date}</span>
+              <span className="chip">
+                {yesterday.capture_count} 条记录
+                {yesterday.todo_done_count > 0 && ` · ${yesterday.todo_done_count} 项完成`}
+              </span>
+            </div>
+            <Link
+              to="/timeline"
+              className="text-xs text-accent transition hover:brightness-125"
+            >
+              时间线 →
+            </Link>
+          </div>
+
+          {yesterday.capture_count === 0 && yesterday.todo_done_count === 0 ? (
+            <div className="px-5 py-6 text-center text-sm text-ink-mute">
+              昨天没有活动记录。
+            </div>
+          ) : (
+            <ul>
+              {/* Evidence items */}
+              {yesterday.evidence.map((ev) => (
+                <li key={ev.id}>
+                  <Link
+                    to={ev.thread_id ? `/threads/${ev.thread_id}` : "/inbox"}
+                    className="group relative flex items-start gap-3 border-b border-line/60 px-5 py-3 transition last:border-b-0 hover:bg-canvas-contrast/40"
+                  >
+                    <span className="absolute inset-y-0 left-0 w-px bg-accent/0 transition-all group-hover:w-[2px] group-hover:bg-accent" />
+                    <CategoryChip category={ev.category} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-ink">{ev.text}</p>
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-mute">
+                        {ev.thread_title && <span>{ev.thread_title}</span>}
+                        {ev.thread_project && (
+                          <>
+                            <span className="opacity-40">·</span>
+                            <span>{ev.thread_project}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <span className="mono-meta shrink-0 text-[10px]">
+                      {formatDateTime(ev.event_date, { withYear: false, includeTime: true })}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+
+              {/* Completed todos */}
+              {yesterday.completed_todos.map((td) => (
+                <li
+                  key={td.id}
+                  className="flex items-center gap-3 border-b border-line/60 px-5 py-3 last:border-b-0"
+                >
+                  <span className="text-accent">✓</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-ink-soft line-through decoration-ink-mute/40">
+                      {td.text}
+                    </p>
+                    {td.thread_title && (
+                      <div className="mt-0.5 text-[11px] text-ink-mute">
+                        {td.thread_title}
+                      </div>
+                    )}
+                  </div>
+                  <span className="mono-meta shrink-0 text-[10px]">
+                    {formatDateTime(td.done_at, { withYear: false, includeTime: true })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* Threads · Activity */}
       <section className="panel overflow-hidden">

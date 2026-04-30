@@ -4,19 +4,17 @@
 
 Trace 是一个**本地优先的个人 AI 工作台**，用来把日常工作中的闪记、证据、线程、项目、待办和汇报组织到一起。
 
-它不是 Jira、Notion 或单纯的周报生成器；它更像一个专门为“长期推进 + 周期输出”设计的个人工作上下文系统。
-
 ---
 
 ## 为什么做 Trace
 
-很多工具只能做“摘要”，但工作中真正难的是：
+工作中真正难的不是"写周报"，而是：
 
 - 我最近到底推进了什么？
 - 这些分散的记录、风险、决定之间有什么关系？
 - 怎么把它们整理成一份能对外讲清楚的汇报？
 
-Trace 解决的不是“把文档压短”，而是：
+Trace 解决的不是"把文档压短"，而是：
 
 > **把散落的工作线索织成一段可追溯、可复用、可输出的叙事。**
 
@@ -30,175 +28,112 @@ Capture → Evidence → Thread → Report
                       Project
 ```
 
-### 关键概念
-
-- **Capture**：随手记下的一笔
-- **Evidence**：可被引用的工作事实
-- **Thread**：一条持续推进的工作线
-- **Project**：Thread/Note/Report 的上层上下文
-- **Report**：在时间窗口下生成的叙事输出
+| 概念 | 说明 |
+|------|------|
+| **Capture** | 随手记下的一笔（闪记） |
+| **Evidence** | 可被引用的工作事实，带分类与标签 |
+| **Thread** | 一条持续推进的工作线 |
+| **Project** | Thread / Note / Report 的上层上下文 |
+| **Report** | 在时间窗口下生成的叙事输出（周报、月报、复盘…） |
 
 ---
 
-## 现在有哪些功能
+## 功能一览
 
-### 1. 快速记录
+### Quick Capture（`⌘⇧N`）
 
-- `⌘⇧N` 打开 Quick Capture
-- 记录一句话、一个风险、一个决定、一个计划
-- 可以直接选项目、选线程，或先丢进 Inbox
+- **Enter 直接提交**，无需组合键，默认进入 Inbox
+- 输入 `#线程名` 自动归入线程，`@项目名` 自动关联项目
+- 连续输入模式：提交后保持弹窗，计数器递增，适合批量补录
 
-### 2. 收件箱整理
+### 每日回顾
 
-- 管理未归线程的记录
-- 调整分类
-- 归入已有线程
-- 新建线程并归入
-- 转为待办
+- Home 页自动展示昨日证据和已完成待办
+- 一眼看清"昨天做了什么"
+
+### 收件箱（Inbox）
+
+- 管理未归线程的闪记
+- 调整分类（进展 / 决定 / 风险 / 计划 / 协同）
+- 归入已有线程或新建线程
+- 一键转为待办
 - 自动推荐项目
 
-### 3. 项目管理（轻量）
+### 项目管理
 
-- 新建项目
-- 项目详情页
-- 项目内搜索
+- 新建 / 编辑 / 删除项目
+- 项目详情页：线程、笔记、报告、待办、证据一站式查看
 - 项目时间线
-- 项目摘要自动生成
-- 一键创建本周项目报告
+- 项目摘要 AI 自动生成
+- 一键创建项目报告
 
-### 4. 工作线管理
+### 工作线（Thread）
 
-- 创建/编辑线程
+- 创建 / 编辑 / 删除 / 归档
 - 查看线程时间线
 - 管理关联待办
 - AI 生成线程摘要
-- 合并线程
 
-### 5. Markdown 记事
+### Markdown 记事
 
 - 按天记录长文笔记
-- 自动保存
-- 挂靠项目
-- 关联多个线程
+- 自动保存，挂靠项目，关联多个线程
 - 可晋升为证据
-- 自动推荐项目
 
-### 6. 待办管理
+### 待办管理
 
-- 创建待办
-- 设置截止时间
-- 挂靠线程
+- 创建待办，设置截止时间，挂靠线程
 - 标记完成
 
-### 7. 汇报生成
+### 汇报生成
 
-- 周报 / 月报 / 项目报告 / 复盘 / 1:1
-- AI 起草
-- AI 改写
-- 证据引用
-- 项目上下文增强
+- 支持多种场景：周报 / 月报 / 项目报告 / 复盘 / 1:1
+- AI 起草，AI 改写（续写 / 压缩 / 调性 / 自定义指令）
+- 证据引用与项目上下文增强
 
-### 8. 全局时间线与搜索
+### 全局搜索（`⌘K`）
 
-- 全局时间线查看跨模块活动
-- `⌘K` 全局搜索
-- 搜索项目、线程、证据、待办、笔记
+- 一次搜索覆盖项目、线程、证据、待办、笔记
 
-### 9. LLM 配置
+### LLM 配置
 
-- 支持 OpenAI 兼容协议
-- 支持 Anthropic
-- 支持 DeepSeek / Kimi / 通义 / Ollama / 自定义网关
-
----
-
-## 当前版本亮点（v1.1）
-
-本次版本重点增强：
-
-- 新增 **Projects** 模块
-- 项目详情页与项目时间线
-- 项目摘要自动生成
-- 项目报告模板
-- Quick Capture / Inbox / Notes 的项目推荐
-- 项目内搜索与项目活动流
-
----
-
-## 适合谁
-
-Trace 特别适合：
-
-- 同时推进多个主题的人
-- 需要周期性输出周报 / 月报 / 复盘的人
-- 喜欢边做边记、但希望最后能沉淀成果的人
-- 需要把“零碎工作痕迹”整理成“清楚叙事”的人
-
----
-
-## 技术栈
-
-- **前端**：Vite + React + TypeScript + Tailwind
-- **后端**：FastAPI + SQLite
-- **桌面壳**：pywebview
-- **打包**：PyInstaller + hdiutil（macOS）
-- **AI 接入**：OpenAI 兼容协议 + Anthropic
-
----
-
-## 项目结构
-
-```text
-Trace/
-├── backend/                 FastAPI + SQLite + desktop launcher
-├── frontend/                React / Vite UI
-├── docs/                    产品、架构、用户说明
-├── scripts/dev.sh           一键开发启动
-├── scripts/release/         发行版与安装包脚本
-├── start.sh                 本地开发启动器
-└── Makefile
-```
+- 支持 OpenAI 兼容协议（OpenAI / DeepSeek / Kimi / 通义 / Ollama 等）
+- 支持 Anthropic 原生协议
+- 多 Profile 管理，一键测试连接
 
 ---
 
 ## 快速开始
 
-### 1) 开发模式
-
-首次安装：
+### 安装依赖
 
 ```bash
 make setup
 ```
 
-启动开发环境：
+### 开发模式
 
 ```bash
 make dev
 ```
 
-访问地址：
-
 - 前端：http://localhost:5173
 - 后端：http://localhost:8787
 - API 文档：http://localhost:8787/docs
 
-### 2) 本地桌面预览
+### 桌面预览
 
 ```bash
 make desktop
 ```
 
-### 3) 打包为 Mac 应用
+### 打包 macOS 应用
 
 ```bash
 make package-mac
 ```
 
-产物位置：
-
-- `output/macos/Trace.app`
-- `output/macos/Trace-1.1.0-macOS.dmg`
+产物：`output/macos/Trace.app` 和 `output/macos/Trace-{version}-macOS.dmg`
 
 ---
 
@@ -212,60 +147,74 @@ make desktop       # 本地桌面模式运行
 make package-mac   # 构建 Trace.app 与 DMG
 make test          # 后端测试
 make fmt           # Ruff 检查 / 格式化
+make reset         # 清除本地数据库
+```
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 前端 | React 18 + TypeScript + Vite + TailwindCSS |
+| 后端 | Python 3.11+ / FastAPI + SQLite |
+| 桌面壳 | pywebview（macOS native） |
+| 打包 | PyInstaller + hdiutil |
+| AI 接入 | OpenAI 兼容协议 + Anthropic |
+
+---
+
+## 项目结构
+
+```text
+Trace/
+├── backend/               FastAPI + SQLite 后端
+│   └── src/trace_api/
+│       ├── routers/       API 路由（threads, projects, captures, reports, todos, notes, llm, search, activity）
+│       ├── llm/           LLM 调用层（OpenAI 兼容 + Anthropic）
+│       ├── schema.sql     数据库 Schema
+│       ├── db.py          数据库连接与迁移
+│       └── desktop.py     pywebview 桌面入口
+├── frontend/              React / Vite 前端
+│   └── src/
+│       ├── components/    通用组件（Shell, QuickCapture, SearchModal…）
+│       ├── pages/         页面（Home, Inbox, Projects, Threads, Notes, Todos, Reports, Timeline, Settings）
+│       └── lib/           工具函数、API 客户端、类型定义
+├── docs/                  产品文档、架构、用户指南
+├── scripts/release/       打包脚本
+└── Makefile
 ```
 
 ---
 
 ## 数据与隐私
 
-- 默认数据库位置：
-  - `~/Library/Application Support/Trace/db.sqlite`
-- 所有工作数据默认保存在本地 SQLite
-- LLM 调用使用用户自己的 Key
-- 本项目当前不做本地脱敏，调用前请自行判断数据风险
+- 数据库位置：`~/Library/Application Support/Trace/db.sqlite`
+- 所有数据默认保存在本地 SQLite，不上传任何服务器
+- LLM 调用使用用户自己的 API Key，直接请求用户配置的端点
+- 本项目不做本地脱敏，调用 LLM 前请自行判断数据风险
 
 ---
 
-## 用户文档
+## 文档
 
-如果你是第一次使用，建议先看：
-
-- [docs/08-user-guide.md](docs/08-user-guide.md)
-
-它会详细介绍：
-
-- 每个模块做什么
-- 每个功能怎么用
-- 推荐工作流
-- 常见问题
+- [用户指南](docs/08-user-guide.md) — 每个模块怎么用、推荐工作流
+- [产品愿景](docs/00-vision.md)
+- [PRD](docs/01-prd.md)
+- [数据模型](docs/02-data-model.md)
+- [架构设计](docs/03-architecture.md)
+- [macOS 发布说明](docs/04-release-macos.md)
 
 ---
 
-## 其他文档
+## 适合谁
 
-- [docs/00-vision.md](docs/00-vision.md)
-- [docs/01-prd.md](docs/01-prd.md)
-- [docs/02-data-model.md](docs/02-data-model.md)
-- [docs/03-architecture.md](docs/03-architecture.md)
-- [docs/04-release-macos.md](docs/04-release-macos.md)
-- [docs/05-project-prd.md](docs/05-project-prd.md)
-- [docs/06-project-ia.md](docs/06-project-ia.md)
-- [docs/07-project-technical-design.md](docs/07-project-technical-design.md)
-- [docs/08-user-guide.md](docs/08-user-guide.md)
+- 同时推进多个主题，需要把碎片串成线索的人
+- 需要周期性输出周报 / 月报 / 复盘的人
+- 喜欢边做边记、但希望最后能沉淀成果的人
 
 ---
 
-## 当前状态
+## License
 
-当前仓库最近已通过：
-
-- `cd backend && .venv/bin/pytest -q`
-- `cd backend && .venv/bin/ruff check .`
-- `cd frontend && npm run typecheck`
-- `cd frontend && npm run build`
-
----
-
-## 一句话总结
-
-如果你想找一个工具，帮助你把“日常工作痕迹”一步步整理成“能讲清楚的项目叙事和汇报”，Trace 就是为这个场景做的。
+Private — 仅供个人使用。

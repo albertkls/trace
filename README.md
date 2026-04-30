@@ -1,217 +1,180 @@
 # Trace
 
-把碎片工作连成一份能讲故事的汇报。
+**把每天的碎片工作，变成一份讲得出故事的汇报。**
 
-Trace 是一个**本地优先的个人 AI 工作台**，用来把日常工作中的闪记、证据、线程、项目、待办和汇报组织到一起。
+你一定经历过这种时刻：周五下午，老板问"这周推进了什么"，你翻遍聊天记录、邮件、文档，拼凑出一份"好像做了不少但说不清楚"的周报。
 
----
+Trace 就是为了解决这个问题而生的。
 
-## 为什么做 Trace
-
-工作中真正难的不是"写周报"，而是：
-
-- 我最近到底推进了什么？
-- 这些分散的记录、风险、决定之间有什么关系？
-- 怎么把它们整理成一份能对外讲清楚的汇报？
-
-Trace 解决的不是"把文档压短"，而是：
-
-> **把散落的工作线索织成一段可追溯、可复用、可输出的叙事。**
+它是一个**本地优先的个人工作台**——随手记一笔闪记，系统帮你归线程、挂项目、攒证据，最后 AI 帮你起草一份有脉络的汇报。所有数据留在你自己的电脑里，不经过任何第三方。
 
 ---
 
-## 核心模型
+## 它是怎么工作的
 
-```text
-Capture → Evidence → Thread → Report
-                     ↘
-                      Project
+想象一个漏斗：
+
+```
+随手记一笔 → 变成可引用的证据 → 串成一条持续的工作线 → 最终输出为汇报
+                                                          ↘
+                                                        属于某个项目
 ```
 
-| 概念 | 说明 |
-|------|------|
-| **Capture** | 随手记下的一笔（闪记） |
-| **Evidence** | 可被引用的工作事实，带分类与标签 |
-| **Thread** | 一条持续推进的工作线 |
-| **Project** | Thread / Note / Report 的上层上下文 |
-| **Report** | 在时间窗口下生成的叙事输出（周报、月报、复盘…） |
+举个例子：
+
+1. **开会时随手记**："跟前端对齐了，方案 B 可行，下周出原型"
+2. 系统自动归入「XX 项目重构」这条**工作线**，打上"决定"标签
+3. 周五你点一下"生成周报"，AI 从这条线程积累的十几条证据里，帮你**起草一段有上下文的汇报**
+4. 你改几个词，直接发出去
+
+从碎片到汇报，中间没有"整理"这个痛苦步骤。
 
 ---
 
-## 功能一览
+## 功能
 
-### Quick Capture（`⌘⇧N`）
+### ⚡ 闪记（Quick Capture）
 
-- **Enter 直接提交**，无需组合键，默认进入 Inbox
-- 输入 `#线程名` 自动归入线程，`@项目名` 自动关联项目
-- 连续输入模式：提交后保持弹窗，计数器递增，适合批量补录
+按 `⌘⇧N` 唤起，**回车直接保存**，零摩擦。
 
-### 每日回顾
+- 打字时加 `#线程名` 自动归线程，加 `@项目名` 自动关联项目
+- 保存后弹窗不关闭，继续记下一条——适合开会后批量补录
+- 闪记默认进入收件箱，你随时可以调整分类、归线程、或转成待办
 
-- Home 页自动展示昨日证据和已完成待办
-- 一眼看清"昨天做了什么"
+### 📅 每日回顾
 
-### 收件箱（Inbox）
+每天打开 Trace，首页直接告诉你：
 
-- 管理未归线程的闪记
-- 调整分类（进展 / 决定 / 风险 / 计划 / 协同）
-- 归入已有线程或新建线程
-- 一键转为待办
-- 自动推荐项目
+> 昨天记了 5 条证据，完成了 2 项待办，涉及 3 个线程。
 
-### 项目管理
+不用翻，一眼看清昨天到底干了什么。
 
-- 新建 / 编辑 / 删除项目
-- 项目详情页：线程、笔记、报告、待办、证据一站式查看
-- 项目时间线
-- 项目摘要 AI 自动生成
-- 一键创建项目报告
+### 📂 收件箱（Inbox）
 
-### 工作线（Thread）
+所有还没归线程的闪记都待在这里：
 
-- 创建 / 编辑 / 删除 / 归档
-- 查看线程时间线
-- 管理关联待办
-- AI 生成线程摘要
+- 拖进已有线程，或一键新建线程
+- AI 根据内容自动推荐该挂哪个项目
+- 一键转成待办，设截止时间
 
-### Markdown 记事
+### 🗂️ 项目
 
-- 按天记录长文笔记
-- 自动保存，挂靠项目，关联多个线程
-- 可晋升为证据
+一个项目把相关的线程、笔记、报告、待办、证据全部聚合在一起。项目详情页就是你的作战地图。
 
-### 待办管理
+### 🧵 工作线（Thread）
 
-- 创建待办，设置截止时间，挂靠线程
-- 标记完成
+每条工作线是一条持续的故事：从第一条记录到最终结论，所有证据按时间排列。AI 可以一键生成线程摘要，帮你回忆"这条线到底在讲什么"。
 
-### 汇报生成
+### 📝 笔记
 
-- 支持多种场景：周报 / 月报 / 项目报告 / 复盘 / 1:1
-- AI 起草，AI 改写（续写 / 压缩 / 调性 / 自定义指令）
-- 证据引用与项目上下文增强
+需要写长文？按天记录 Markdown 笔记，自动保存，挂靠项目。笔记里的关键段落可以"晋升"为证据，进入工作线。
 
-### 全局搜索（`⌘K`）
+### ✅ 待办
 
-- 一次搜索覆盖项目、线程、证据、待办、笔记
+简单直接：创建待办 → 设截止时间 → 挂到线程 → 完成打钩。
 
-### LLM 配置
+### 📊 汇报生成
 
-- 支持 OpenAI 兼容协议（OpenAI / DeepSeek / Kimi / 通义 / Ollama 等）
-- 支持 Anthropic 原生协议
-- 多 Profile 管理，一键测试连接
+支持周报、月报、项目报告、复盘、1:1 等场景。AI 根据你积累的证据**起草初稿**，你还可以让它续写、压缩、换语气、或按自定义指令改写。
+
+### 🔍 全局搜索（`⌘K`）
+
+一个搜索框，覆盖项目、线程、证据、待办、笔记——找到你要的那条记录。
+
+### 🤖 AI 配置
+
+支持 OpenAI 兼容协议（OpenAI / DeepSeek / Kimi / 通义 / Ollama）和 Anthropic 原生协议。多 Profile 管理，一键测试连接。用你自己的 API Key，数据不经过中间人。
 
 ---
 
 ## 快速开始
 
-### 安装依赖
-
 ```bash
+# 安装依赖
 make setup
-```
 
-### 开发模式
-
-```bash
+# 启动开发环境（前端 + 后端同时跑起来）
 make dev
 ```
 
-- 前端：http://localhost:5173
-- 后端：http://localhost:8787
-- API 文档：http://localhost:8787/docs
+打开浏览器访问 http://localhost:5173 就能用了。
 
-### 桌面预览
+打包成 macOS 桌面应用：
 
 ```bash
-make desktop
+make desktop      # 本地运行桌面版
+make package-mac  # 生成 Trace.app 和 DMG 安装包
 ```
-
-### 打包 macOS 应用
-
-```bash
-make package-mac
-```
-
-产物：`output/macos/Trace.app` 和 `output/macos/Trace-{version}-macOS.dmg`
 
 ---
 
-## 常用命令
+## 更多命令
 
-```bash
-make setup         # 安装前后端依赖
-make dev           # 启动开发环境
-make build-web     # 构建前端
-make desktop       # 本地桌面模式运行
-make package-mac   # 构建 Trace.app 与 DMG
-make test          # 后端测试
-make fmt           # Ruff 检查 / 格式化
-make reset         # 清除本地数据库
-```
+| 命令 | 用途 |
+|------|------|
+| `make setup` | 安装前后端依赖 |
+| `make dev` | 启动开发环境 |
+| `make build-web` | 构建前端产物 |
+| `make desktop` | 本地桌面模式运行 |
+| `make package-mac` | 构建 .app 与 .dmg |
+| `make test` | 运行后端测试 |
+| `make fmt` | 代码格式化 |
+| `make reset` | 清除本地数据库，从头开始 |
 
 ---
 
 ## 技术栈
 
-| 层 | 技术 |
-|----|------|
-| 前端 | React 18 + TypeScript + Vite + TailwindCSS |
-| 后端 | Python 3.11+ / FastAPI + SQLite |
-| 桌面壳 | pywebview（macOS native） |
-| 打包 | PyInstaller + hdiutil |
-| AI 接入 | OpenAI 兼容协议 + Anthropic |
+- **前端**：React 18 + TypeScript + Vite + TailwindCSS
+- **后端**：Python 3.11+ / FastAPI + SQLite
+- **桌面壳**：pywebview（macOS 原生窗口）
+- **打包**：PyInstaller + hdiutil
+- **AI**：OpenAI 兼容协议 + Anthropic
 
 ---
 
 ## 项目结构
 
-```text
+```
 Trace/
-├── backend/               FastAPI + SQLite 后端
+├── backend/               后端服务
 │   └── src/trace_api/
-│       ├── routers/       API 路由（threads, projects, captures, reports, todos, notes, llm, search, activity）
-│       ├── llm/           LLM 调用层（OpenAI 兼容 + Anthropic）
-│       ├── schema.sql     数据库 Schema
-│       ├── db.py          数据库连接与迁移
-│       └── desktop.py     pywebview 桌面入口
-├── frontend/              React / Vite 前端
+│       ├── routers/       API 路由（线程、项目、闪记、汇报、待办、笔记、AI、搜索、每日回顾）
+│       ├── llm/           LLM 调用层
+│       ├── schema.sql     数据库定义
+│       └── desktop.py     桌面应用入口
+├── frontend/              前端应用
 │   └── src/
 │       ├── components/    通用组件（Shell, QuickCapture, SearchModal…）
-│       ├── pages/         页面（Home, Inbox, Projects, Threads, Notes, Todos, Reports, Timeline, Settings）
+│       ├── pages/         页面（首页、收件箱、项目、线程、笔记、待办、汇报、时间线、设置）
 │       └── lib/           工具函数、API 客户端、类型定义
-├── docs/                  产品文档、架构、用户指南
-├── scripts/release/       打包脚本
+├── docs/                  产品文档
 └── Makefile
 ```
 
 ---
 
-## 数据与隐私
+## 数据和隐私
 
-- 数据库位置：`~/Library/Application Support/Trace/db.sqlite`
-- 所有数据默认保存在本地 SQLite，不上传任何服务器
-- LLM 调用使用用户自己的 API Key，直接请求用户配置的端点
-- 本项目不做本地脱敏，调用 LLM 前请自行判断数据风险
+- 所有数据存在本地 SQLite：`~/Library/Application Support/Trace/db.sqlite`
+- **不上传任何服务器**，不联网，不分析
+- AI 调用走你自己的 API Key，直连你配置的端点
+- 本地不做脱敏——调用 AI 前请自行判断数据风险
 
 ---
 
 ## 文档
 
 - [用户指南](docs/08-user-guide.md) — 每个模块怎么用、推荐工作流
-- [产品愿景](docs/00-vision.md)
-- [PRD](docs/01-prd.md)
-- [数据模型](docs/02-data-model.md)
-- [架构设计](docs/03-architecture.md)
-- [macOS 发布说明](docs/04-release-macos.md)
+- [产品愿景](docs/00-vision.md) · [PRD](docs/01-prd.md) · [数据模型](docs/02-data-model.md) · [架构设计](docs/03-architecture.md) · [macOS 发布说明](docs/04-release-macos.md)
 
 ---
 
-## 适合谁
+## 谁适合用
 
-- 同时推进多个主题，需要把碎片串成线索的人
-- 需要周期性输出周报 / 月报 / 复盘的人
-- 喜欢边做边记、但希望最后能沉淀成果的人
+- 同时推进好几个主题，笔记散落在各处，需要一根线把它们串起来的人
+- 每到周报/月报就痛苦，不想再从零开始回忆的人
+- 习惯边做边记，但希望记录最终能沉淀成有意义的输出的人
 
 ---
 

@@ -94,7 +94,7 @@ def list_inbox(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
     conn = connect()
     try:
         rows = conn.execute(
-            """SELECT e.*, s.title AS source_title, s.kind AS source_kind
+            """SELECT e.*, s.title AS source_title, s.kind AS source_kind, s.file_path AS source_file_path
                FROM evidence e
                LEFT JOIN capture c ON c.id = e.capture_id
                LEFT JOIN source  s ON s.id = c.source_id
@@ -181,7 +181,7 @@ def create_capture(body: CaptureIn, workspace_id: str = Depends(request_workspac
         conn.commit()
 
         row = cur.execute(
-            """SELECT e.*, s.title AS source_title, s.kind AS source_kind
+            """SELECT e.*, s.title AS source_title, s.kind AS source_kind, s.file_path AS source_file_path
                FROM evidence e
                LEFT JOIN capture c ON c.id = e.capture_id
                LEFT JOIN source  s ON s.id = c.source_id
@@ -380,7 +380,7 @@ def promote_note_to_evidence(note_id: str, body: PromoteNoteIn, workspace_id: st
         conn.commit()
 
         row = conn.execute(
-            """SELECT e.*, s.title AS source_title, s.kind AS source_kind
+            """SELECT e.*, s.title AS source_title, s.kind AS source_kind, s.file_path AS source_file_path
                FROM evidence e LEFT JOIN capture c ON c.id = e.capture_id LEFT JOIN source s ON s.id = c.source_id
                WHERE e.id = ? AND e.workspace_id = ?""",
             (evidence_id, workspace_id),

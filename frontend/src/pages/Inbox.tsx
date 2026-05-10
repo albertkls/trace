@@ -153,6 +153,17 @@ function InboxCard({
             {item.source_title && (
               <span className="chip">{item.source_title}</span>
             )}
+            {item.source_file_path && (
+              <a
+                className="chip hover:border-accent/50 hover:text-accent"
+                href={fileHref(item.source_file_path)}
+                title={item.source_file_path}
+                target="_blank"
+                rel="noreferrer"
+              >
+                打开源文件
+              </a>
+            )}
           </div>
           <p className="text-[15px] leading-relaxed text-ink">{item.text}</p>
 
@@ -230,6 +241,10 @@ function InboxCard({
       </div>
     </li>
   );
+}
+
+function fileHref(path: string): string {
+  return `file://${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function PromoteDialog({

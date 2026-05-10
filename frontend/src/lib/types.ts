@@ -294,6 +294,23 @@ export interface RewriteChunk {
 export interface InboxItem extends Evidence {
   source_title?: string | null;
   source_kind?: string | null;
+  source_file_path?: string | null;
+}
+
+export interface LibraryStatus {
+  path: string | null;
+  exists: boolean;
+  source_count: number;
+  last_scan: string | null;
+}
+
+export interface LibraryScanResult {
+  path: string;
+  scanned: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: Array<{ path: string; message: string }>;
 }
 
 export interface SearchResult {

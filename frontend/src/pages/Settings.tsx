@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { APP_VERSION, isPywebviewDesktop } from "@/lib/appInfo";
-import type { LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
+import type { LibraryScanResult, LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
+import { useWorkspace } from "@/lib/workspace";
 
 const PROTOCOLS = [
   { value: "openai-compat", label: "OpenAI 兼容协议" },
@@ -56,6 +57,8 @@ const PRESET_CONFIGS: Record<string, Partial<ProfileInput>> = {
 export default function Settings() {
   const qc = useQueryClient();
   const isDesktop = isPywebviewDesktop();
+  const { activeWorkspaceId, workspaces } = useWorkspace();
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   // Update state
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -116,6 +119,33 @@ export default function Settings() {
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(1)} MB`;
   };
+
+  const { data: libraryStatus } = useQuery({
+    queryKey: ["library", activeWorkspaceId],
+    queryFn: api.library.status,
+  });
+  const [libraryPath, setLibraryPath] = useState("");
+  const [libraryResult, setLibraryResult] = useState<LibraryScanResult | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLibraryPath(libraryStatus?.path || "");
+  }, [libraryStatus?.path]);
+
+  const syncLibrary = useMutation({
+    mutationFn: async () => {
+      const path = libraryPath.trim();
+      if (path) await api.library.configure(path);
+      return api.library.scan(path || undefined);
+    },
+    onSuccess: (result) => {
+      setLibraryError(null);
+      setLibraryResult(result);
+      qc.invalidateQueries({ queryKey: ["library", activeWorkspaceId] });
+      qc.invalidateQueries({ queryKey: ["inbox"] });
+    },
+    onError: (e: Error) => setLibraryError(e.message),
+  });
 
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ["llm-profiles"],
@@ -314,6 +344,60 @@ export default function Settings() {
           </div>
         </section>
       )}
+
+      <section className="mb-10">
+        <h2 className="mb-4 flex items-center gap-2">
+          <span className="eyebrow">LOCAL · LIBRARY</span>
+          {activeWorkspace && <span className="chip">{activeWorkspace.name}</span>}
+        </h2>
+
+        <div className="panel p-6">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <input
+              type="text"
+              className="input font-mono text-[13px]"
+              value={libraryPath}
+              onChange={(e) => setLibraryPath(e.target.value)}
+              placeholder="/Users/albert/Documents/ObsidianVault"
+            />
+            <button
+              className="btn btn-accent justify-center"
+              disabled={syncLibrary.isPending}
+              onClick={() => syncLibrary.mutate()}
+            >
+              {syncLibrary.isPending ? "同步中…" : "保存并同步"}
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className={clsx("chip", libraryStatus?.exists ? "chip-go" : "chip-stop")}>
+              {libraryStatus?.exists ? "路径可用" : "未挂载"}
+            </span>
+            <span className="mono-meta">
+              {libraryStatus?.source_count ?? 0} 个本地文件
+            </span>
+            {libraryStatus?.last_scan && (
+              <span className="mono-meta">
+                上次同步 {libraryStatus.last_scan.slice(0, 16).replace("T", " ")}
+              </span>
+            )}
+          </div>
+
+          {libraryResult && (
+            <div className="mt-4 rounded-xl border border-line bg-canvas-raised/50 px-4 py-3 text-sm text-ink-soft">
+              扫描 {libraryResult.scanned} 个 Markdown：新增 {libraryResult.created}，
+              更新 {libraryResult.updated}，未变化 {libraryResult.unchanged}
+              {libraryResult.errors.length > 0 && `，失败 ${libraryResult.errors.length}`}
+            </div>
+          )}
+
+          {libraryError && (
+            <div className="mt-4 rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-2 text-xs text-signal-stop">
+              {libraryError}
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="mb-10">
         <h2 className="mb-4 flex items-center gap-2">

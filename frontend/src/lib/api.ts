@@ -3,6 +3,8 @@ import type {
   ComposeChunk,
   DailyActivity,
   InboxItem,
+  LibraryScanResult,
+  LibraryStatus,
   LLMProfile,
   Note,
   NoteInput,
@@ -205,6 +207,19 @@ export const api = {
         body: JSON.stringify(body),
       }),
     remove: (id: string) => req<void>(`/notes/${id}`, { method: "DELETE" }),
+  },
+  library: {
+    status: () => req<LibraryStatus>("/library"),
+    configure: (path: string) =>
+      req<{ path: string; exists: boolean }>("/library/config", {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      }),
+    scan: (path?: string) =>
+      req<LibraryScanResult>("/library/scan", {
+        method: "POST",
+        body: JSON.stringify(path ? { path } : {}),
+      }),
   },
   llm: {
     list: () => req<LLMProfile[]>("/llm/profiles"),

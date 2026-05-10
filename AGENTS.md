@@ -47,7 +47,7 @@ git checkout main  # 切换到正式
 
 1. 切换到 `dev` 分支
 2. 开发新功能或修复问题
-3. 本地测试通过后提交
+3. 本地测试通过后提交并推送到 GitHub
 
 ```bash
 git checkout dev
@@ -57,7 +57,17 @@ git commit -m "描述: 完成功能X"
 git push origin dev
 ```
 
-### 2. 提交信息规范
+### 2. 验证通过后的上传规则
+
+后续所有开发任务在验证通过后，必须直接上传到 GitHub：
+
+1. 代码改动通过必要验证后，提交并推送到 GitHub 对应分支；发布分支为 `main` 时必须推送 `origin/main`
+2. 面向用户可见的功能、修复或版本更新，必须按发布流程创建 GitHub Release，并上传 `make package-mac` 生成的 DMG
+3. GitHub Release 的版本标签和 DMG 文件名必须与应用版本号一致，确保旧版本 Trace 能通过应用内更新接口发现新版本
+4. 发布前必须确认设置页的更新提醒功能可用：旧版本应能检查到 GitHub 最新 Release，并提示用户下载/安装
+5. 不允许只在本地完成构建而不上传 GitHub；否则我和其他用户无法从旧版本软件直接更新到最新版本
+
+### 3. 提交信息规范
 
 ```
 类型: 简短描述
@@ -65,7 +75,7 @@ git push origin dev
 类型可选: Feature | Fix | Refactor | Docs | Chore
 ```
 
-### 3. 开发与构建命令
+### 4. 开发与构建命令
 
 ```bash
 # 一键启动后端 + 前端开发服务器（Vite + FastAPI）
@@ -138,7 +148,7 @@ xattr -dr com.apple.quarantine /Applications/Trace.app
 
 打开 `/Applications/Trace.app` 验证：新建项目、新建线索、删除项目等核心流程不报错。
 
-### 步骤 5: 创建 GitHub Release
+### 步骤 5: 创建 GitHub Release 并启用旧版更新提醒
 
 ```bash
 gh release create v1.2.0 \
@@ -148,6 +158,8 @@ gh release create v1.2.0 \
 ```
 
 或通过 GitHub 网页上传 DMG 文件。
+
+> GitHub Release 是应用内更新提醒的来源。发布后，旧版本 Trace 会通过后端 updater 接口读取最新 Release；只要版本号高于当前版本且 Release 内包含 macOS DMG，用户就应该看到更新提醒并能下载更新。
 
 ## 目录结构
 
@@ -215,3 +227,4 @@ make fmt
 3. 发布前用 `make package-mac` 产出的 `.app` 实际打开测试一遍
 4. **不要使用** `npm run tauri:build` 产出发布版本——那条路径没有打包后端，运行时 API 调用全部失败
 5. 代码修改后运行 `npm run typecheck` 确保类型正确
+6. 开发验证通过后必须推送 GitHub；用户可见版本必须发布 GitHub Release + DMG，保证旧版应用可直接收到更新提醒并升级

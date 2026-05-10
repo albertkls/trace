@@ -31,7 +31,7 @@ def test_frontend_static_fallback(tmp_path: Path):
 
         health = client.get("/api/health")
         assert health.status_code == 200
-        assert health.json()["version"] == "1.4.0"
+        assert health.json()["version"] == "1.4.1"
 
     os.environ.pop("TRACE_FRONTEND_DIST", None)
     os.environ.pop("TRACE_DB_PATH", None)

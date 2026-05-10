@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .. import __version__
+from .backups import backup_database
 
 router = APIRouter(prefix="/updater", tags=["updater"])
 
@@ -185,6 +186,7 @@ def download_update(body: DownloadRequest) -> dict:
 @router.post("/apply")
 def apply_update(body: ApplyRequest) -> dict:
     dmg_path = _validate_update_dmg_path(body.dmg_path)
+    backup_database("before-update")
 
     app_path = _get_app_path()
     if not app_path:

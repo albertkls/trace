@@ -1,4 +1,5 @@
 import type {
+  BackupInfo,
   CaptureInput,
   ComposeChunk,
   DailyActivity,
@@ -19,6 +20,7 @@ import type {
   ReportCreate,
   ReportPatch,
   ReportSummary,
+  RestoreResult,
   RewriteChunk,
   RewriteRequest,
   SearchResult,
@@ -70,6 +72,15 @@ export const api = {
         body: JSON.stringify(body),
       }),
     remove: (id: string) => req<void>(`/workspaces/${id}`, { method: "DELETE" }),
+  },
+  backups: {
+    list: () => req<BackupInfo[]>("/backups"),
+    create: () => req<BackupInfo>("/backups", { method: "POST" }),
+    restore: (path: string) =>
+      req<RestoreResult>("/backups/restore", {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      }),
   },
   projects: {
     list: () => req<Project[]>("/projects"),

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { APP_VERSION, isPywebviewDesktop } from "@/lib/appInfo";
-import type { LibraryScanResult, LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
+import type { BackupInfo, LibraryScanResult, LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
 import { useWorkspace } from "@/lib/workspace";
 
 const PROTOCOLS = [
@@ -119,6 +119,33 @@ export default function Settings() {
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(1)} MB`;
   };
+
+  const { data: backups = [] } = useQuery({
+    queryKey: ["backups"],
+    queryFn: api.backups.list,
+  });
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
+  const createBackup = useMutation({
+    mutationFn: api.backups.create,
+    onSuccess: (backup) => {
+      setBackupError(null);
+      setBackupMessage(`已创建备份：${backup.name}`);
+      qc.invalidateQueries({ queryKey: ["backups"] });
+    },
+    onError: (e: Error) => setBackupError(e.message),
+  });
+
+  const restoreBackup = useMutation({
+    mutationFn: (backup: BackupInfo) => api.backups.restore(backup.path),
+    onSuccess: (result) => {
+      setBackupError(null);
+      setBackupMessage(`已恢复备份，恢复前快照：${result.safety_backup.name}`);
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => setBackupError(e.message),
+  });
 
   const { data: libraryStatus } = useQuery({
     queryKey: ["library", activeWorkspaceId],
@@ -346,6 +373,76 @@ export default function Settings() {
           </div>
         </section>
       )}
+
+      <section className="mb-10">
+        <h2 className="mb-4 flex items-center gap-2">
+          <span className="eyebrow">DATA · SAFETY</span>
+          <span className="chip">{String(backups.length).padStart(2, "0")}</span>
+        </h2>
+
+        <div className="panel p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium text-ink">数据库备份</div>
+              <div className="mono-meta mt-0.5">
+                {backups[0]
+                  ? `最近 ${backups[0].created_at.slice(0, 16).replace("T", " ")}`
+                  : "尚未创建备份"}
+              </div>
+            </div>
+            <button
+              className="btn btn-accent text-xs"
+              onClick={() => createBackup.mutate()}
+              disabled={createBackup.isPending}
+            >
+              {createBackup.isPending ? "备份中…" : "立即备份"}
+            </button>
+          </div>
+
+          {backupMessage && (
+            <div className="mt-4 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs text-accent">
+              {backupMessage}
+            </div>
+          )}
+
+          {backupError && (
+            <div className="mt-4 rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-2 text-xs text-signal-stop">
+              {backupError}
+            </div>
+          )}
+
+          {backups.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {backups.slice(0, 5).map((backup) => (
+                <div
+                  key={backup.path}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas-raised/50 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium text-ink">
+                      {backup.name}
+                    </div>
+                    <div className="mono-meta mt-0.5">
+                      {formatFileSize(backup.size)} · {backup.sha256.slice(0, 10)}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-ghost text-xs text-signal-stop hover:!bg-signal-stop/10 hover:!text-signal-stop"
+                    disabled={restoreBackup.isPending}
+                    onClick={() => {
+                      if (window.confirm("恢复此备份？当前数据库会先自动备份。")) {
+                        restoreBackup.mutate(backup);
+                      }
+                    }}
+                  >
+                    恢复
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="mb-10">
         <h2 className="mb-4 flex items-center gap-2">

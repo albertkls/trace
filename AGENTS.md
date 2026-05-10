@@ -6,7 +6,7 @@
 
 - **项目名**: Trace
 - **技术栈**: FastAPI (Python) + React (TypeScript) + pywebview，使用 PyInstaller 打包成 macOS .app
-- **版本**: 1.4.0
+- **版本**: 1.4.1
 - **用途**: 个人使用的桌面应用
 
 > 仓库内同时保留了 `frontend/src-tauri/`（Tauri 2.x 实验外壳），但**正式发布不使用 Tauri**。
@@ -16,7 +16,7 @@
 ## 分支策略
 
 ```
-main        ─────── v1.3.2 ─────── v1.4.0 (正式发布分支)
+main        ─────── v1.4.0 ─────── v1.4.1 (正式发布分支)
                              ↖ 合并
 dev         ──┬─── 功能A ──── 功能B ──── (日常开发)
               └─── 功能C
@@ -111,8 +111,8 @@ git push origin main
 ### 步骤 2: 打版本标签
 
 ```bash
-git tag v1.4.0              # 创建标签
-git push origin v1.4.0     # 推送标签
+git tag v1.4.1              # 创建标签
+git push origin v1.4.1     # 推送标签
 ```
 
 ### 步骤 3: 打包 macOS .app + DMG
@@ -151,10 +151,10 @@ xattr -dr com.apple.quarantine /Applications/Trace.app
 ### 步骤 5: 创建 GitHub Release 并启用旧版更新提醒
 
 ```bash
-gh release create v1.4.0 \
-  --title "Trace v1.4.0" \
+gh release create v1.4.1 \
+  --title "Trace v1.4.1" \
   --notes "版本说明" \
-  "output/macos/Trace-1.4.0-macOS.dmg"
+  "output/macos/Trace-1.4.1-macOS.dmg"
 ```
 
 或通过 GitHub 网页上传 DMG 文件。

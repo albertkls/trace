@@ -315,6 +315,20 @@ export interface LibraryScanResult {
   errors: Array<{ path: string; message: string }>;
 }
 
+export interface BackupInfo {
+  path: string;
+  name: string;
+  size: number;
+  created_at: string;
+  sha256: string;
+}
+
+export interface RestoreResult {
+  ok: boolean;
+  restored_from: string;
+  safety_backup: BackupInfo;
+}
+
 export interface SearchResult {
   projects: Array<{ id: string; name: string; status: string; summary: string }>;
   threads: Array<{ id: string; title: string; project: string | null; status: string; summary: string }>;

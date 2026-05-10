@@ -220,6 +220,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(path ? { path } : {}),
       }),
+    reveal: (path: string) =>
+      req<{ ok: boolean }>("/library/reveal", {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      }),
   },
   llm: {
     list: () => req<LLMProfile[]>("/llm/profiles"),

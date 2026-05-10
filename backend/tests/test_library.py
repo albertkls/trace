@@ -5,6 +5,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from trace_api.routers import library as library_router
+
 from .helpers import db_path
 
 
@@ -85,3 +87,59 @@ def test_markdown_library_is_scoped_by_workspace(client: TestClient, tmp_path: P
     finally:
         conn.close()
     assert source_count == 2
+
+
+def test_markdown_library_scan_removes_deleted_inbox_sources(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / "vault"
+    library.mkdir()
+    keep = library / "Keep.md"
+    stale = library / "Stale.markdown"
+    keep.write_text("保留的文件", encoding="utf-8")
+    stale.write_text("将被删除的文件", encoding="utf-8")
+
+    response = client.post("/api/library/scan", json={"path": str(library)})
+    assert response.status_code == 200, response.text
+    assert response.json()["created"] == 2
+
+    stale.unlink()
+    response = client.post("/api/library/scan", json={})
+    assert response.status_code == 200, response.text
+    assert response.json()["removed"] == 1
+
+    inbox = client.get("/api/captures/inbox").json()
+    assert [item["source_title"] for item in inbox] == ["Keep.md"]
+
+
+def test_reveal_library_file_is_scoped_to_configured_path(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    library = tmp_path / "vault"
+    library.mkdir()
+    note = library / "Note.md"
+    note.write_text("可定位文件", encoding="utf-8")
+    outside = tmp_path / "Outside.md"
+    outside.write_text("不应打开", encoding="utf-8")
+    launched: list[list[str]] = []
+
+    monkeypatch.setattr(library_router.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        library_router.subprocess,
+        "Popen",
+        lambda args: launched.append(args),
+    )
+
+    configured = client.post("/api/library/config", json={"path": str(library)})
+    assert configured.status_code == 200, configured.text
+
+    response = client.post("/api/library/reveal", json={"path": str(note)})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True}
+    assert launched == [["open", "-R", str(note)]]
+
+    blocked = client.post("/api/library/reveal", json={"path": str(outside)})
+    assert blocked.status_code == 403, blocked.text

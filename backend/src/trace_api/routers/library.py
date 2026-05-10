@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -21,6 +23,10 @@ class LibraryConfigIn(BaseModel):
 
 class LibraryScanIn(BaseModel):
     path: str | None = None
+
+
+class LibraryRevealIn(BaseModel):
+    path: str
 
 
 def _path_key(workspace_id: str) -> str:
@@ -55,12 +61,51 @@ def _event_time(path: Path) -> str:
 
 def _iter_markdown(root: Path) -> list[Path]:
     files: list[Path] = []
-    for path in root.rglob("*.md"):
-        if any(part.startswith(".") for part in path.relative_to(root).parts):
+    for pattern in ("*.md", "*.markdown"):
+        paths = root.rglob(pattern)
+        for path in paths:
+            if any(part.startswith(".") for part in path.relative_to(root).parts):
+                continue
+            if path.is_file():
+                files.append(path)
+    return sorted(set(files), key=lambda p: str(p.relative_to(root)).lower())
+
+
+def _is_inside(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _cleanup_missing_files(conn, *, root: Path, current_paths: set[str], workspace_id: str) -> int:
+    rows = conn.execute(
+        "SELECT id, file_path FROM source WHERE workspace_id = ? AND kind = 'file' AND file_path IS NOT NULL",
+        (workspace_id,),
+    ).fetchall()
+    removed = 0
+    for row in rows:
+        file_path = Path(row["file_path"]).expanduser().resolve()
+        if not _is_inside(file_path, root) or str(file_path) in current_paths or file_path.exists():
             continue
-        if path.is_file():
-            files.append(path)
-    return sorted(files, key=lambda p: str(p.relative_to(root)).lower())
+        capture_rows = conn.execute(
+            "SELECT id FROM capture WHERE source_id = ?",
+            (row["id"],),
+        ).fetchall()
+        capture_ids = [capture["id"] for capture in capture_rows]
+        if capture_ids:
+            placeholders = ",".join("?" for _ in capture_ids)
+            conn.execute(
+                f"DELETE FROM evidence WHERE workspace_id = ? AND thread_id IS NULL AND capture_id IN ({placeholders})",
+                (workspace_id, *capture_ids),
+            )
+        conn.execute(
+            "DELETE FROM source WHERE id = ? AND workspace_id = ?",
+            (row["id"], workspace_id),
+        )
+        removed += 1
+    return removed
 
 
 def _get_configured_path(conn, workspace_id: str) -> str | None:
@@ -215,10 +260,19 @@ def scan_library(body: LibraryScanIn | None = None, workspace_id: str = Depends(
             "created": 0,
             "updated": 0,
             "unchanged": 0,
+            "removed": 0,
             "errors": [],
         }
         now = now_iso()
-        for path in _iter_markdown(root):
+        paths = _iter_markdown(root)
+        current_paths = {str(path) for path in paths}
+        result["removed"] = _cleanup_missing_files(
+            conn,
+            root=root,
+            current_paths=current_paths,
+            workspace_id=workspace_id,
+        )
+        for path in paths:
             result["scanned"] += 1
             try:
                 state = _upsert_file(conn, root=root, path=path, workspace_id=workspace_id, now=now)
@@ -228,5 +282,26 @@ def scan_library(body: LibraryScanIn | None = None, workspace_id: str = Depends(
         _set_setting(conn, _last_scan_key(workspace_id), now)
         conn.commit()
         return result
+    finally:
+        conn.close()
+
+
+@router.post("/reveal")
+def reveal_library_file(body: LibraryRevealIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
+    conn = connect()
+    try:
+        raw_root = _get_configured_path(conn, workspace_id)
+        if not raw_root:
+            raise HTTPException(400, "library path is not configured")
+        root = _resolve_dir(raw_root)
+        path = Path(body.path).expanduser().resolve()
+        if not _is_inside(path, root):
+            raise HTTPException(403, "file is outside the configured library")
+        if not path.exists() or not path.is_file():
+            raise HTTPException(404, "file not found")
+        if platform.system() != "Darwin":
+            raise HTTPException(400, "reveal is only supported on macOS")
+        subprocess.Popen(["open", "-R", str(path)])
+        return {"ok": True}
     finally:
         conn.close()

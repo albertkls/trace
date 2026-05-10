@@ -310,6 +310,7 @@ export interface LibraryScanResult {
   created: number;
   updated: number;
   unchanged: number;
+  removed: number;
   errors: Array<{ path: string; message: string }>;
 }
 

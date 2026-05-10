@@ -386,7 +386,8 @@ export default function Settings() {
           {libraryResult && (
             <div className="mt-4 rounded-xl border border-line bg-canvas-raised/50 px-4 py-3 text-sm text-ink-soft">
               扫描 {libraryResult.scanned} 个 Markdown：新增 {libraryResult.created}，
-              更新 {libraryResult.updated}，未变化 {libraryResult.unchanged}
+              更新 {libraryResult.updated}，未变化 {libraryResult.unchanged}，
+              清理 {libraryResult.removed}
               {libraryResult.errors.length > 0 && `，失败 ${libraryResult.errors.length}`}
             </div>
           )}

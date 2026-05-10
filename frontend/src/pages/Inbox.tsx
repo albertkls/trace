@@ -129,6 +129,11 @@ function InboxCard({
     onSuccess: () => { setError(null); setPromoted(true); onChanged(); },
     onError: onMutError,
   });
+  const revealSource = useMutation({
+    mutationFn: (path: string) => api.library.reveal(path),
+    onSuccess: () => setError(null),
+    onError: onMutError,
+  });
   const createThread = useMutation({
     mutationFn: ({ title, projectId }: { title: string; projectId?: string }) =>
       api.threads.create({ title, project_id: projectId || null, adopt_evidence_id: item.id }),
@@ -154,15 +159,14 @@ function InboxCard({
               <span className="chip">{item.source_title}</span>
             )}
             {item.source_file_path && (
-              <a
+              <button
                 className="chip hover:border-accent/50 hover:text-accent"
-                href={fileHref(item.source_file_path)}
                 title={item.source_file_path}
-                target="_blank"
-                rel="noreferrer"
+                onClick={() => revealSource.mutate(item.source_file_path!)}
+                disabled={revealSource.isPending}
               >
-                打开源文件
-              </a>
+                {revealSource.isPending ? "定位中…" : "显示源文件"}
+              </button>
             )}
           </div>
           <p className="text-[15px] leading-relaxed text-ink">{item.text}</p>
@@ -241,10 +245,6 @@ function InboxCard({
       </div>
     </li>
   );
-}
-
-function fileHref(path: string): string {
-  return `file://${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function PromoteDialog({

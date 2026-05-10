@@ -210,10 +210,10 @@ export const api = {
   },
   library: {
     status: () => req<LibraryStatus>("/library"),
-    configure: (path: string) =>
-      req<{ path: string; exists: boolean }>("/library/config", {
+    configure: (path: string, autoScan?: boolean) =>
+      req<{ path: string; exists: boolean; auto_scan: boolean }>("/library/config", {
         method: "POST",
-        body: JSON.stringify({ path }),
+        body: JSON.stringify({ path, auto_scan: autoScan }),
       }),
     scan: (path?: string) =>
       req<LibraryScanResult>("/library/scan", {

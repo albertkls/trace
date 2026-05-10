@@ -143,3 +143,57 @@ def test_reveal_library_file_is_scoped_to_configured_path(
 
     blocked = client.post("/api/library/reveal", json={"path": str(outside)})
     assert blocked.status_code == 403, blocked.text
+
+
+def test_library_auto_scan_status_defaults_on_and_can_be_disabled(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / "vault"
+    library.mkdir()
+
+    configured = client.post("/api/library/config", json={"path": str(library)})
+    assert configured.status_code == 200, configured.text
+    assert configured.json()["auto_scan"] is True
+
+    status = client.get("/api/library")
+    assert status.status_code == 200, status.text
+    assert status.json()["auto_scan"] is True
+
+    configured = client.post(
+        "/api/library/config",
+        json={"path": str(library), "auto_scan": False},
+    )
+    assert configured.status_code == 200, configured.text
+    assert configured.json()["auto_scan"] is False
+    assert client.get("/api/library").json()["auto_scan"] is False
+
+
+def test_scan_configured_libraries_respects_auto_scan_setting(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / "vault"
+    library.mkdir()
+    note = library / "Auto.md"
+    note.write_text("启动自动同步", encoding="utf-8")
+
+    configured = client.post(
+        "/api/library/config",
+        json={"path": str(library), "auto_scan": False},
+    )
+    assert configured.status_code == 200, configured.text
+
+    assert library_router.scan_configured_libraries() == []
+    assert client.get("/api/captures/inbox").json() == []
+
+    configured = client.post(
+        "/api/library/config",
+        json={"path": str(library), "auto_scan": True},
+    )
+    assert configured.status_code == 200, configured.text
+
+    results = library_router.scan_configured_libraries()
+    assert len(results) == 1
+    assert results[0]["created"] == 1
+    assert client.get("/api/captures/inbox").json()[0]["text"] == "启动自动同步"

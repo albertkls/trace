@@ -302,6 +302,7 @@ export interface LibraryStatus {
   exists: boolean;
   source_count: number;
   last_scan: string | null;
+  auto_scan: boolean;
 }
 
 export interface LibraryScanResult {

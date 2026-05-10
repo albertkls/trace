@@ -125,17 +125,19 @@ export default function Settings() {
     queryFn: api.library.status,
   });
   const [libraryPath, setLibraryPath] = useState("");
+  const [libraryAutoScan, setLibraryAutoScan] = useState(true);
   const [libraryResult, setLibraryResult] = useState<LibraryScanResult | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
 
   useEffect(() => {
     setLibraryPath(libraryStatus?.path || "");
-  }, [libraryStatus?.path]);
+    setLibraryAutoScan(libraryStatus?.auto_scan ?? true);
+  }, [libraryStatus?.path, libraryStatus?.auto_scan]);
 
   const syncLibrary = useMutation({
     mutationFn: async () => {
       const path = libraryPath.trim();
-      if (path) await api.library.configure(path);
+      if (path) await api.library.configure(path, libraryAutoScan);
       return api.library.scan(path || undefined);
     },
     onSuccess: (result) => {
@@ -373,6 +375,13 @@ export default function Settings() {
             <span className={clsx("chip", libraryStatus?.exists ? "chip-go" : "chip-stop")}>
               {libraryStatus?.exists ? "路径可用" : "未挂载"}
             </span>
+            <button
+              className={clsx("chip", libraryAutoScan ? "chip-go" : "")}
+              onClick={() => setLibraryAutoScan((value) => !value)}
+              type="button"
+            >
+              启动自动同步 {libraryAutoScan ? "开" : "关"}
+            </button>
             <span className="mono-meta">
               {libraryStatus?.source_count ?? 0} 个本地文件
             </span>

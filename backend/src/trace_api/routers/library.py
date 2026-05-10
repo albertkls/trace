@@ -19,6 +19,7 @@ router = APIRouter(prefix="/library", tags=["library"])
 
 class LibraryConfigIn(BaseModel):
     path: str
+    auto_scan: bool | None = None
 
 
 class LibraryScanIn(BaseModel):
@@ -35,6 +36,10 @@ def _path_key(workspace_id: str) -> str:
 
 def _last_scan_key(workspace_id: str) -> str:
     return f"library.last_scan:{workspace_id}"
+
+
+def _auto_scan_key(workspace_id: str) -> str:
+    return f"library.auto_scan:{workspace_id}"
 
 
 def _resolve_dir(raw_path: str) -> Path:
@@ -124,6 +129,17 @@ def _set_setting(conn, key: str, value: str) -> None:
     )
 
 
+def _get_bool_setting(conn, key: str, default: bool) -> bool:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    if not row:
+        return default
+    return row["value"] == "1"
+
+
+def _set_bool_setting(conn, key: str, value: bool) -> None:
+    _set_setting(conn, key, "1" if value else "0")
+
+
 def _upsert_file(conn, *, root: Path, path: Path, workspace_id: str, now: str) -> str:
     text = path.read_text(encoding="utf-8", errors="replace")
     rel = str(path.relative_to(root))
@@ -208,6 +224,71 @@ def _upsert_file(conn, *, root: Path, path: Path, workspace_id: str, now: str) -
     return result
 
 
+def _scan_root(conn, *, root: Path, workspace_id: str) -> dict:
+    result = {
+        "path": str(root),
+        "scanned": 0,
+        "created": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "removed": 0,
+        "errors": [],
+    }
+    now = now_iso()
+    paths = _iter_markdown(root)
+    current_paths = {str(path) for path in paths}
+    result["removed"] = _cleanup_missing_files(
+        conn,
+        root=root,
+        current_paths=current_paths,
+        workspace_id=workspace_id,
+    )
+    for path in paths:
+        result["scanned"] += 1
+        try:
+            state = _upsert_file(conn, root=root, path=path, workspace_id=workspace_id, now=now)
+            result[state] += 1
+        except Exception as exc:  # noqa: BLE001 - keep scanning other notes.
+            result["errors"].append({"path": str(path), "message": str(exc)})
+    _set_setting(conn, _last_scan_key(workspace_id), now)
+    return result
+
+
+def scan_configured_libraries() -> list[dict]:
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT key, value FROM settings WHERE key LIKE 'library.path:%'"
+        ).fetchall()
+        results: list[dict] = []
+        for row in rows:
+            workspace_id = row["key"].split(":", 1)[1]
+            if not _get_bool_setting(conn, _auto_scan_key(workspace_id), True):
+                continue
+            root = Path(row["value"]).expanduser().resolve()
+            if not root.exists() or not root.is_dir():
+                results.append(
+                    {
+                        "workspace_id": workspace_id,
+                        "path": str(root),
+                        "scanned": 0,
+                        "created": 0,
+                        "updated": 0,
+                        "unchanged": 0,
+                        "removed": 0,
+                        "errors": [{"path": str(root), "message": "path does not exist"}],
+                    }
+                )
+                continue
+            result = _scan_root(conn, root=root, workspace_id=workspace_id)
+            result["workspace_id"] = workspace_id
+            results.append(result)
+        conn.commit()
+        return results
+    finally:
+        conn.close()
+
+
 @router.get("")
 def get_library_status(workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
@@ -222,11 +303,13 @@ def get_library_status(workspace_id: str = Depends(request_workspace_id)) -> dic
             (workspace_id,),
         ).fetchone()["count"]
         exists = bool(configured_path and Path(configured_path).exists() and Path(configured_path).is_dir())
+        auto_scan = _get_bool_setting(conn, _auto_scan_key(workspace_id), True)
         return {
             "path": configured_path,
             "exists": exists,
             "source_count": source_count,
             "last_scan": last_scan["value"] if last_scan else None,
+            "auto_scan": auto_scan,
         }
     finally:
         conn.close()
@@ -238,8 +321,14 @@ def configure_library(body: LibraryConfigIn, workspace_id: str = Depends(request
     conn = connect()
     try:
         _set_setting(conn, _path_key(workspace_id), str(root))
+        if body.auto_scan is not None:
+            _set_bool_setting(conn, _auto_scan_key(workspace_id), body.auto_scan)
         conn.commit()
-        return {"path": str(root), "exists": True}
+        return {
+            "path": str(root),
+            "exists": True,
+            "auto_scan": _get_bool_setting(conn, _auto_scan_key(workspace_id), True),
+        }
     finally:
         conn.close()
 
@@ -253,33 +342,7 @@ def scan_library(body: LibraryScanIn | None = None, workspace_id: str = Depends(
             raise HTTPException(400, "library path is not configured")
         root = _resolve_dir(raw_path)
         _set_setting(conn, _path_key(workspace_id), str(root))
-
-        result = {
-            "path": str(root),
-            "scanned": 0,
-            "created": 0,
-            "updated": 0,
-            "unchanged": 0,
-            "removed": 0,
-            "errors": [],
-        }
-        now = now_iso()
-        paths = _iter_markdown(root)
-        current_paths = {str(path) for path in paths}
-        result["removed"] = _cleanup_missing_files(
-            conn,
-            root=root,
-            current_paths=current_paths,
-            workspace_id=workspace_id,
-        )
-        for path in paths:
-            result["scanned"] += 1
-            try:
-                state = _upsert_file(conn, root=root, path=path, workspace_id=workspace_id, now=now)
-                result[state] += 1
-            except Exception as exc:  # noqa: BLE001 - keep scanning other notes.
-                result["errors"].append({"path": str(path), "message": str(exc)})
-        _set_setting(conn, _last_scan_key(workspace_id), now)
+        result = _scan_root(conn, root=root, workspace_id=workspace_id)
         conn.commit()
         return result
     finally:

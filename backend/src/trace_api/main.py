@@ -17,6 +17,7 @@ from .web import mount_frontend
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_schema()
+    library.scan_configured_libraries()
     yield
 
 

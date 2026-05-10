@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, cursor, row_to_dict
@@ -16,6 +16,7 @@ from ..project_utils import (
     validate_project_status,
 )
 from .llm import get_default_profile
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -41,7 +42,7 @@ def _project_row_to_dict(row) -> dict:
 
 
 @router.get("")
-def list_projects() -> list[dict]:
+def list_projects(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
     conn = connect()
     try:
         rows = conn.execute(
@@ -51,9 +52,10 @@ def list_projects() -> list[dict]:
                    COUNT(DISTINCT n.id) AS note_count,
                    COUNT(DISTINCT r.id) AS report_count
             FROM project p
-            LEFT JOIN thread t ON t.project_id = p.id
-            LEFT JOIN note n ON n.project_id = p.id
-            LEFT JOIN report r ON r.project_id = p.id
+            LEFT JOIN thread t ON t.project_id = p.id AND t.workspace_id = p.workspace_id
+            LEFT JOIN note n ON n.project_id = p.id AND n.workspace_id = p.workspace_id
+            LEFT JOIN report r ON r.project_id = p.id AND r.workspace_id = p.workspace_id
+            WHERE p.workspace_id = ?
             GROUP BY p.id
             ORDER BY
               CASE p.status
@@ -64,7 +66,8 @@ def list_projects() -> list[dict]:
               END,
               p.updated_at DESC,
               p.name COLLATE NOCASE ASC
-            """
+            """,
+            (workspace_id,),
         ).fetchall()
         return [_project_row_to_dict(row) for row in rows]
     finally:
@@ -72,7 +75,7 @@ def list_projects() -> list[dict]:
 
 
 @router.post("", status_code=201)
-def create_project(body: ProjectIn) -> dict:
+def create_project(body: ProjectIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     name = clean_optional_text(body.name)
     if not name:
         raise HTTPException(400, "name is required")
@@ -85,14 +88,14 @@ def create_project(body: ProjectIn) -> dict:
     conn = connect()
     try:
         exists = conn.execute(
-            "SELECT id FROM project WHERE name = ? COLLATE NOCASE LIMIT 1",
-            (name,),
+            "SELECT id FROM project WHERE workspace_id = ? AND name = ? COLLATE NOCASE LIMIT 1",
+            (workspace_id, name),
         ).fetchone()
         if exists:
             raise HTTPException(409, "project already exists")
         conn.execute(
-            "INSERT INTO project (id,name,status,owner,summary,color,created_at,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO project (id,name,status,owner,summary,color,created_at,updated_at,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 project_id,
                 name,
@@ -102,16 +105,17 @@ def create_project(body: ProjectIn) -> dict:
                 color,
                 now,
                 now,
+                workspace_id,
             ),
         )
         conn.commit()
     finally:
         conn.close()
-    return get_project(project_id)
+    return get_project(project_id, workspace_id)
 
 
 @router.get("/{project_id}")
-def get_project(project_id: str) -> dict:
+def get_project(project_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
         row = conn.execute(
@@ -121,13 +125,13 @@ def get_project(project_id: str) -> dict:
                    COUNT(DISTINCT n.id) AS note_count,
                    COUNT(DISTINCT r.id) AS report_count
             FROM project p
-            LEFT JOIN thread t ON t.project_id = p.id
-            LEFT JOIN note n ON n.project_id = p.id
-            LEFT JOIN report r ON r.project_id = p.id
-            WHERE p.id = ?
+            LEFT JOIN thread t ON t.project_id = p.id AND t.workspace_id = p.workspace_id
+            LEFT JOIN note n ON n.project_id = p.id AND n.workspace_id = p.workspace_id
+            LEFT JOIN report r ON r.project_id = p.id AND r.workspace_id = p.workspace_id
+            WHERE p.id = ? AND p.workspace_id = ?
             GROUP BY p.id
             """,
-            (project_id,),
+            (project_id, workspace_id),
         ).fetchone()
         if not row:
             raise HTTPException(404, "project not found")
@@ -139,11 +143,11 @@ def get_project(project_id: str) -> dict:
             FROM thread t
             LEFT JOIN project p ON p.id = t.project_id
             LEFT JOIN evidence e ON e.thread_id = t.id
-            WHERE t.project_id = ?
+            WHERE t.project_id = ? AND t.workspace_id = ?
             GROUP BY t.id
             ORDER BY t.pinned DESC, t.last_active_at DESC
             """,
-            (project_id,),
+            (project_id, workspace_id),
         ).fetchall()
         threads: list[dict] = []
         for thread_row in thread_rows:
@@ -156,10 +160,10 @@ def get_project(project_id: str) -> dict:
             SELECT n.*, p.name AS project_name
             FROM note n
             LEFT JOIN project p ON p.id = n.project_id
-            WHERE n.project_id = ?
+            WHERE n.project_id = ? AND n.workspace_id = ?
             ORDER BY n.updated_at DESC
             """,
-            (project_id,),
+            (project_id, workspace_id),
         ).fetchall()
         notes: list[dict] = []
         for note_row in note_rows:
@@ -179,10 +183,10 @@ def get_project(project_id: str) -> dict:
                    r.project_id, p.name AS project_name, r.thread_ids_json, r.title, r.status, r.updated_at
             FROM report r
             LEFT JOIN project p ON p.id = r.project_id
-            WHERE r.project_id = ?
+            WHERE r.project_id = ? AND r.workspace_id = ?
             ORDER BY r.updated_at DESC
             """,
-            (project_id,),
+            (project_id, workspace_id),
         ).fetchall()
         reports: list[dict] = []
         for report_row in report_rows:
@@ -195,10 +199,10 @@ def get_project(project_id: str) -> dict:
             SELECT td.*, th.title AS thread_title
             FROM todo td
             LEFT JOIN thread th ON th.id = td.thread_id
-            WHERE td.thread_id IN (SELECT id FROM thread WHERE project_id = ?)
+            WHERE td.workspace_id = ? AND td.thread_id IN (SELECT id FROM thread WHERE project_id = ? AND workspace_id = ?)
             ORDER BY td.done ASC, (td.due_date IS NULL), td.due_date ASC, td.created_at DESC
             """,
-            (project_id,),
+            (workspace_id, project_id, workspace_id),
         ).fetchall()
         todos = [row_to_dict(row) for row in todo_rows]
 
@@ -208,7 +212,7 @@ def get_project(project_id: str) -> dict:
             FROM evidence e
             LEFT JOIN thread th ON th.id = e.thread_id
             LEFT JOIN project p ON p.id = th.project_id
-            WHERE th.project_id = ?
+            WHERE e.workspace_id = ? AND th.project_id = ?
             ORDER BY
               CASE
                 WHEN e.event_date IS NOT NULL THEN datetime(e.event_date)
@@ -216,7 +220,7 @@ def get_project(project_id: str) -> dict:
               END DESC,
               e.created_at DESC
             """,
-            (project_id,),
+            (workspace_id, project_id),
         ).fetchall()
         evidence: list[dict] = []
         for evidence_row in evidence_rows:
@@ -244,28 +248,35 @@ def get_project(project_id: str) -> dict:
 
 
 @router.delete("/{project_id}", status_code=204)
-def delete_project(project_id: str) -> None:
+def delete_project(project_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     conn = connect()
     try:
-        row = conn.execute("SELECT id FROM project WHERE id = ?", (project_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id FROM project WHERE id = ? AND workspace_id = ?",
+            (project_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "project not found")
         # Clear denormalised thread.project text so list views don't show the ghost name.
         # ON DELETE SET NULL handles thread.project_id / note.project_id / report.project_id.
         conn.execute(
-            "UPDATE thread SET project = NULL WHERE project_id = ?", (project_id,)
+            "UPDATE thread SET project = NULL WHERE project_id = ? AND workspace_id = ?",
+            (project_id, workspace_id),
         )
-        conn.execute("DELETE FROM project WHERE id = ?", (project_id,))
+        conn.execute(
+            "DELETE FROM project WHERE id = ? AND workspace_id = ?",
+            (project_id, workspace_id),
+        )
         conn.commit()
     finally:
         conn.close()
 
 
 @router.patch("/{project_id}")
-def patch_project(project_id: str, patch: ProjectPatch) -> dict:
+def patch_project(project_id: str, patch: ProjectPatch, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        current = require_project(conn, project_id)
+        current = require_project(conn, project_id, workspace_id)
         provided = patch.model_fields_set
 
         if "name" in provided:
@@ -286,53 +297,53 @@ def patch_project(project_id: str, patch: ProjectPatch) -> dict:
 
         if name.lower() != current["name"].lower():
             exists = conn.execute(
-                "SELECT id FROM project WHERE name = ? COLLATE NOCASE AND id != ? LIMIT 1",
-                (name, project_id),
+                "SELECT id FROM project WHERE workspace_id = ? AND name = ? COLLATE NOCASE AND id != ? LIMIT 1",
+                (workspace_id, name, project_id),
             ).fetchone()
             if exists:
                 raise HTTPException(409, "project already exists")
 
         now = now_iso()
         conn.execute(
-            "UPDATE project SET name=?, status=?, owner=?, summary=?, color=?, updated_at=? WHERE id=?",
-            (name, status, owner, summary or "", color, now, project_id),
+            "UPDATE project SET name=?, status=?, owner=?, summary=?, color=?, updated_at=? WHERE id=? AND workspace_id=?",
+            (name, status, owner, summary or "", color, now, project_id, workspace_id),
         )
         conn.execute(
-            "UPDATE thread SET project = ? WHERE project_id = ?",
-            (name, project_id),
+            "UPDATE thread SET project = ? WHERE project_id = ? AND workspace_id = ?",
+            (name, project_id, workspace_id),
         )
         conn.commit()
     finally:
         conn.close()
-    return get_project(project_id)
+    return get_project(project_id, workspace_id)
 
 
 @router.post("/{project_id}/summarize")
-async def summarize_project(project_id: str) -> dict:
+async def summarize_project(project_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        project = require_project(conn, project_id)
+        project = require_project(conn, project_id, workspace_id)
         thread_rows = conn.execute(
             """
             SELECT t.id, t.title, t.status, t.summary, COUNT(e.id) AS evidence_count
             FROM thread t
             LEFT JOIN evidence e ON e.thread_id = t.id
-            WHERE t.project_id = ?
+            WHERE t.project_id = ? AND t.workspace_id = ?
             GROUP BY t.id
             ORDER BY t.pinned DESC, t.last_active_at DESC
             """,
-            (project_id,),
+            (project_id, workspace_id),
         ).fetchall()
         evidence_rows = conn.execute(
             """
             SELECT e.id, e.text, e.category, e.event_date, th.title AS thread_title
             FROM evidence e
             LEFT JOIN thread th ON th.id = e.thread_id
-            WHERE th.project_id = ?
+            WHERE e.workspace_id = ? AND th.project_id = ?
             ORDER BY datetime(COALESCE(e.event_date, e.created_at)) DESC, e.created_at DESC
             LIMIT 24
             """,
-            (project_id,),
+            (workspace_id, project_id),
         ).fetchall()
     finally:
         conn.close()
@@ -387,7 +398,7 @@ async def summarize_project(project_id: str) -> dict:
 
     with cursor() as cur:
         cur.execute(
-            "UPDATE project SET summary=?, updated_at=? WHERE id=?",
-            (summary_text.strip(), now_iso(), project_id),
+            "UPDATE project SET summary=?, updated_at=? WHERE id=? AND workspace_id=?",
+            (summary_text.strip(), now_iso(), project_id, workspace_id),
         )
-    return get_project(project_id)
+    return get_project(project_id, workspace_id)

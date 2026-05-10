@@ -3,8 +3,26 @@ export type Category = "progress" | "decision" | "risk" | "plan" | "support";
 export type ItemStatus = "done" | "ongoing" | "blocked" | "planned";
 export type ProjectStatus = "active" | "paused" | "done" | "archived";
 
+export interface Workspace {
+  id: string;
+  name: string;
+  theme_color: string | null;
+  default_llm_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+  project_count?: number;
+  thread_count?: number;
+}
+
+export interface WorkspaceInput {
+  name: string;
+  theme_color?: string | null;
+  default_llm_profile_id?: string | null;
+}
+
 export interface Project {
   id: string;
+  workspace_id?: string;
   name: string;
   status: ProjectStatus;
   owner: string | null;
@@ -19,6 +37,7 @@ export interface Project {
 
 export interface Thread {
   id: string;
+  workspace_id?: string;
   title: string;
   project: string | null;
   project_id?: string | null;
@@ -33,6 +52,7 @@ export interface Thread {
 
 export interface Evidence {
   id: string;
+  workspace_id?: string;
   thread_id: string | null;
   thread_title?: string | null;
   thread_project?: string | null;
@@ -48,6 +68,7 @@ export interface Evidence {
 
 export interface Todo {
   id: string;
+  workspace_id?: string;
   thread_id: string | null;
   thread_title?: string | null;
   text: string;
@@ -74,6 +95,7 @@ export interface TodoPatch {
 
 export interface Note {
   id: string;
+  workspace_id?: string;
   title: string;
   body_md: string;
   day: string;
@@ -129,6 +151,7 @@ export interface EvidenceRef {
 
 export interface Report {
   id: string;
+  workspace_id?: string;
   period_label: string;
   period_start: string;
   period_end: string;

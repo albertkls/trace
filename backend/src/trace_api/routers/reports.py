@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import date as date_cls, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -18,6 +18,7 @@ from ..llm.prompts import (
 from ..project_utils import require_project
 from ..utils import TZ, new_id, now_iso
 from .llm import get_default_profile
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -67,17 +68,26 @@ def _parse_iso_moment(s: str) -> datetime:
 
 
 def _validated_thread_ids(
-    conn, thread_ids: list[str] | None, project_id: str | None = None
+    conn,
+    thread_ids: list[str] | None,
+    project_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> list[str]:
     """De-duplicate + verify each id exists. Empty list means all-scope."""
     cleaned = [tid for tid in dict.fromkeys(thread_ids or []) if tid]
     if not cleaned:
         return []
     placeholders = ",".join("?" for _ in cleaned)
-    rows = conn.execute(
-        f"SELECT id, project_id FROM thread WHERE id IN ({placeholders})",
-        tuple(cleaned),
-    ).fetchall()
+    if workspace_id:
+        rows = conn.execute(
+            f"SELECT id, project_id FROM thread WHERE workspace_id = ? AND id IN ({placeholders})",
+            (workspace_id, *cleaned),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT id, project_id FROM thread WHERE id IN ({placeholders})",
+            tuple(cleaned),
+        ).fetchall()
     found = {r["id"] for r in rows}
     missing = [tid for tid in cleaned if tid not in found]
     if missing:
@@ -150,7 +160,10 @@ class ReportPatch(BaseModel):
 
 
 @router.get("")
-def list_reports(project_id: str | None = None) -> list[dict]:
+def list_reports(
+    project_id: str | None = None,
+    workspace_id: str = Depends(request_workspace_id),
+) -> list[dict]:
     conn = connect()
     try:
         sql = (
@@ -158,9 +171,10 @@ def list_reports(project_id: str | None = None) -> list[dict]:
             "r.project_id, p.name AS project_name, r.thread_ids_json, r.title, r.status, r.updated_at "
             "FROM report r LEFT JOIN project p ON p.id = r.project_id"
         )
-        params: list[str] = []
+        params: list[str] = [workspace_id]
+        sql += " WHERE r.workspace_id = ?"
         if project_id:
-            sql += " WHERE r.project_id = ?"
+            sql += " AND r.project_id = ?"
             params.append(project_id)
         sql += " ORDER BY r.updated_at DESC"
         rows = conn.execute(sql, tuple(params)).fetchall()
@@ -175,7 +189,7 @@ def list_reports(project_id: str | None = None) -> list[dict]:
 
 
 @router.post("")
-def create_report(body: ReportCreate) -> dict:
+def create_report(body: ReportCreate, workspace_id: str = Depends(request_workspace_id)) -> dict:
     ds = _parse_iso_moment(body.period_start)
     de = _parse_iso_moment(body.period_end)
     if de < ds:
@@ -196,12 +210,12 @@ def create_report(body: ReportCreate) -> dict:
     try:
         project_id = body.project_id
         if project_id:
-            require_project(conn, project_id)
-        thread_ids = _validated_thread_ids(conn, body.thread_ids, project_id)
+            require_project(conn, project_id, workspace_id)
+        thread_ids = _validated_thread_ids(conn, body.thread_ids, project_id, workspace_id)
         conn.execute(
             "INSERT INTO report (id,period_label,period_start,period_end,audience,project_id,thread_ids_json,"
-            "title,body_md,outline_json,cited_evidence_json,status,created_at,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "title,body_md,outline_json,cited_evidence_json,status,created_at,updated_at,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 rp_id,
                 label,
@@ -217,16 +231,17 @@ def create_report(body: ReportCreate) -> dict:
                 "draft",
                 now,
                 now,
+                workspace_id,
             ),
         )
         conn.commit()
     finally:
         conn.close()
-    return get_report(rp_id)
+    return get_report(rp_id, workspace_id)
 
 
 @router.get("/{report_id}")
-def get_report(report_id: str) -> dict:
+def get_report(report_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
         row = conn.execute(
@@ -234,9 +249,9 @@ def get_report(report_id: str) -> dict:
             SELECT r.*, p.name AS project_name
             FROM report r
             LEFT JOIN project p ON p.id = r.project_id
-            WHERE r.id = ?
+            WHERE r.id = ? AND r.workspace_id = ?
             """,
-            (report_id,),
+            (report_id, workspace_id),
         ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
@@ -244,13 +259,13 @@ def get_report(report_id: str) -> dict:
         report["thread_ids"] = json.loads(report.pop("thread_ids_json") or "[]")
         report["outline"] = json.loads(report.pop("outline_json"))
         report["cited_evidence"] = json.loads(report.pop("cited_evidence_json"))
-        report["cited_evidence_detail"] = _hydrate_evidence(conn, report["cited_evidence"])
+        report["cited_evidence_detail"] = _hydrate_evidence(conn, report["cited_evidence"], workspace_id)
         return report
     finally:
         conn.close()
 
 
-def _hydrate_evidence(conn, ids: list[str]) -> list[dict]:
+def _hydrate_evidence(conn, ids: list[str], workspace_id: str) -> list[dict]:
     """Look up full evidence rows by id, preserving the input order.
 
     Missing ids (e.g. deleted evidence) produce a tombstone stub so the
@@ -266,8 +281,8 @@ def _hydrate_evidence(conn, ids: list[str]) -> list[dict]:
             FROM evidence e
             LEFT JOIN thread t ON t.id = e.thread_id
             LEFT JOIN project p ON p.id = t.project_id
-            WHERE e.id IN ({placeholders})""",
-        tuple(ids),
+            WHERE e.workspace_id = ? AND e.id IN ({placeholders})""",
+        (workspace_id, *ids),
     ).fetchall()
     by_id: dict[str, dict] = {}
     for r in rows:
@@ -343,6 +358,7 @@ def _collect_evidence_lines(
     period_end: str,
     thread_ids: list[str] | None = None,
     project_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (lines, evidence_ids) for evidence whose event_date falls in [start, end].
 
@@ -359,6 +375,9 @@ def _collect_evidence_lines(
           AND datetime(e.event_date) BETWEEN datetime(?) AND datetime(?)
     """
     params: list[str] = [period_start, period_end]
+    if workspace_id:
+        sql += " AND e.workspace_id = ?"
+        params.append(workspace_id)
     if project_id:
         sql += " AND t.project_id = ?"
         params.append(project_id)
@@ -393,7 +412,7 @@ def _collect_evidence_lines(
 
 
 @router.post("/{report_id}/compose")
-async def compose_report(report_id: str, body: ComposeRequest):
+async def compose_report(report_id: str, body: ComposeRequest, workspace_id: str = Depends(request_workspace_id)):
     """Stream a fresh draft via the configured LLM and persist the final body when done.
 
     Response is Server-Sent Events:
@@ -403,20 +422,23 @@ async def compose_report(report_id: str, body: ComposeRequest):
     """
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM report WHERE id = ?", (report_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM report WHERE id = ? AND workspace_id = ?",
+            (report_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
         report = row_to_dict(row)
         thread_ids = json.loads(report.get("thread_ids_json") or "[]")
         project_id = report.get("project_id")
         lines, ev_ids = _collect_evidence_lines(
-            conn, report["period_start"], report["period_end"], thread_ids, project_id
+            conn, report["period_start"], report["period_end"], thread_ids, project_id, workspace_id
         )
         project_context = None
         if project_id:
             prow = conn.execute(
-                "SELECT id, name, status, summary FROM project WHERE id = ?",
-                (project_id,),
+                "SELECT id, name, status, summary FROM project WHERE id = ? AND workspace_id = ?",
+                (project_id, workspace_id),
             ).fetchone()
             if prow:
                 thread_rows = conn.execute(
@@ -462,8 +484,8 @@ async def compose_report(report_id: str, body: ComposeRequest):
         conn2 = connect()
         try:
             conn2.execute(
-                "UPDATE report SET body_md=?, cited_evidence_json=?, updated_at=? WHERE id=?",
-                (body_md, json.dumps(ev_ids, ensure_ascii=False), now, report_id),
+                "UPDATE report SET body_md=?, cited_evidence_json=?, updated_at=? WHERE id=? AND workspace_id=?",
+                (body_md, json.dumps(ev_ids, ensure_ascii=False), now, report_id, workspace_id),
             )
             conn2.commit()
         finally:
@@ -482,7 +504,7 @@ def _sse(event: str, payload: dict) -> str:
 
 
 @router.post("/{report_id}/rewrite")
-async def rewrite_report(report_id: str, body: RewriteRequest):
+async def rewrite_report(report_id: str, body: RewriteRequest, workspace_id: str = Depends(request_workspace_id)):
     """Stream a rewrite of the current draft without persisting.
 
     The client decides whether to apply the result (via PATCH /reports/{id}).
@@ -496,20 +518,23 @@ async def rewrite_report(report_id: str, body: RewriteRequest):
 
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM report WHERE id = ?", (report_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM report WHERE id = ? AND workspace_id = ?",
+            (report_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
         report = row_to_dict(row)
         thread_ids = json.loads(report.get("thread_ids_json") or "[]")
         project_id = report.get("project_id")
         lines, _ev_ids = _collect_evidence_lines(
-            conn, report["period_start"], report["period_end"], thread_ids, project_id
+            conn, report["period_start"], report["period_end"], thread_ids, project_id, workspace_id
         )
         project_context = None
         if project_id:
             prow = conn.execute(
-                "SELECT id, name, status, summary FROM project WHERE id = ?",
-                (project_id,),
+                "SELECT id, name, status, summary FROM project WHERE id = ? AND workspace_id = ?",
+                (project_id, workspace_id),
             ).fetchone()
             if prow:
                 thread_rows = conn.execute(
@@ -575,10 +600,13 @@ async def rewrite_report(report_id: str, body: RewriteRequest):
 
 
 @router.patch("/{report_id}")
-def patch_report(report_id: str, patch: ReportPatch) -> dict:
+def patch_report(report_id: str, patch: ReportPatch, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM report WHERE id = ?", (report_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM report WHERE id = ? AND workspace_id = ?",
+            (report_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
         current = row_to_dict(row)
@@ -616,7 +644,7 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
         if patch.clear_project:
             new_project_id = None
         elif patch.project_id is not None:
-            require_project(conn, patch.project_id)
+            require_project(conn, patch.project_id, workspace_id)
             new_project_id = patch.project_id
         else:
             new_project_id = current.get("project_id")
@@ -632,7 +660,7 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
 
         if patch.thread_ids is not None:
             new_thread_ids_json = json.dumps(
-                _validated_thread_ids(conn, patch.thread_ids, new_project_id),
+                _validated_thread_ids(conn, patch.thread_ids, new_project_id, workspace_id),
                 ensure_ascii=False,
             )
         else:
@@ -642,8 +670,8 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
             if current_thread_ids:
                 placeholders = ",".join("?" for _ in current_thread_ids)
                 existing_rows = conn.execute(
-                    f"SELECT id FROM thread WHERE id IN ({placeholders})",
-                    tuple(current_thread_ids),
+                    f"SELECT id FROM thread WHERE workspace_id = ? AND id IN ({placeholders})",
+                    (workspace_id, *current_thread_ids),
                 ).fetchall()
                 existing_ids = {r["id"] for r in existing_rows}
                 current_thread_ids = [t for t in current_thread_ids if t in existing_ids]
@@ -653,7 +681,7 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
             "UPDATE report SET title=?, body_md=?, outline_json=?, status=?, "
             "period_start=?, period_end=?, period_label=?, audience=?, project_id=?, "
             "thread_ids_json=?, updated_at=? "
-            "WHERE id=?",
+            "WHERE id=? AND workspace_id=?",
             (
                 new_title,
                 new_body,
@@ -667,22 +695,29 @@ def patch_report(report_id: str, patch: ReportPatch) -> dict:
                 new_thread_ids_json,
                 _now_iso(),
                 report_id,
+                workspace_id,
             ),
         )
         conn.commit()
-        return get_report(report_id)
+        return get_report(report_id, workspace_id)
     finally:
         conn.close()
 
 
 @router.delete("/{report_id}", status_code=204)
-def delete_report(report_id: str) -> None:
+def delete_report(report_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     conn = connect()
     try:
-        row = conn.execute("SELECT id FROM report WHERE id = ?", (report_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id FROM report WHERE id = ? AND workspace_id = ?",
+            (report_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
-        conn.execute("DELETE FROM report WHERE id = ?", (report_id,))
+        conn.execute(
+            "DELETE FROM report WHERE id = ? AND workspace_id = ?",
+            (report_id, workspace_id),
+        )
         conn.commit()
     finally:
         conn.close()

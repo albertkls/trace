@@ -28,7 +28,10 @@ import type {
   TodoInput,
   TodoPatch,
   UpdateInfo,
+  Workspace,
+  WorkspaceInput,
 } from "./types";
+import { currentWorkspaceId } from "./workspace";
 
 const BASE = "/api";
 
@@ -37,6 +40,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "X-Trace-Workspace": currentWorkspaceId(),
       ...(init?.headers || {}),
     },
   });
@@ -51,6 +55,20 @@ export const api = {
   health: () => req<{ status: string }>("/health"),
   search: (q: string) =>
     req<SearchResult>(`/search?q=${encodeURIComponent(q)}`),
+  workspaces: {
+    list: () => req<Workspace[]>("/workspaces"),
+    create: (body: WorkspaceInput) =>
+      req<Workspace>("/workspaces", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    patch: (id: string, body: Partial<WorkspaceInput>) =>
+      req<Workspace>(`/workspaces/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) => req<void>(`/workspaces/${id}`, { method: "DELETE" }),
+  },
   projects: {
     list: () => req<Project[]>("/projects"),
     get: (id: string) => req<ProjectDetail>(`/projects/${id}`),

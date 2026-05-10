@@ -8,6 +8,7 @@ from typing import Iterator
 
 from .config import default_data_dir
 from .utils import new_id, now_iso
+from .workspace import DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_NAME
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SCHEMA_PATH = PACKAGE_DIR / "schema.sql"
@@ -38,6 +39,13 @@ MIGRATIONS: list[tuple[str, str]] = [
     ("note", "project_id TEXT"),
     ("report", "thread_ids_json TEXT NOT NULL DEFAULT '[]'"),
     ("report", "project_id TEXT"),
+    ("source", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
+    ("project", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
+    ("thread", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
+    ("evidence", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
+    ("todo", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
+    ("note", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
+    ("report", f"workspace_id TEXT NOT NULL DEFAULT '{DEFAULT_WORKSPACE_ID}'"),
 ]
 
 
@@ -116,15 +124,37 @@ def _apply_schema_statements(conn: sqlite3.Connection) -> list[str]:
     return skipped_index_statements
 
 
+def _ensure_default_workspace(conn: sqlite3.Connection) -> None:
+    tables = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "workspace" not in tables:
+        return
+    now = now_iso()
+    conn.execute(
+        """
+        INSERT INTO workspace (id,name,theme_color,default_llm_profile_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?)
+        ON CONFLICT(id) DO NOTHING
+        """,
+        (DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_NAME, "#5ee6c5", None, now, now),
+    )
+
+
 def ensure_schema(db_path: Path | None = None) -> None:
     conn = connect(db_path)
     try:
         skipped_indexes = _apply_schema_statements(conn)
+        _ensure_default_workspace(conn)
         for table, column_def in MIGRATIONS:
             column_name = column_def.split()[0]
             existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
             if column_name not in existing:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
+        _ensure_default_workspace(conn)
         _backfill_projects(conn)
         for statement in skipped_indexes:
             conn.execute(statement)

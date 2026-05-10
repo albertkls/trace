@@ -6,7 +6,7 @@
 
 - **项目名**: Trace
 - **技术栈**: FastAPI (Python) + React (TypeScript) + pywebview，使用 PyInstaller 打包成 macOS .app
-- **版本**: 1.1.0
+- **版本**: 1.2.0
 - **用途**: 个人使用的桌面应用
 
 > 仓库内同时保留了 `frontend/src-tauri/`（Tauri 2.x 实验外壳），但**正式发布不使用 Tauri**。

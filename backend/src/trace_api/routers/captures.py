@@ -5,13 +5,14 @@ import json
 import sqlite3
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, row_to_dict
 import uuid
 
 from ..utils import local_minute, new_id, now_iso
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/captures", tags=["captures"])
 
@@ -43,19 +44,20 @@ def _insert_source(
     text: str,
     imported_at: str,
     event_time: str,
+    workspace_id: str,
 ) -> None:
     try:
         conn.execute(
-            "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (source_id, kind, title, text, _hash(text), imported_at, event_time, "{}"),
+            "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (source_id, kind, title, text, _hash(text), imported_at, event_time, "{}", workspace_id),
         )
     except sqlite3.IntegrityError as e:
         if "source.hash" not in str(e):
             raise
         conn.execute(
-            "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO source (id,kind,title,raw_text,hash,imported_at,event_time,metadata_json,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 source_id,
                 kind,
@@ -65,6 +67,7 @@ def _insert_source(
                 imported_at,
                 event_time,
                 "{}",
+                workspace_id,
             ),
         )
 
@@ -87,7 +90,7 @@ class CaptureUpdate(BaseModel):
 
 
 @router.get("/inbox")
-def list_inbox() -> list[dict]:
+def list_inbox(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
     conn = connect()
     try:
         rows = conn.execute(
@@ -95,8 +98,10 @@ def list_inbox() -> list[dict]:
                FROM evidence e
                LEFT JOIN capture c ON c.id = e.capture_id
                LEFT JOIN source  s ON s.id = c.source_id
-               WHERE e.thread_id IS NULL
+               WHERE e.workspace_id = ? AND e.thread_id IS NULL
                ORDER BY e.created_at DESC"""
+            ,
+            (workspace_id,),
         ).fetchall()
         out = []
         for r in rows:
@@ -110,7 +115,7 @@ def list_inbox() -> list[dict]:
 
 
 @router.post("", status_code=201)
-def create_capture(body: CaptureIn) -> dict:
+def create_capture(body: CaptureIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     if not body.text.strip():
         raise HTTPException(400, "text is required")
     if body.category not in VALID_CATEGORIES:
@@ -120,7 +125,10 @@ def create_capture(body: CaptureIn) -> dict:
         cur = conn.cursor()
 
         if body.thread_id:
-            row = cur.execute("SELECT 1 FROM thread WHERE id = ?", (body.thread_id,)).fetchone()
+            row = cur.execute(
+                "SELECT 1 FROM thread WHERE id = ? AND workspace_id = ?",
+                (body.thread_id, workspace_id),
+            ).fetchone()
             if not row:
                 raise HTTPException(404, "thread not found")
 
@@ -137,6 +145,7 @@ def create_capture(body: CaptureIn) -> dict:
             text=body.text,
             imported_at=now,
             event_time=event_date,
+            workspace_id=workspace_id,
         )
         cur.execute(
             "INSERT INTO capture (id,source_id,seq,section_title,text,speaker,time_hint,confidence,created_at) "
@@ -145,8 +154,8 @@ def create_capture(body: CaptureIn) -> dict:
         )
         cur.execute(
             "INSERT INTO evidence "
-            "(id,capture_id,thread_id,text,event_date,owners_json,tags_json,category,status,importance,created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "(id,capture_id,thread_id,text,event_date,owners_json,tags_json,category,status,importance,created_at,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 evidence_id,
                 capture_id,
@@ -159,13 +168,14 @@ def create_capture(body: CaptureIn) -> dict:
                 "ongoing",
                 0.6,
                 now,
+                workspace_id,
             ),
         )
 
         if body.thread_id:
             cur.execute(
-                "UPDATE thread SET last_active_at = ? WHERE id = ?",
-                (now, body.thread_id),
+                "UPDATE thread SET last_active_at = ? WHERE id = ? AND workspace_id = ?",
+                (now, body.thread_id, workspace_id),
             )
 
         conn.commit()
@@ -175,8 +185,8 @@ def create_capture(body: CaptureIn) -> dict:
                FROM evidence e
                LEFT JOIN capture c ON c.id = e.capture_id
                LEFT JOIN source  s ON s.id = c.source_id
-               WHERE e.id = ?""",
-            (evidence_id,),
+               WHERE e.id = ? AND e.workspace_id = ?""",
+            (evidence_id, workspace_id),
         ).fetchone()
         d = row_to_dict(row)
         d["owners"] = json.loads(d.pop("owners_json") or "[]")
@@ -187,12 +197,15 @@ def create_capture(body: CaptureIn) -> dict:
 
 
 @router.patch("/{evidence_id}")
-def update_capture(evidence_id: str, patch: CaptureUpdate) -> dict:
+def update_capture(evidence_id: str, patch: CaptureUpdate, workspace_id: str = Depends(request_workspace_id)) -> dict:
     if patch.category and patch.category not in VALID_CATEGORIES:
         raise HTTPException(400, f"invalid category: {patch.category}")
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM evidence WHERE id = ?", (evidence_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM evidence WHERE id = ? AND workspace_id = ?",
+            (evidence_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "capture not found")
         current = row_to_dict(row)
@@ -207,7 +220,10 @@ def update_capture(evidence_id: str, patch: CaptureUpdate) -> dict:
             if patch.thread_id == "":
                 new_thread = None
             else:
-                tr = conn.execute("SELECT 1 FROM thread WHERE id = ?", (patch.thread_id,)).fetchone()
+                tr = conn.execute(
+                    "SELECT 1 FROM thread WHERE id = ? AND workspace_id = ?",
+                    (patch.thread_id, workspace_id),
+                ).fetchone()
                 if not tr:
                     raise HTTPException(404, "thread not found")
                 new_thread = patch.thread_id
@@ -215,16 +231,19 @@ def update_capture(evidence_id: str, patch: CaptureUpdate) -> dict:
             new_thread = current["thread_id"]
 
         conn.execute(
-            "UPDATE evidence SET text=?, event_date=?, category=?, thread_id=? WHERE id=?",
-            (new_text, new_date, new_cat, new_thread, evidence_id),
+            "UPDATE evidence SET text=?, event_date=?, category=?, thread_id=? WHERE id=? AND workspace_id=?",
+            (new_text, new_date, new_cat, new_thread, evidence_id, workspace_id),
         )
         if new_thread:
             conn.execute(
-                "UPDATE thread SET last_active_at = ? WHERE id = ?",
-                (_now(), new_thread),
+                "UPDATE thread SET last_active_at = ? WHERE id = ? AND workspace_id = ?",
+                (_now(), new_thread, workspace_id),
             )
         conn.commit()
-        updated = conn.execute("SELECT * FROM evidence WHERE id = ?", (evidence_id,)).fetchone()
+        updated = conn.execute(
+            "SELECT * FROM evidence WHERE id = ? AND workspace_id = ?",
+            (evidence_id, workspace_id),
+        ).fetchone()
         d = row_to_dict(updated)
         d["owners"] = json.loads(d.pop("owners_json") or "[]")
         d["tags"] = json.loads(d.pop("tags_json") or "[]")
@@ -234,10 +253,13 @@ def update_capture(evidence_id: str, patch: CaptureUpdate) -> dict:
 
 
 @router.delete("/{evidence_id}", status_code=204)
-def delete_capture(evidence_id: str) -> None:
+def delete_capture(evidence_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     conn = connect()
     try:
-        cur = conn.execute("DELETE FROM evidence WHERE id = ?", (evidence_id,))
+        cur = conn.execute(
+            "DELETE FROM evidence WHERE id = ? AND workspace_id = ?",
+            (evidence_id, workspace_id),
+        )
         if cur.rowcount == 0:
             raise HTTPException(404, "capture not found")
         conn.commit()
@@ -251,21 +273,27 @@ class PromoteTodoIn(BaseModel):
 
 
 @router.post("/{evidence_id}/promote-todo", status_code=201)
-def promote_to_todo(evidence_id: str, body: PromoteTodoIn) -> dict:
+def promote_to_todo(evidence_id: str, body: PromoteTodoIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM evidence WHERE id = ?", (evidence_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM evidence WHERE id = ? AND workspace_id = ?",
+            (evidence_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "capture not found")
         ev = row_to_dict(row)
         text = (body.text or "").strip() or ev["text"]
         todo_id = _id("td")
         conn.execute(
-            "INSERT INTO todo (id,thread_id,text,due_date,done,done_at,created_at) VALUES (?,?,?,?,?,?,?)",
-            (todo_id, ev["thread_id"], text, body.due_date, 0, None, _now()),
+            "INSERT INTO todo (id,thread_id,text,due_date,done,done_at,created_at,workspace_id) VALUES (?,?,?,?,?,?,?,?)",
+            (todo_id, ev["thread_id"], text, body.due_date, 0, None, _now(), workspace_id),
         )
         conn.commit()
-        todo = conn.execute("SELECT * FROM todo WHERE id = ?", (todo_id,)).fetchone()
+        todo = conn.execute(
+            "SELECT * FROM todo WHERE id = ? AND workspace_id = ?",
+            (todo_id, workspace_id),
+        ).fetchone()
         return row_to_dict(todo)
     finally:
         conn.close()
@@ -279,11 +307,14 @@ class PromoteNoteIn(BaseModel):
 
 
 @router.post("/from-note/{note_id}", status_code=201)
-def promote_note_to_evidence(note_id: str, body: PromoteNoteIn) -> dict:
+def promote_note_to_evidence(note_id: str, body: PromoteNoteIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     """Promote a note to an evidence record."""
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM note WHERE id = ?", (note_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM note WHERE id = ? AND workspace_id = ?",
+            (note_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "note not found")
         note = row_to_dict(row)
@@ -304,7 +335,10 @@ def promote_note_to_evidence(note_id: str, body: PromoteNoteIn) -> dict:
         if body.thread_id is None and not target_thread and note_thread_ids:
             target_thread = note_thread_ids[0]
         if target_thread:
-            tr = conn.execute("SELECT 1 FROM thread WHERE id = ?", (target_thread,)).fetchone()
+            tr = conn.execute(
+                "SELECT 1 FROM thread WHERE id = ? AND workspace_id = ?",
+                (target_thread, workspace_id),
+            ).fetchone()
             if not tr:
                 raise HTTPException(404, "thread not found")
 
@@ -323,6 +357,7 @@ def promote_note_to_evidence(note_id: str, body: PromoteNoteIn) -> dict:
             text=text,
             imported_at=now,
             event_time=event_date,
+            workspace_id=workspace_id,
         )
         conn.execute(
             "INSERT INTO capture (id,source_id,seq,section_title,text,speaker,time_hint,confidence,created_at) "
@@ -331,21 +366,24 @@ def promote_note_to_evidence(note_id: str, body: PromoteNoteIn) -> dict:
         )
         conn.execute(
             "INSERT INTO evidence "
-            "(id,capture_id,thread_id,text,event_date,owners_json,tags_json,category,status,importance,created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (evidence_id, capture_id, target_thread, text, event_date, "[]", "[]", body.category, "ongoing", 0.6, now),
+            "(id,capture_id,thread_id,text,event_date,owners_json,tags_json,category,status,importance,created_at,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (evidence_id, capture_id, target_thread, text, event_date, "[]", "[]", body.category, "ongoing", 0.6, now, workspace_id),
         )
 
         if target_thread:
-            conn.execute("UPDATE thread SET last_active_at = ? WHERE id = ?", (now, target_thread))
+            conn.execute(
+                "UPDATE thread SET last_active_at = ? WHERE id = ? AND workspace_id = ?",
+                (now, target_thread, workspace_id),
+            )
 
         conn.commit()
 
         row = conn.execute(
             """SELECT e.*, s.title AS source_title, s.kind AS source_kind
                FROM evidence e LEFT JOIN capture c ON c.id = e.capture_id LEFT JOIN source s ON s.id = c.source_id
-               WHERE e.id = ?""",
-            (evidence_id,),
+               WHERE e.id = ? AND e.workspace_id = ?""",
+            (evidence_id, workspace_id),
         ).fetchone()
         d = row_to_dict(row)
         d["owners"] = json.loads(d.pop("owners_json") or "[]")

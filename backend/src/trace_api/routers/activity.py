@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 import json
 
 from ..db import connect, row_to_dict
 from ..utils import TZ
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/activity", tags=["activity"])
 
@@ -18,7 +19,10 @@ def _yesterday() -> str:
 
 
 @router.get("/daily")
-def daily_activity(date: str | None = None) -> dict:
+def daily_activity(
+    date: str | None = None,
+    workspace_id: str = Depends(request_workspace_id),
+) -> dict:
     """Return activity summary for a given date (defaults to yesterday)."""
     target = date or _yesterday()
 
@@ -33,10 +37,10 @@ def daily_activity(date: str | None = None) -> dict:
             FROM evidence e
             LEFT JOIN thread t ON t.id = e.thread_id
             LEFT JOIN project p ON p.id = t.project_id
-            WHERE date(COALESCE(e.event_date, e.created_at)) = ?
+            WHERE e.workspace_id = ? AND date(COALESCE(e.event_date, e.created_at)) = ?
             ORDER BY datetime(COALESCE(e.event_date, e.created_at)) DESC
             """,
-            (target,),
+            (workspace_id, target),
         ).fetchall()
 
         evidence = []
@@ -55,10 +59,10 @@ def daily_activity(date: str | None = None) -> dict:
                        th.title AS thread_title
                 FROM todo t
                 LEFT JOIN thread th ON th.id = t.thread_id
-                WHERE t.done = 1 AND date(t.done_at) = ?
+                WHERE t.workspace_id = ? AND t.done = 1 AND date(t.done_at) = ?
                 ORDER BY t.done_at DESC
                 """,
-                (target,),
+                (workspace_id, target),
             ).fetchall()
         ]
 
@@ -71,10 +75,10 @@ def daily_activity(date: str | None = None) -> dict:
                        COALESCE(p.name, t.project) AS project_name
                 FROM thread t
                 LEFT JOIN project p ON p.id = t.project_id
-                WHERE date(t.last_active_at) = ?
+                WHERE t.workspace_id = ? AND date(t.last_active_at) = ?
                 ORDER BY t.last_active_at DESC
                 """,
-                (target,),
+                (workspace_id, target),
             ).fetchall()
         ]
 

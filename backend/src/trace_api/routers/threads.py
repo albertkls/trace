@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, cursor, row_to_dict
@@ -12,6 +12,7 @@ from ..llm.base import ChatMessage
 from ..project_utils import resolve_project_reference
 from ..utils import TZ, new_id, now_iso, today_iso
 from .llm import get_default_profile
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/threads", tags=["threads"])
 
@@ -82,7 +83,7 @@ class ThreadPatch(BaseModel):
 
 
 @router.post("", status_code=201)
-def create_thread(body: ThreadIn) -> dict:
+def create_thread(body: ThreadIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     if not body.title.strip():
         raise HTTPException(400, "title is required")
     conn = connect()
@@ -92,13 +93,14 @@ def create_thread(body: ThreadIn) -> dict:
             cur,
             project_id=body.project_id,
             project_name=body.project,
+            workspace_id=workspace_id,
         )
         thread_id = _id("th")
         now = _now()
         today = _today()
         cur.execute(
-            "INSERT INTO thread (id,title,project,project_id,owner,status,started_at,last_active_at,summary,pinned) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO thread (id,title,project,project_id,owner,status,started_at,last_active_at,summary,pinned,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 thread_id,
                 body.title.strip(),
@@ -110,17 +112,19 @@ def create_thread(body: ThreadIn) -> dict:
                 now,
                 body.summary,
                 1 if body.pinned else 0,
+                workspace_id,
             ),
         )
         if body.adopt_evidence_id:
             erow = cur.execute(
-                "SELECT id FROM evidence WHERE id = ?", (body.adopt_evidence_id,)
+                "SELECT id FROM evidence WHERE id = ? AND workspace_id = ?",
+                (body.adopt_evidence_id, workspace_id),
             ).fetchone()
             if not erow:
                 raise HTTPException(404, "evidence to adopt not found")
             cur.execute(
-                "UPDATE evidence SET thread_id = ? WHERE id = ?",
-                (thread_id, body.adopt_evidence_id),
+                "UPDATE evidence SET thread_id = ? WHERE id = ? AND workspace_id = ?",
+                (thread_id, body.adopt_evidence_id, workspace_id),
             )
         conn.commit()
         row = cur.execute(
@@ -128,9 +132,9 @@ def create_thread(body: ThreadIn) -> dict:
             SELECT t.*, COALESCE(p.name, t.project) AS project_name
             FROM thread t
             LEFT JOIN project p ON p.id = t.project_id
-            WHERE t.id = ?
+            WHERE t.id = ? AND t.workspace_id = ?
             """,
-            (thread_id,),
+            (thread_id, workspace_id),
         ).fetchone()
         thread = row_to_dict(row)
         thread["project"] = thread.pop("project_name") or thread.get("project")
@@ -140,10 +144,13 @@ def create_thread(body: ThreadIn) -> dict:
 
 
 @router.patch("/{thread_id}")
-def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
+def patch_thread(thread_id: str, patch: ThreadPatch, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM thread WHERE id = ? AND workspace_id = ?",
+            (thread_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "thread not found")
         current = row_to_dict(row)
@@ -178,6 +185,7 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
                     conn,
                     project_id=patch.project_id,
                     project_name=patch.project,
+                    workspace_id=workspace_id,
                 )
         else:
             project_id = current.get("project_id")
@@ -208,7 +216,7 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
             "started_at": started_at,
         }
         conn.execute(
-            "UPDATE thread SET title=?, project=?, project_id=?, owner=?, status=?, started_at=?, summary=?, pinned=?, last_active_at=? WHERE id=?",
+            "UPDATE thread SET title=?, project=?, project_id=?, owner=?, status=?, started_at=?, summary=?, pinned=?, last_active_at=? WHERE id=? AND workspace_id=?",
             (
                 fields["title"],
                 fields["project"],
@@ -220,6 +228,7 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
                 fields["pinned"],
                 _now(),
                 thread_id,
+                workspace_id,
             ),
         )
         conn.commit()
@@ -228,9 +237,9 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
             SELECT t.*, COALESCE(p.name, t.project) AS project_name
             FROM thread t
             LEFT JOIN project p ON p.id = t.project_id
-            WHERE t.id = ?
+            WHERE t.id = ? AND t.workspace_id = ?
             """,
-            (thread_id,),
+            (thread_id, workspace_id),
         ).fetchone()
         thread = row_to_dict(refreshed)
         thread["project"] = thread.pop("project_name") or thread.get("project")
@@ -240,7 +249,10 @@ def patch_thread(thread_id: str, patch: ThreadPatch) -> dict:
 
 
 @router.get("")
-def list_threads(project_id: str | None = None) -> list[dict]:
+def list_threads(
+    project_id: str | None = None,
+    workspace_id: str = Depends(request_workspace_id),
+) -> list[dict]:
     conn = connect()
     try:
         sql = """
@@ -249,9 +261,10 @@ def list_threads(project_id: str | None = None) -> list[dict]:
             LEFT JOIN project p ON p.id = t.project_id
             LEFT JOIN evidence e ON e.thread_id = t.id
         """
-        params: list[str] = []
+        params: list[str] = [workspace_id]
+        sql += " WHERE t.workspace_id = ?"
         if project_id:
-            sql += " WHERE t.project_id = ?"
+            sql += " AND t.project_id = ?"
             params.append(project_id)
         sql += " GROUP BY t.id ORDER BY t.pinned DESC, t.last_active_at DESC"
         rows = conn.execute(sql, tuple(params)).fetchall()
@@ -266,10 +279,13 @@ def list_threads(project_id: str | None = None) -> list[dict]:
 
 
 @router.post("/{thread_id}/summarize")
-async def summarize_thread(thread_id: str) -> dict:
+async def summarize_thread(thread_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM thread WHERE id = ? AND workspace_id = ?",
+            (thread_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "thread not found")
         thread = row_to_dict(row)
@@ -326,26 +342,32 @@ async def summarize_thread(thread_id: str) -> dict:
 
     with cursor() as cur:
         cur.execute(
-            "UPDATE thread SET summary=?, last_active_at=? WHERE id=?",
-            (summary_text.strip(), _now(), thread_id),
+            "UPDATE thread SET summary=?, last_active_at=? WHERE id=? AND workspace_id=?",
+            (summary_text.strip(), _now(), thread_id, workspace_id),
         )
-        refreshed = cur.execute("SELECT * FROM thread WHERE id=?", (thread_id,)).fetchone()
+        refreshed = cur.execute(
+            "SELECT * FROM thread WHERE id=? AND workspace_id=?",
+            (thread_id, workspace_id),
+        ).fetchone()
         return row_to_dict(refreshed)
 
 
 @router.delete("/{thread_id}", status_code=204)
-def delete_thread(thread_id: str) -> None:
+def delete_thread(thread_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     with cursor() as cur:
-        row = cur.execute("SELECT id FROM thread WHERE id = ?", (thread_id,)).fetchone()
+        row = cur.execute(
+            "SELECT id FROM thread WHERE id = ? AND workspace_id = ?",
+            (thread_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "thread not found")
         # Manually cascade-delete evidence and todos (schema uses ON DELETE SET NULL)
-        cur.execute("DELETE FROM evidence WHERE thread_id = ?", (thread_id,))
-        cur.execute("DELETE FROM todo WHERE thread_id = ?", (thread_id,))
+        cur.execute("DELETE FROM evidence WHERE thread_id = ? AND workspace_id = ?", (thread_id, workspace_id))
+        cur.execute("DELETE FROM todo WHERE thread_id = ? AND workspace_id = ?", (thread_id, workspace_id))
         # Scrub dead thread_id from note.thread_ids_json and report.thread_ids_json
         for note_row in cur.execute(
-            "SELECT id, thread_ids_json FROM note WHERE thread_ids_json LIKE ?",
-            (f"%{thread_id}%",),
+            "SELECT id, thread_ids_json FROM note WHERE workspace_id = ? AND thread_ids_json LIKE ?",
+            (workspace_id, f"%{thread_id}%"),
         ).fetchall():
             try:
                 ids: list[str] = json.loads(note_row["thread_ids_json"] or "[]")
@@ -358,8 +380,8 @@ def delete_thread(thread_id: str) -> None:
             except Exception:  # noqa: BLE001
                 pass
         for report_row in cur.execute(
-            "SELECT id, thread_ids_json FROM report WHERE thread_ids_json LIKE ?",
-            (f"%{thread_id}%",),
+            "SELECT id, thread_ids_json FROM report WHERE workspace_id = ? AND thread_ids_json LIKE ?",
+            (workspace_id, f"%{thread_id}%"),
         ).fetchall():
             try:
                 ids = json.loads(report_row["thread_ids_json"] or "[]")
@@ -371,11 +393,11 @@ def delete_thread(thread_id: str) -> None:
                     )
             except Exception:  # noqa: BLE001
                 pass
-        cur.execute("DELETE FROM thread WHERE id = ?", (thread_id,))
+        cur.execute("DELETE FROM thread WHERE id = ? AND workspace_id = ?", (thread_id, workspace_id))
 
 
 @router.get("/{thread_id}")
-def get_thread(thread_id: str) -> dict:
+def get_thread(thread_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
         row = conn.execute(
@@ -383,9 +405,9 @@ def get_thread(thread_id: str) -> dict:
             SELECT t.*, COALESCE(p.name, t.project) AS project_name
             FROM thread t
             LEFT JOIN project p ON p.id = t.project_id
-            WHERE t.id = ?
+            WHERE t.id = ? AND t.workspace_id = ?
             """,
-            (thread_id,),
+            (thread_id, workspace_id),
         ).fetchone()
         if not row:
             raise HTTPException(404, "thread not found")
@@ -394,8 +416,8 @@ def get_thread(thread_id: str) -> dict:
         evidences = [
             row_to_dict(r)
             for r in conn.execute(
-                "SELECT * FROM evidence WHERE thread_id = ? ORDER BY event_date, id",
-                (thread_id,),
+                "SELECT * FROM evidence WHERE thread_id = ? AND workspace_id = ? ORDER BY event_date, id",
+                (thread_id, workspace_id),
             )
         ]
         for e in evidences:
@@ -404,8 +426,8 @@ def get_thread(thread_id: str) -> dict:
         todos = [
             row_to_dict(r)
             for r in conn.execute(
-                "SELECT * FROM todo WHERE thread_id = ? ORDER BY done, due_date",
-                (thread_id,),
+                "SELECT * FROM todo WHERE thread_id = ? AND workspace_id = ? ORDER BY done, due_date",
+                (thread_id, workspace_id),
             )
         ]
         thread["evidence"] = evidences

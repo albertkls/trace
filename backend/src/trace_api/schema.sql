@@ -11,7 +11,17 @@ CREATE TABLE IF NOT EXISTS source (
     hash         TEXT NOT NULL UNIQUE,
     imported_at  TEXT NOT NULL,
     event_time   TEXT,
-    metadata_json TEXT NOT NULL DEFAULT '{}'
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    workspace_id TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS workspace (
+    id                     TEXT PRIMARY KEY,
+    name                   TEXT NOT NULL,
+    theme_color            TEXT,
+    default_llm_profile_id TEXT REFERENCES llm_profile(id) ON DELETE SET NULL,
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS capture (
@@ -34,7 +44,8 @@ CREATE TABLE IF NOT EXISTS project (
     summary     TEXT NOT NULL DEFAULT '',
     color       TEXT,
     created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
+    updated_at  TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS thread (
@@ -47,7 +58,8 @@ CREATE TABLE IF NOT EXISTS thread (
     started_at      TEXT NOT NULL,
     last_active_at  TEXT NOT NULL,
     summary         TEXT NOT NULL DEFAULT '',
-    pinned          INTEGER NOT NULL DEFAULT 0
+    pinned          INTEGER NOT NULL DEFAULT 0,
+    workspace_id    TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS evidence (
@@ -61,7 +73,8 @@ CREATE TABLE IF NOT EXISTS evidence (
     category     TEXT NOT NULL DEFAULT 'progress',
     status       TEXT NOT NULL DEFAULT 'ongoing',
     importance   REAL NOT NULL DEFAULT 0.5,
-    created_at   TEXT NOT NULL
+    created_at   TEXT NOT NULL,
+    workspace_id  TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS todo (
@@ -71,7 +84,8 @@ CREATE TABLE IF NOT EXISTS todo (
     due_date   TEXT,
     done       INTEGER NOT NULL DEFAULT 0,
     done_at    TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS note (
@@ -82,7 +96,8 @@ CREATE TABLE IF NOT EXISTS note (
     project_id      TEXT REFERENCES project(id) ON DELETE SET NULL,
     thread_ids_json TEXT NOT NULL DEFAULT '[]',
     created_at      TEXT NOT NULL,
-    updated_at      TEXT NOT NULL
+    updated_at      TEXT NOT NULL,
+    workspace_id    TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS report (
@@ -99,7 +114,8 @@ CREATE TABLE IF NOT EXISTS report (
     cited_evidence_json  TEXT NOT NULL DEFAULT '[]',
     status               TEXT NOT NULL DEFAULT 'draft',
     created_at           TEXT NOT NULL,
-    updated_at           TEXT NOT NULL
+    updated_at           TEXT NOT NULL,
+    workspace_id         TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS llm_profile (
@@ -121,14 +137,21 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_source_hash ON source(hash);
+CREATE INDEX IF NOT EXISTS idx_source_workspace ON source(workspace_id, imported_at DESC);
 CREATE INDEX IF NOT EXISTS idx_capture_source ON capture(source_id, seq);
 CREATE INDEX IF NOT EXISTS idx_evidence_thread ON evidence(thread_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_thread_last_active ON thread(last_active_at DESC);
+CREATE INDEX IF NOT EXISTS idx_thread_workspace_last_active ON thread(workspace_id, last_active_at DESC);
 CREATE INDEX IF NOT EXISTS idx_thread_project_id ON thread(project_id, last_active_at DESC);
 CREATE INDEX IF NOT EXISTS idx_report_period ON report(period_label, audience, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_report_project_id ON report(project_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_report_workspace ON report(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_todo_thread ON todo(thread_id, done);
 CREATE INDEX IF NOT EXISTS idx_note_day ON note(day DESC);
 CREATE INDEX IF NOT EXISTS idx_note_project_id ON note(project_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_note_workspace ON note(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_project_status ON project(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_project_updated ON project(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_project_workspace ON project(workspace_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_todo_workspace ON todo(workspace_id, done, due_date);
+CREATE INDEX IF NOT EXISTS idx_evidence_workspace ON evidence(workspace_id, event_date);

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .config import get_settings, reset_settings_cache
 from .db import ensure_schema
-from .routers import activity, captures, llm, notes, projects, reports, search, threads, todos, updater
+from .routers import activity, captures, llm, notes, projects, reports, search, threads, todos, updater, workspaces
 from .web import mount_frontend
 
 
@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=list(settings.allowed_origins),
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Trace-Workspace"],
     )
 
     @app.get("/api/health")
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(threads.router, prefix="/api")
+    app.include_router(workspaces.router, prefix="/api")
     app.include_router(projects.router, prefix="/api")
     app.include_router(reports.router, prefix="/api")
     app.include_router(captures.router, prefix="/api")

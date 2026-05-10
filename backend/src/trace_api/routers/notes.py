@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, row_to_dict
 from ..project_utils import require_project
 from ..utils import local_minute, new_id, now_iso
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -52,14 +53,14 @@ def _to_dict(row) -> dict:
     return d
 
 
-def _normalize_thread_ids(conn, thread_ids: list[str] | None) -> list[str]:
+def _normalize_thread_ids(conn, thread_ids: list[str] | None, workspace_id: str) -> list[str]:
     cleaned = [tid for tid in dict.fromkeys(thread_ids or []) if tid]
     if not cleaned:
         return []
     placeholders = ",".join("?" for _ in cleaned)
     found = conn.execute(
-        f"SELECT id FROM thread WHERE id IN ({placeholders})",
-        tuple(cleaned),
+        f"SELECT id FROM thread WHERE workspace_id = ? AND id IN ({placeholders})",
+        (workspace_id, *cleaned),
     ).fetchall()
     if len(found) != len(cleaned):
         raise HTTPException(404, "one or more threads not found")
@@ -67,7 +68,10 @@ def _normalize_thread_ids(conn, thread_ids: list[str] | None) -> list[str]:
 
 
 @router.get("")
-def list_notes(project_id: str | None = None) -> list[dict]:
+def list_notes(
+    project_id: str | None = None,
+    workspace_id: str = Depends(request_workspace_id),
+) -> list[dict]:
     conn = connect()
     try:
         sql = """
@@ -75,9 +79,10 @@ def list_notes(project_id: str | None = None) -> list[dict]:
             FROM note n
             LEFT JOIN project p ON p.id = n.project_id
         """
-        params: list[str] = []
+        params: list[str] = [workspace_id]
+        sql += " WHERE n.workspace_id = ?"
         if project_id:
-            sql += " WHERE n.project_id = ?"
+            sql += " AND n.project_id = ?"
             params.append(project_id)
         sql += " ORDER BY n.day DESC, n.updated_at DESC"
         rows = conn.execute(sql, tuple(params)).fetchall()
@@ -87,7 +92,7 @@ def list_notes(project_id: str | None = None) -> list[dict]:
 
 
 @router.get("/{note_id}")
-def get_note(note_id: str) -> dict:
+def get_note(note_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
         row = conn.execute(
@@ -95,9 +100,9 @@ def get_note(note_id: str) -> dict:
             SELECT n.*, p.name AS project_name
             FROM note n
             LEFT JOIN project p ON p.id = n.project_id
-            WHERE n.id = ?
+            WHERE n.id = ? AND n.workspace_id = ?
             """,
-            (note_id,),
+            (note_id, workspace_id),
         ).fetchone()
         if not row:
             raise HTTPException(404, "note not found")
@@ -107,19 +112,19 @@ def get_note(note_id: str) -> dict:
 
 
 @router.post("", status_code=201)
-def create_note(body: NoteIn) -> dict:
+def create_note(body: NoteIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        thread_ids = _normalize_thread_ids(conn, body.thread_ids)
+        thread_ids = _normalize_thread_ids(conn, body.thread_ids, workspace_id)
         project_id = body.project_id
         if project_id:
-            require_project(conn, project_id)
+            require_project(conn, project_id, workspace_id)
         note_id = _id("nt")
         now = _now()
         day = body.day or _current_local_minute()
         conn.execute(
-            "INSERT INTO note (id,title,body_md,day,project_id,thread_ids_json,created_at,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO note (id,title,body_md,day,project_id,thread_ids_json,created_at,updated_at,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 note_id,
                 body.title.strip(),
@@ -129,6 +134,7 @@ def create_note(body: NoteIn) -> dict:
                 json.dumps(thread_ids),
                 now,
                 now,
+                workspace_id,
             ),
         )
         conn.commit()
@@ -137,9 +143,9 @@ def create_note(body: NoteIn) -> dict:
             SELECT n.*, p.name AS project_name
             FROM note n
             LEFT JOIN project p ON p.id = n.project_id
-            WHERE n.id = ?
+            WHERE n.id = ? AND n.workspace_id = ?
             """,
-            (note_id,),
+            (note_id, workspace_id),
         ).fetchone()
         return _to_dict(row)
     finally:
@@ -147,10 +153,13 @@ def create_note(body: NoteIn) -> dict:
 
 
 @router.patch("/{note_id}")
-def patch_note(note_id: str, patch: NotePatch) -> dict:
+def patch_note(note_id: str, patch: NotePatch, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM note WHERE id = ?", (note_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM note WHERE id = ? AND workspace_id = ?",
+            (note_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "note not found")
         current = _to_dict(row)
@@ -161,19 +170,19 @@ def patch_note(note_id: str, patch: NotePatch) -> dict:
         if patch.clear_project:
             new_project_id = None
         elif patch.project_id is not None:
-            require_project(conn, patch.project_id)
+            require_project(conn, patch.project_id, workspace_id)
             new_project_id = patch.project_id
         else:
             new_project_id = current.get("project_id")
 
         if patch.thread_ids is not None:
-            new_threads = _normalize_thread_ids(conn, patch.thread_ids)
+            new_threads = _normalize_thread_ids(conn, patch.thread_ids, workspace_id)
         else:
             new_threads = current["thread_ids"]
 
         conn.execute(
-            "UPDATE note SET title=?, body_md=?, day=?, project_id=?, thread_ids_json=?, updated_at=? WHERE id=?",
-            (new_title, new_body, new_day, new_project_id, json.dumps(new_threads), _now(), note_id),
+            "UPDATE note SET title=?, body_md=?, day=?, project_id=?, thread_ids_json=?, updated_at=? WHERE id=? AND workspace_id=?",
+            (new_title, new_body, new_day, new_project_id, json.dumps(new_threads), _now(), note_id, workspace_id),
         )
         conn.commit()
         updated = conn.execute(
@@ -181,9 +190,9 @@ def patch_note(note_id: str, patch: NotePatch) -> dict:
             SELECT n.*, p.name AS project_name
             FROM note n
             LEFT JOIN project p ON p.id = n.project_id
-            WHERE n.id = ?
+            WHERE n.id = ? AND n.workspace_id = ?
             """,
-            (note_id,),
+            (note_id, workspace_id),
         ).fetchone()
         return _to_dict(updated)
     finally:
@@ -191,10 +200,13 @@ def patch_note(note_id: str, patch: NotePatch) -> dict:
 
 
 @router.delete("/{note_id}", status_code=204)
-def delete_note(note_id: str) -> None:
+def delete_note(note_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     conn = connect()
     try:
-        cur = conn.execute("DELETE FROM note WHERE id = ?", (note_id,))
+        cur = conn.execute(
+            "DELETE FROM note WHERE id = ? AND workspace_id = ?",
+            (note_id, workspace_id),
+        )
         if cur.rowcount == 0:
             raise HTTPException(404, "note not found")
         conn.commit()

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import DesktopTitlebar from "./DesktopTitlebar";
 import QuickCapture from "./QuickCapture";
@@ -13,6 +14,12 @@ import {
 } from "@/lib/appInfo";
 import { QuickCaptureContext } from "@/lib/quickCapture";
 import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
+import { api } from "@/lib/api";
+import {
+  DEFAULT_WORKSPACE_ID,
+  WORKSPACE_STORAGE_KEY,
+  WorkspaceContext,
+} from "@/lib/workspace";
 
 const NAV: { to: string; label: string; key: string; glyph: string }[] = [
   { to: "/", label: "今日", key: "1", glyph: "◐" },
@@ -35,6 +42,13 @@ export default function Shell() {
 
   const [captureOpen, setCaptureOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [activeWorkspaceId, setActiveWorkspaceIdState] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_WORKSPACE_ID;
+    return window.localStorage.getItem(WORKSPACE_STORAGE_KEY) || DEFAULT_WORKSPACE_ID;
+  });
+  const queryClient = useQueryClient();
   const ctx = useMemo(() => ({ open: () => setCaptureOpen(true) }), []);
   // Only show custom titlebar when actually inside Tauri (frameless window).
   // In the PyInstaller/pywebview build, desktop.py merges the native macOS title
@@ -42,6 +56,45 @@ export default function Shell() {
   // top-padding so the traffic light buttons don't overlap content.
   const showCustomTitlebar = isTauriDesktop();
   const isPywebview = isPywebviewDesktop();
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: api.workspaces.list,
+  });
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
+  const createWorkspace = useMutation({
+    mutationFn: () => api.workspaces.create({ name: newWorkspaceName.trim() }),
+    onSuccess: (workspace) => {
+      setActiveWorkspaceId(workspace.id);
+      setNewWorkspaceName("");
+      setNewWorkspaceOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+  });
+
+  const setActiveWorkspaceId = (id: string) => {
+    setActiveWorkspaceIdState(id);
+    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
+    queryClient.invalidateQueries();
+  };
+
+  const workspaceContext = useMemo(
+    () => ({
+      activeWorkspaceId,
+      setActiveWorkspaceId,
+      workspaces,
+      refreshWorkspaces: () => {
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      },
+    }),
+    [activeWorkspaceId, queryClient, workspaces]
+  );
+
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    if (workspaces.some((workspace) => workspace.id === activeWorkspaceId)) return;
+    setActiveWorkspaceId(workspaces[0].id);
+  }, [activeWorkspaceId, workspaces]);
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -68,13 +121,22 @@ export default function Shell() {
         e.preventDefault();
         setSearchOpen(true);
       }
+      if (e.ctrlKey && !e.metaKey && !e.shiftKey && /^[1-9]$/.test(e.key)) {
+        const idx = Number(e.key) - 1;
+        const workspace = workspaces[idx];
+        if (workspace) {
+          e.preventDefault();
+          setActiveWorkspaceId(workspace.id);
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [workspaces]);
 
   return (
     <QuickCaptureContext.Provider value={ctx}>
+      <WorkspaceContext.Provider value={workspaceContext}>
       <div className="relative flex h-full w-full flex-col bg-canvas text-ink">
         {showCustomTitlebar ? (
           <DesktopTitlebar />
@@ -126,6 +188,59 @@ export default function Shell() {
                 <span className="kbd">N</span>
               </span>
             </button>
+
+            <div className="mb-5 rounded-xl border border-line bg-canvas-raised/45 p-2">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="eyebrow text-[9px]">WORKSPACE</span>
+                <button
+                  className="rounded-md px-1.5 py-0.5 text-xs text-accent transition hover:bg-canvas-contrast"
+                  onClick={() => setNewWorkspaceOpen((value) => !value)}
+                  title="新建工作区"
+                >
+                  ＋
+                </button>
+              </div>
+              <div className="space-y-1">
+                {workspaces.slice(0, 9).map((workspace, idx) => (
+                  <button
+                    key={workspace.id}
+                    onClick={() => setActiveWorkspaceId(workspace.id)}
+                    className={clsx(
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition",
+                      workspace.id === activeWorkspace?.id
+                        ? "bg-canvas-contrast text-ink"
+                        : "text-ink-soft hover:bg-canvas-contrast/60 hover:text-ink"
+                    )}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-accent/80" />
+                    <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+                    <span className="mono-meta">⌃{idx + 1}</span>
+                  </button>
+                ))}
+              </div>
+              {newWorkspaceOpen && (
+                <div className="mt-2 space-y-2">
+                  <input
+                    value={newWorkspaceName}
+                    onChange={(e) => setNewWorkspaceName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newWorkspaceName.trim()) {
+                        createWorkspace.mutate();
+                      }
+                    }}
+                    placeholder="新工作区名称"
+                    className="w-full rounded-lg border border-line bg-canvas-sunken px-2 py-1.5 text-xs text-ink outline-none focus:border-accent/60"
+                  />
+                  <button
+                    className="btn btn-accent w-full justify-center text-xs"
+                    onClick={() => createWorkspace.mutate()}
+                    disabled={!newWorkspaceName.trim() || createWorkspace.isPending}
+                  >
+                    {createWorkspace.isPending ? "创建中…" : "创建"}
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="mb-2 px-2 eyebrow text-[9px]">NAVIGATION</div>
             <nav className="flex flex-col gap-0.5">
@@ -199,6 +314,7 @@ export default function Shell() {
       <QuickCapture open={captureOpen} onClose={() => setCaptureOpen(false)} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <UpdatePrompt />
+      </WorkspaceContext.Provider>
     </QuickCaptureContext.Provider>
   );
 }

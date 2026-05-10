@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import connect, row_to_dict
 from ..utils import new_id, now_iso
+from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/todos", tags=["todos"])
 
@@ -32,13 +33,13 @@ class TodoPatch(BaseModel):
     clear_due_date: bool | None = None
 
 
-def _select_with_thread(conn, todo_id: str) -> dict:
+def _select_with_thread(conn, todo_id: str, workspace_id: str) -> dict:
     row = conn.execute(
         """SELECT t.*, th.title AS thread_title
            FROM todo t
            LEFT JOIN thread th ON th.id = t.thread_id
-           WHERE t.id = ?""",
-        (todo_id,),
+           WHERE t.id = ? AND t.workspace_id = ?""",
+        (todo_id, workspace_id),
     ).fetchone()
     if not row:
         raise HTTPException(404, "todo not found")
@@ -47,16 +48,20 @@ def _select_with_thread(conn, todo_id: str) -> dict:
 
 
 @router.get("")
-def list_todos(done: int | None = None) -> list[dict]:
+def list_todos(
+    done: int | None = None,
+    workspace_id: str = Depends(request_workspace_id),
+) -> list[dict]:
     conn = connect()
     try:
         q = """SELECT t.*, th.title AS thread_title
                FROM todo t
-               LEFT JOIN thread th ON th.id = t.thread_id"""
-        params: tuple = ()
+               LEFT JOIN thread th ON th.id = t.thread_id
+               WHERE t.workspace_id = ?"""
+        params: tuple = (workspace_id,)
         if done is not None:
-            q += " WHERE t.done = ?"
-            params = (1 if done else 0,)
+            q += " AND t.done = ?"
+            params = (workspace_id, 1 if done else 0)
         # Unfinished first, then by due_date (NULLs last), then newest.
         q += " ORDER BY t.done ASC, (t.due_date IS NULL), t.due_date ASC, t.created_at DESC"
         rows = conn.execute(q, params).fetchall()
@@ -66,21 +71,22 @@ def list_todos(done: int | None = None) -> list[dict]:
 
 
 @router.post("", status_code=201)
-def create_todo(body: TodoIn) -> dict:
+def create_todo(body: TodoIn, workspace_id: str = Depends(request_workspace_id)) -> dict:
     if not body.text.strip():
         raise HTTPException(400, "text is required")
     conn = connect()
     try:
         if body.thread_id:
             exists = conn.execute(
-                "SELECT 1 FROM thread WHERE id = ?", (body.thread_id,)
+                "SELECT 1 FROM thread WHERE id = ? AND workspace_id = ?",
+                (body.thread_id, workspace_id),
             ).fetchone()
             if not exists:
                 raise HTTPException(404, "thread not found")
         todo_id = _id("td")
         conn.execute(
-            "INSERT INTO todo (id,thread_id,text,due_date,done,done_at,created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO todo (id,thread_id,text,due_date,done,done_at,created_at,workspace_id) "
+            "VALUES (?,?,?,?,?,?,?,?)",
             (
                 todo_id,
                 body.thread_id,
@@ -89,19 +95,23 @@ def create_todo(body: TodoIn) -> dict:
                 0,
                 None,
                 _now(),
+                workspace_id,
             ),
         )
         conn.commit()
-        return _select_with_thread(conn, todo_id)
+        return _select_with_thread(conn, todo_id, workspace_id)
     finally:
         conn.close()
 
 
 @router.patch("/{todo_id}")
-def patch_todo(todo_id: str, patch: TodoPatch) -> dict:
+def patch_todo(todo_id: str, patch: TodoPatch, workspace_id: str = Depends(request_workspace_id)) -> dict:
     conn = connect()
     try:
-        row = conn.execute("SELECT * FROM todo WHERE id = ?", (todo_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM todo WHERE id = ? AND workspace_id = ?",
+            (todo_id, workspace_id),
+        ).fetchone()
         if not row:
             raise HTTPException(404, "todo not found")
         current = row_to_dict(row)
@@ -122,7 +132,8 @@ def patch_todo(todo_id: str, patch: TodoPatch) -> dict:
                 new_thread = None
             else:
                 tr = conn.execute(
-                    "SELECT 1 FROM thread WHERE id = ?", (patch.thread_id,)
+                    "SELECT 1 FROM thread WHERE id = ? AND workspace_id = ?",
+                    (patch.thread_id, workspace_id),
                 ).fetchone()
                 if not tr:
                     raise HTTPException(404, "thread not found")
@@ -143,25 +154,28 @@ def patch_todo(todo_id: str, patch: TodoPatch) -> dict:
             new_done_at = current["done_at"]
 
         conn.execute(
-            "UPDATE todo SET text=?, due_date=?, thread_id=?, done=?, done_at=? WHERE id=?",
-            (new_text, new_due, new_thread, new_done, new_done_at, todo_id),
+            "UPDATE todo SET text=?, due_date=?, thread_id=?, done=?, done_at=? WHERE id=? AND workspace_id=?",
+            (new_text, new_due, new_thread, new_done, new_done_at, todo_id, workspace_id),
         )
         if new_thread:
             conn.execute(
-                "UPDATE thread SET last_active_at = ? WHERE id = ?",
-                (_now(), new_thread),
+                "UPDATE thread SET last_active_at = ? WHERE id = ? AND workspace_id = ?",
+                (_now(), new_thread, workspace_id),
             )
         conn.commit()
-        return _select_with_thread(conn, todo_id)
+        return _select_with_thread(conn, todo_id, workspace_id)
     finally:
         conn.close()
 
 
 @router.delete("/{todo_id}", status_code=204)
-def delete_todo(todo_id: str) -> None:
+def delete_todo(todo_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     conn = connect()
     try:
-        cur = conn.execute("DELETE FROM todo WHERE id = ?", (todo_id,))
+        cur = conn.execute(
+            "DELETE FROM todo WHERE id = ? AND workspace_id = ?",
+            (todo_id, workspace_id),
+        )
         if cur.rowcount == 0:
             raise HTTPException(404, "todo not found")
         conn.commit()

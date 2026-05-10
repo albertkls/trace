@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
-import type { LLMProfile, LLMProtocol, ProfileInput } from "@/lib/types";
+import { APP_VERSION, isPywebviewDesktop } from "@/lib/appInfo";
+import type { LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
 
 const PROTOCOLS = [
   { value: "openai-compat", label: "OpenAI 兼容协议" },
@@ -54,6 +55,65 @@ const PRESET_CONFIGS: Record<string, Partial<ProfileInput>> = {
 
 export default function Settings() {
   const qc = useQueryClient();
+  const isDesktop = isPywebviewDesktop();
+
+  // Update state
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    setCheckingUpdate(true);
+    api.updater
+      .check()
+      .then((info) => {
+        setUpdateInfo(info);
+        setUpdateError(null);
+      })
+      .catch((e: Error) => setUpdateError(e.message))
+      .finally(() => setCheckingUpdate(false));
+  }, [isDesktop]);
+
+  const handleCheckUpdate = () => {
+    setCheckingUpdate(true);
+    setUpdateError(null);
+    api.updater
+      .check()
+      .then((info) => {
+        setUpdateInfo(info);
+      })
+      .catch((e: Error) => setUpdateError(e.message))
+      .finally(() => setCheckingUpdate(false));
+  };
+
+  const handleDownloadAndInstall = async () => {
+    if (!updateInfo?.dmg_url) return;
+    setDownloading(true);
+    setUpdateError(null);
+    try {
+      const { dmg_path } = await api.updater.download(updateInfo.dmg_url);
+      setDownloading(false);
+      setInstalling(true);
+      await api.updater.apply(dmg_path);
+      // The backend will exit the process after launching the update script.
+      // Show a message in case exit is delayed.
+      setUpdateInfo(null);
+    } catch (e: unknown) {
+      setUpdateError(e instanceof Error ? e.message : String(e));
+      setDownloading(false);
+      setInstalling(false);
+    }
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "";
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
+  };
+
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ["llm-profiles"],
     queryFn: api.llm.list,
@@ -171,6 +231,86 @@ export default function Settings() {
           管理大模型接入配置与偏好。
         </p>
       </header>
+
+      {isDesktop && (
+        <section className="mb-10">
+          <h2 className="mb-4 flex items-center gap-2">
+            <span className="eyebrow">APP · UPDATE</span>
+          </h2>
+
+          <div className="panel p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-ink">当前版本</div>
+                <div className="mono-meta mt-0.5">v{APP_VERSION}</div>
+              </div>
+              <button
+                className="btn btn-ghost text-xs"
+                onClick={handleCheckUpdate}
+                disabled={checkingUpdate}
+              >
+                {checkingUpdate ? "检查中…" : "检查更新"}
+              </button>
+            </div>
+
+            {updateError && (
+              <div className="mt-4 rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-2 text-xs text-signal-stop">
+                {updateError}
+              </div>
+            )}
+
+            {installing && (
+              <div className="mt-4 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent">
+                正在安装更新，应用即将重启…
+              </div>
+            )}
+
+            {downloading && (
+              <div className="mt-4 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent">
+                正在下载更新包…
+              </div>
+            )}
+
+            {updateInfo?.update_available && !downloading && !installing && (
+              <div className="mt-4 rounded-xl border border-line bg-canvas-raised/50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="chip chip-accent">新版本</span>
+                  <span className="text-sm font-medium text-ink">
+                    v{updateInfo.latest_version}
+                  </span>
+                  {updateInfo.published_at && (
+                    <span className="mono-meta">
+                      · {updateInfo.published_at.slice(0, 10)}
+                    </span>
+                  )}
+                  {updateInfo.dmg_size && (
+                    <span className="mono-meta">
+                      · {formatFileSize(updateInfo.dmg_size)}
+                    </span>
+                  )}
+                </div>
+                {updateInfo.changelog && (
+                  <div className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap text-xs text-ink-soft leading-relaxed">
+                    {updateInfo.changelog}
+                  </div>
+                )}
+                <button
+                  className="btn btn-accent mt-4 w-full justify-center"
+                  onClick={handleDownloadAndInstall}
+                >
+                  下载并安装
+                </button>
+              </div>
+            )}
+
+            {updateInfo && !updateInfo.update_available && !checkingUpdate && !downloading && !installing && (
+              <div className="mt-4 text-sm text-ink-mute">
+                ✓ 已是最新版本
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="mb-10">
         <h2 className="mb-4 flex items-center gap-2">

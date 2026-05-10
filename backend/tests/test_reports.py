@@ -182,8 +182,7 @@ def test_get_report_tombstones_missing_evidence(client):
 def test_delete_report(client):
     rid = create_report(client)['id']
     r = client.delete(f"/api/reports/{rid}")
-    assert r.status_code == 200
-    assert r.json()['ok'] is True
+    assert r.status_code == 204
 
     r2 = client.get(f"/api/reports/{rid}")
     assert r2.status_code == 404

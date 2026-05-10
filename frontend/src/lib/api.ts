@@ -27,6 +27,7 @@ import type {
   Todo,
   TodoInput,
   TodoPatch,
+  UpdateInfo,
 } from "./types";
 
 const BASE = "/api";
@@ -210,6 +211,19 @@ export const api = {
   activity: {
     daily: (date?: string) =>
       req<DailyActivity>(`/activity/daily${date ? `?date=${encodeURIComponent(date)}` : ""}`),
+  },
+  updater: {
+    check: () => req<UpdateInfo>("/updater/check"),
+    download: (dmgUrl: string) =>
+      req<{ dmg_path: string }>("/updater/download", {
+        method: "POST",
+        body: JSON.stringify({ dmg_url: dmgUrl }),
+      }),
+    apply: (dmgPath: string) =>
+      req<{ ok: boolean }>("/updater/apply", {
+        method: "POST",
+        body: JSON.stringify({ dmg_path: dmgPath }),
+      }),
   },
 };
 

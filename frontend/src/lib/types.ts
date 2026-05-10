@@ -333,3 +333,14 @@ export interface DailyActivity {
   capture_count: number;
   todo_done_count: number;
 }
+
+export interface UpdateInfo {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  release_url?: string;
+  changelog?: string;
+  published_at?: string;
+  dmg_url?: string;
+  dmg_size?: number;
+}

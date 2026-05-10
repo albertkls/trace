@@ -214,10 +214,13 @@ export const api = {
   },
   updater: {
     check: () => req<UpdateInfo>("/updater/check"),
-    download: (dmgUrl: string) =>
-      req<{ dmg_path: string }>("/updater/download", {
+    download: (dmgUrl: string, expectedSha256?: string | null) =>
+      req<{ dmg_path: string; sha256: string }>("/updater/download", {
         method: "POST",
-        body: JSON.stringify({ dmg_url: dmgUrl }),
+        body: JSON.stringify({
+          dmg_url: dmgUrl,
+          expected_sha256: expectedSha256 || undefined,
+        }),
       }),
     apply: (dmgPath: string) =>
       req<{ ok: boolean }>("/updater/apply", {

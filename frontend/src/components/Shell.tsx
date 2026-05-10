@@ -4,6 +4,7 @@ import clsx from "clsx";
 import DesktopTitlebar from "./DesktopTitlebar";
 import QuickCapture from "./QuickCapture";
 import SearchModal from "./SearchModal";
+import UpdatePrompt from "./UpdatePrompt";
 import {
   APP_VERSION,
   appRuntimeLabel,
@@ -197,6 +198,7 @@ export default function Shell() {
 
       <QuickCapture open={captureOpen} onClose={() => setCaptureOpen(false)} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <UpdatePrompt />
     </QuickCaptureContext.Provider>
   );
 }

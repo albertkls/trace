@@ -94,7 +94,10 @@ export default function Settings() {
     setDownloading(true);
     setUpdateError(null);
     try {
-      const { dmg_path } = await api.updater.download(updateInfo.dmg_url);
+      const { dmg_path } = await api.updater.download(
+        updateInfo.dmg_url,
+        updateInfo.dmg_sha256
+      );
       setDownloading(false);
       setInstalling(true);
       await api.updater.apply(dmg_path);

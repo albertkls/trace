@@ -343,4 +343,5 @@ export interface UpdateInfo {
   published_at?: string;
   dmg_url?: string;
   dmg_size?: number;
+  dmg_sha256?: string | null;
 }

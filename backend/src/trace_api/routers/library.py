@@ -4,6 +4,7 @@ import hashlib
 import json
 import platform
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from ..utils import TZ, new_id, now_iso
 from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/library", tags=["library"])
+MAX_MARKDOWN_BYTES = 5 * 1024 * 1024
 
 
 class LibraryConfigIn(BaseModel):
@@ -36,6 +38,10 @@ def _path_key(workspace_id: str) -> str:
 
 def _last_scan_key(workspace_id: str) -> str:
     return f"library.last_scan:{workspace_id}"
+
+
+def _last_result_key(workspace_id: str) -> str:
+    return f"library.last_result:{workspace_id}"
 
 
 def _auto_scan_key(workspace_id: str) -> str:
@@ -140,8 +146,32 @@ def _set_bool_setting(conn, key: str, value: bool) -> None:
     _set_setting(conn, key, "1" if value else "0")
 
 
+def _get_json_setting(conn, key: str) -> dict | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    if not row:
+        return None
+    try:
+        value = json.loads(row["value"])
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _read_markdown(path: Path) -> str:
+    size = path.stat().st_size
+    if size > MAX_MARKDOWN_BYTES:
+        mb = MAX_MARKDOWN_BYTES / (1024 * 1024)
+        raise ValueError(f"文件过大，超过 {mb:.0f} MB 上限")
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"文件不是有效的 UTF-8 文本: {exc}") from exc
+    except OSError as exc:
+        raise ValueError(f"文件读取失败: {exc}") from exc
+
+
 def _upsert_file(conn, *, root: Path, path: Path, workspace_id: str, now: str) -> str:
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = _read_markdown(path)
     rel = str(path.relative_to(root))
     event_time = _event_time(path)
     source_hash = _file_hash(workspace_id, path, text)
@@ -225,16 +255,22 @@ def _upsert_file(conn, *, root: Path, path: Path, workspace_id: str, now: str) -
 
 
 def _scan_root(conn, *, root: Path, workspace_id: str) -> dict:
+    started = time.perf_counter()
+    started_at = now_iso()
     result = {
         "path": str(root),
+        "started_at": started_at,
+        "finished_at": started_at,
+        "duration_ms": 0,
         "scanned": 0,
         "created": 0,
         "updated": 0,
         "unchanged": 0,
         "removed": 0,
+        "error_count": 0,
         "errors": [],
     }
-    now = now_iso()
+    now = started_at
     paths = _iter_markdown(root)
     current_paths = {str(path) for path in paths}
     result["removed"] = _cleanup_missing_files(
@@ -250,7 +286,12 @@ def _scan_root(conn, *, root: Path, workspace_id: str) -> dict:
             result[state] += 1
         except Exception as exc:  # noqa: BLE001 - keep scanning other notes.
             result["errors"].append({"path": str(path), "message": str(exc)})
-    _set_setting(conn, _last_scan_key(workspace_id), now)
+    finished_at = now_iso()
+    result["finished_at"] = finished_at
+    result["duration_ms"] = round((time.perf_counter() - started) * 1000)
+    result["error_count"] = len(result["errors"])
+    _set_setting(conn, _last_scan_key(workspace_id), finished_at)
+    _set_setting(conn, _last_result_key(workspace_id), json.dumps(result, ensure_ascii=False))
     return result
 
 
@@ -271,11 +312,15 @@ def scan_configured_libraries() -> list[dict]:
                     {
                         "workspace_id": workspace_id,
                         "path": str(root),
+                        "started_at": now_iso(),
+                        "finished_at": now_iso(),
+                        "duration_ms": 0,
                         "scanned": 0,
                         "created": 0,
                         "updated": 0,
                         "unchanged": 0,
                         "removed": 0,
+                        "error_count": 1,
                         "errors": [{"path": str(root), "message": "path does not exist"}],
                     }
                 )
@@ -304,12 +349,14 @@ def get_library_status(workspace_id: str = Depends(request_workspace_id)) -> dic
         ).fetchone()["count"]
         exists = bool(configured_path and Path(configured_path).exists() and Path(configured_path).is_dir())
         auto_scan = _get_bool_setting(conn, _auto_scan_key(workspace_id), True)
+        last_result = _get_json_setting(conn, _last_result_key(workspace_id))
         return {
             "path": configured_path,
             "exists": exists,
             "source_count": source_count,
             "last_scan": last_scan["value"] if last_scan else None,
             "auto_scan": auto_scan,
+            "last_result": last_result,
         }
     finally:
         conn.close()

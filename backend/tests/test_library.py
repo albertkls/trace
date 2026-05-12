@@ -197,3 +197,48 @@ def test_scan_configured_libraries_respects_auto_scan_setting(
     assert len(results) == 1
     assert results[0]["created"] == 1
     assert client.get("/api/captures/inbox").json()[0]["text"] == "启动自动同步"
+
+
+def test_markdown_library_scan_persists_last_result(client: TestClient, tmp_path: Path) -> None:
+    library = tmp_path / "vault"
+    library.mkdir()
+    (library / "Result.md").write_text("持久化同步结果", encoding="utf-8")
+
+    response = client.post("/api/library/scan", json={"path": str(library)})
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["created"] == 1
+    assert result["error_count"] == 0
+    assert result["duration_ms"] >= 0
+    assert result["finished_at"]
+
+    status = client.get("/api/library")
+    assert status.status_code == 200, status.text
+    last_result = status.json()["last_result"]
+    assert last_result["path"] == str(library)
+    assert last_result["created"] == 1
+    assert last_result["error_count"] == 0
+
+
+def test_markdown_library_scan_errors_do_not_interrupt_batch(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / "vault"
+    library.mkdir()
+    good = library / "Good.md"
+    bad = library / "Bad.md"
+    good.write_text("正常文件仍应入库", encoding="utf-8")
+    bad.write_bytes(b"\xff\xfe\xfa")
+
+    response = client.post("/api/library/scan", json={"path": str(library)})
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["scanned"] == 2
+    assert result["created"] == 1
+    assert result["error_count"] == 1
+    assert result["errors"][0]["path"] == str(bad)
+    assert "UTF-8" in result["errors"][0]["message"]
+
+    inbox = client.get("/api/captures/inbox").json()
+    assert [item["source_title"] for item in inbox] == ["Good.md"]

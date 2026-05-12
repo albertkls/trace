@@ -170,6 +170,7 @@ export default function Settings() {
   const [libraryAutoScan, setLibraryAutoScan] = useState(true);
   const [libraryResult, setLibraryResult] = useState<LibraryScanResult | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const latestLibraryResult = libraryResult ?? libraryStatus?.last_result ?? null;
 
   useEffect(() => {
     setLibraryPath(libraryStatus?.path || "");
@@ -500,12 +501,31 @@ export default function Settings() {
             )}
           </div>
 
-          {libraryResult && (
+          {latestLibraryResult && (
             <div className="mt-4 rounded-xl border border-line bg-canvas-raised/50 px-4 py-3 text-sm text-ink-soft">
-              扫描 {libraryResult.scanned} 个 Markdown：新增 {libraryResult.created}，
-              更新 {libraryResult.updated}，未变化 {libraryResult.unchanged}，
-              清理 {libraryResult.removed}
-              {libraryResult.errors.length > 0 && `，失败 ${libraryResult.errors.length}`}
+              <div>
+                扫描 {latestLibraryResult.scanned} 个 Markdown：新增 {latestLibraryResult.created}，
+                更新 {latestLibraryResult.updated}，未变化 {latestLibraryResult.unchanged}，
+                清理 {latestLibraryResult.removed}
+                {latestLibraryResult.error_count > 0 && `，失败 ${latestLibraryResult.error_count}`}
+              </div>
+              <div className="mono-meta mt-1">
+                用时 {latestLibraryResult.duration_ms} ms · 完成于{" "}
+                {latestLibraryResult.finished_at.slice(0, 16).replace("T", " ")}
+              </div>
+              {latestLibraryResult.errors.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {latestLibraryResult.errors.slice(0, 3).map((error) => (
+                    <div
+                      key={`${error.path}:${error.message}`}
+                      className="rounded-lg border border-signal-stop/25 bg-signal-stop/10 px-3 py-2 text-xs text-signal-stop"
+                    >
+                      <div className="truncate font-mono">{error.path}</div>
+                      <div className="mt-1 text-signal-stop/80">{error.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

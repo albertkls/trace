@@ -147,6 +147,21 @@ export default function Settings() {
     onError: (e: Error) => setBackupError(e.message),
   });
 
+  const confirmRestoreBackup = (backup: BackupInfo) => {
+    const firstConfirmed = window.confirm(
+      `恢复备份「${backup.name}」？当前数据库会先自动备份。`
+    );
+    if (!firstConfirmed) return;
+
+    const secondConfirmed = window.prompt("请再次输入“恢复”以确认操作");
+    if (secondConfirmed?.trim() !== "恢复") {
+      setBackupMessage(null);
+      setBackupError("已取消恢复：二次确认未通过");
+      return;
+    }
+    restoreBackup.mutate(backup);
+  };
+
   const { data: libraryStatus } = useQuery({
     queryKey: ["library", activeWorkspaceId],
     queryFn: api.library.status,
@@ -429,11 +444,7 @@ export default function Settings() {
                   <button
                     className="btn btn-ghost text-xs text-signal-stop hover:!bg-signal-stop/10 hover:!text-signal-stop"
                     disabled={restoreBackup.isPending}
-                    onClick={() => {
-                      if (window.confirm("恢复此备份？当前数据库会先自动备份。")) {
-                        restoreBackup.mutate(backup);
-                      }
-                    }}
+                    onClick={() => confirmRestoreBackup(backup)}
                   >
                     恢复
                   </button>

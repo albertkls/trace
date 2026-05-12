@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import sqlite3
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -22,7 +24,10 @@ class RestoreRequest(BaseModel):
 
 
 def backups_dir() -> Path:
-    path = default_data_dir() / "backups"
+    if os.getenv("TRACE_DB_PATH"):
+        path = default_db_path().parent / "backups"
+    else:
+        path = default_data_dir() / "backups"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -39,10 +44,14 @@ def _sha256(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def _backup_name(label: str | None = None) -> str:
+def _backup_stem(label: str | None = None) -> str:
     suffix = f"-{label.strip()}" if label and label.strip() else ""
     safe_suffix = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in suffix)
-    return f"Trace-backup-{_now_slug()}-v{__version__}{safe_suffix}.sqlite"
+    return f"Trace-backup-{_now_slug()}-v{__version__}{safe_suffix}"
+
+
+def _backup_name(stem: str, checksum: str) -> str:
+    return f"{stem}-sha256-{checksum[:12]}.sqlite"
 
 
 def _check_integrity(path: Path) -> None:
@@ -74,15 +83,28 @@ def backup_database(label: str | None = None) -> dict:
     source = default_db_path()
     if not source.exists():
         ensure_schema()
-    target = backups_dir() / _backup_name(label)
+    backup_root = backups_dir()
+    stem = _backup_stem(label)
+    temp_target = backup_root / f".{stem}-{uuid.uuid4().hex[:8]}.tmp.sqlite"
     source_conn = sqlite3.connect(source)
-    target_conn = sqlite3.connect(target)
+    target_conn = sqlite3.connect(temp_target)
     try:
         source_conn.backup(target_conn)
     finally:
         target_conn.close()
         source_conn.close()
-    checksum = _sha256(target)
+    try:
+        _check_integrity(temp_target)
+        checksum = _sha256(temp_target)
+        target = backup_root / _backup_name(stem, checksum)
+        index = 2
+        while target.exists():
+            target = backup_root / f"{stem}-sha256-{checksum[:12]}-{index}.sqlite"
+            index += 1
+        temp_target.replace(target)
+    except Exception:
+        temp_target.unlink(missing_ok=True)
+        raise
     return {
         "path": str(target),
         "name": target.name,
@@ -110,10 +132,22 @@ def list_backup_files() -> list[dict]:
 def restore_database(raw_path: str) -> dict:
     backup_path = _resolve_backup_path(raw_path)
     _check_integrity(backup_path)
-    safety_backup = backup_database("before-restore")
     db_path = default_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(backup_path, db_path)
+    restore_temp = db_path.with_name(f".{db_path.name}.restore-{_now_slug()}-{uuid.uuid4().hex[:8]}.sqlite")
+    shutil.copy2(backup_path, restore_temp)
+    try:
+        _check_integrity(restore_temp)
+        ensure_schema(restore_temp)
+        _check_integrity(restore_temp)
+    except Exception:
+        restore_temp.unlink(missing_ok=True)
+        raise
+
+    safety_backup = backup_database("before-restore")
+    for suffix in ("-wal", "-shm"):
+        db_path.with_name(db_path.name + suffix).unlink(missing_ok=True)
+    restore_temp.replace(db_path)
     for suffix in ("-wal", "-shm"):
         db_path.with_name(db_path.name + suffix).unlink(missing_ok=True)
     ensure_schema()

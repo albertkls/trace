@@ -4,8 +4,6 @@ import hashlib
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from trace_api.routers import updater
 
 

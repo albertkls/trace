@@ -13,6 +13,7 @@ import {
   CATEGORY_OPTIONS,
   CATEGORY_TIMELINE_MARKER_STYLE,
 } from "@/lib/categories";
+import { todoPreview } from "@/lib/richText";
 import type { Category, Evidence } from "@/lib/types";
 
 const TIMELINE_MARKER_SHADOW =
@@ -223,7 +224,7 @@ export default function ThreadDetail() {
                         td.done ? "text-ink-mute line-through" : ""
                       }
                     >
-                      {td.text}
+                      {todoPreview(td.text)}
                     </span>
                     {td.due_date && (
                       <span className="mono-meta ml-auto">

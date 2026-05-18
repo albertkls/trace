@@ -6,6 +6,7 @@ import StatusDot from "@/components/StatusDot";
 import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
 import { isoWeekLabel, toISODate, formatDateTime } from "@/lib/periods";
+import { todoPreview } from "@/lib/richText";
 
 function yesterdayISO(): string {
   const d = new Date();
@@ -196,7 +197,7 @@ export default function Home() {
                   <span className="text-accent">✓</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-ink-soft line-through decoration-ink-mute/40">
-                      {td.text}
+                      {todoPreview(td.text)}
                     </p>
                     {td.thread_title && (
                       <div className="mt-0.5 text-[11px] text-ink-mute">

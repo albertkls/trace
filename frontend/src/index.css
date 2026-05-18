@@ -145,6 +145,30 @@
     @apply w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent/60 focus:bg-canvas-raised;
   }
 
+  .rich-text {
+    @apply text-sm leading-relaxed text-ink;
+  }
+  .rich-text p,
+  .rich-text div {
+    @apply my-0;
+  }
+  .rich-text ul {
+    @apply my-1 list-disc space-y-0.5 pl-5;
+  }
+  .rich-text ol {
+    @apply my-1 list-decimal space-y-0.5 pl-5;
+  }
+  .rich-text li {
+    @apply pl-0.5;
+  }
+  .rich-text-editor {
+    @apply min-h-[96px] w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm leading-relaxed text-ink outline-none transition focus:border-accent/60 focus:bg-canvas-raised;
+  }
+  .rich-text-editor:empty::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none text-ink-faint;
+  }
+
   /* ───── Keyboard ───── */
   .kbd {
     @apply inline-flex items-center rounded-md border border-line bg-canvas-sunken px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-tight text-ink-mute;

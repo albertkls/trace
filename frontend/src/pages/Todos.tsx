@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import clsx from "clsx";
@@ -7,6 +7,11 @@ import {
   formatDateTime,
   toDateTimeInputValue,
 } from "@/lib/periods";
+import {
+  sanitizeTodoHtml,
+  todoPreview,
+  todoRichTextToPlainText,
+} from "@/lib/richText";
 import type { Thread, Todo, TodoPatch } from "@/lib/types";
 
 export default function Todos() {
@@ -116,10 +121,11 @@ function QuickAdd({
   const [threadId, setThreadId] = useState<string>("");
 
   const submit = async () => {
-    if (!text.trim()) return;
+    const html = sanitizeTodoHtml(text);
+    if (!todoRichTextToPlainText(html)) return;
     try {
       await onAdd({
-        text: text.trim(),
+        text: html,
         due_date: due || null,
         thread_id: threadId || null,
       });
@@ -133,26 +139,15 @@ function QuickAdd({
 
   return (
     <div className="panel p-4">
-      <div className="flex items-center gap-2">
-        <span className="mono-meta text-ink-faint">›</span>
-        <input
+      <div className="space-y-3">
+        <RichTextComposer
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="写下一件要做的事，回车添加…"
-          className="input !border-transparent !bg-transparent !py-1.5 focus:!border-transparent"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
-          }}
+          onChange={setText}
+          placeholder="写下一件要做的事，支持加粗、列表和多行…"
+          onSubmit={submit}
         />
-        <button
-          className="btn btn-accent"
-          onClick={submit}
-          disabled={pending || !text.trim()}
-        >
-          添加
-        </button>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="chip cursor-pointer">
           <span className="mono-meta">截止</span>
           <input
@@ -177,6 +172,13 @@ function QuickAdd({
             ))}
           </select>
         </label>
+        <button
+          className="btn btn-accent ml-auto"
+          onClick={submit}
+          disabled={pending || !todoRichTextToPlainText(text)}
+        >
+          添加
+        </button>
       </div>
       {error && (
         <div className="mt-3 rounded-lg border border-signal-stop/40 bg-signal-stop/10 px-3 py-2 text-xs text-signal-stop">
@@ -264,6 +266,17 @@ function TodoRow({
     setDraft(todo.text);
   }, [todo.id, todo.text]);
 
+  const saveDraft = () => {
+    const next = sanitizeTodoHtml(draft);
+    if (!todoRichTextToPlainText(next)) {
+      setDraft(todo.text);
+      setEditing(false);
+      return;
+    }
+    setEditing(false);
+    if (next !== sanitizeTodoHtml(todo.text)) patch.mutate({ text: next });
+  };
+
   const overdue =
     !todo.done &&
     todo.due_date &&
@@ -296,35 +309,48 @@ function TodoRow({
           </div>
         )}
         {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => {
-              setEditing(false);
-              const next = draft.trim();
-              if (next && next !== todo.text) patch.mutate({ text: next });
-              else setDraft(todo.text);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") {
+          <div className="space-y-2">
+            <RichTextComposer
+              value={draft}
+              onChange={setDraft}
+              placeholder="编辑待办内容…"
+              autoFocus
+              onSubmit={saveDraft}
+              onCancel={() => {
                 setDraft(todo.text);
                 setEditing(false);
-              }
-            }}
-            className="input !py-1"
-          />
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn btn-ghost text-xs"
+                onClick={() => {
+                  setDraft(todo.text);
+                  setEditing(false);
+                }}
+              >
+                取消
+              </button>
+              <button
+                className="btn btn-accent text-xs"
+                onClick={saveDraft}
+                disabled={patch.isPending || !todoRichTextToPlainText(draft)}
+              >
+                保存
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="flex items-start gap-1.5">
-            <span
+            <div
               className={clsx(
-                "flex-1 text-sm leading-relaxed",
+                "rich-text min-w-0 flex-1",
                 todo.done ? "text-ink-mute line-through" : "text-ink"
               )}
+              title={todoPreview(todo.text)}
+              dangerouslySetInnerHTML={{ __html: sanitizeTodoHtml(todo.text) }}
             >
-              {todo.text}
-            </span>
+            </div>
             <button
               className="flex-shrink-0 rounded px-1 py-0.5 text-[11px] text-ink-faint opacity-70 transition hover:bg-canvas-contrast hover:text-ink"
               title="编辑"
@@ -383,6 +409,112 @@ function TodoRow({
         {remove.isPending ? "删除中…" : "删除"}
       </button>
     </li>
+  );
+}
+
+function RichTextComposer({
+  value,
+  onChange,
+  placeholder,
+  autoFocus,
+  onSubmit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+  onSubmit?: () => void;
+  onCancel?: () => void;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastEmittedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (value === lastEmittedRef.current) return;
+    const html = sanitizeTodoHtml(value);
+    if (editor.innerHTML !== html) editor.innerHTML = html;
+    if (autoFocus) {
+      requestAnimationFrame(() => {
+        editor.focus();
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        const selection = document.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      });
+    }
+  }, [autoFocus, value]);
+
+  const runCommand = (command: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command);
+    const next = editorRef.current?.innerHTML ?? "";
+    lastEmittedRef.current = next;
+    onChange(next);
+  };
+
+  return (
+    <div className="rounded-xl border border-line bg-canvas-raised/40 p-2">
+      <div className="mb-2 flex flex-wrap items-center gap-1">
+        <EditorButton label="B" title="加粗" onClick={() => runCommand("bold")} />
+        <EditorButton label="I" title="斜体" onClick={() => runCommand("italic")} />
+        <EditorButton label="U" title="下划线" onClick={() => runCommand("underline")} />
+        <EditorButton label="S" title="删除线" onClick={() => runCommand("strikeThrough")} />
+        <span className="mx-1 h-4 w-px bg-line" />
+        <EditorButton label="•" title="无序列表" onClick={() => runCommand("insertUnorderedList")} />
+        <EditorButton label="1." title="有序列表" onClick={() => runCommand("insertOrderedList")} />
+        <span className="ml-auto mono-meta">⌘ Enter 保存</span>
+      </div>
+      <div
+        ref={editorRef}
+        className="rich-text-editor"
+        contentEditable
+        data-placeholder={placeholder}
+        role="textbox"
+        aria-multiline="true"
+        suppressContentEditableWarning
+        onInput={(e) => {
+          lastEmittedRef.current = e.currentTarget.innerHTML;
+          onChange(e.currentTarget.innerHTML);
+        }}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            onSubmit?.();
+          }
+          if (e.key === "Escape" && onCancel) {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function EditorButton({
+  label,
+  title,
+  onClick,
+}: {
+  label: string;
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-line bg-canvas-sunken px-2 text-xs font-semibold text-ink-soft transition hover:border-accent/50 hover:text-accent"
+      title={title}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      {label}
+    </button>
   );
 }
 

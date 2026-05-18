@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import os
+import tomllib
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from trace_api.config import reset_settings_cache
 from trace_api.main import create_app
+
+
+def project_version() -> str:
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    return tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
 
 
 def test_frontend_static_fallback(tmp_path: Path):
@@ -31,7 +37,7 @@ def test_frontend_static_fallback(tmp_path: Path):
 
         health = client.get("/api/health")
         assert health.status_code == 200
-        assert health.json()["version"] == "1.4.1"
+        assert health.json()["version"] == project_version()
 
     os.environ.pop("TRACE_FRONTEND_DIST", None)
     os.environ.pop("TRACE_DB_PATH", None)

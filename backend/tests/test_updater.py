@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+import tomllib
 from pathlib import Path
 
 from trace_api.routers import updater
@@ -11,6 +12,11 @@ RELEASE_DMG_URL = (
     "https://github.com/albertkls/trace/releases/download/v1.1.2/"
     "Trace-1.1.2-macOS.dmg"
 )
+
+
+def project_version() -> str:
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    return tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
 
 
 def test_check_update_exposes_release_digest(client, monkeypatch):
@@ -41,6 +47,38 @@ def test_check_update_exposes_release_digest(client, monkeypatch):
     body = response.json()
     assert body["update_available"] is True
     assert body["dmg_sha256"] == "a" * 64
+
+
+def test_check_update_does_not_offer_current_release(client, monkeypatch):
+    current_version = project_version()
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "tag_name": f"v{current_version}",
+                "html_url": f"https://github.com/albertkls/trace/releases/tag/v{current_version}",
+                "body": "当前版本",
+                "published_at": "2026-05-18T00:00:00Z",
+                "assets": [
+                    {
+                        "name": f"Trace-{current_version}-macOS.dmg",
+                        "browser_download_url": RELEASE_DMG_URL,
+                        "size": 123,
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(updater.httpx, "get", lambda *args, **kwargs: FakeResponse())
+
+    response = client.get("/api/updater/check")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current_version"] == current_version
+    assert body["latest_version"] == current_version
+    assert body["update_available"] is False
 
 
 def test_download_rejects_non_trace_release_url(client):

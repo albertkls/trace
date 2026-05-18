@@ -20,6 +20,7 @@ import {
   WORKSPACE_STORAGE_KEY,
   WorkspaceContext,
 } from "@/lib/workspace";
+import { useThemePreference } from "@/lib/theme";
 
 const NAV: { to: string; label: string; key: string; glyph: string }[] = [
   { to: "/", label: "今日", key: "1", glyph: "◐" },
@@ -36,6 +37,7 @@ const NAV: { to: string; label: string; key: string; glyph: string }[] = [
 export default function Shell() {
   const runtimeLabel = appRuntimeLabel();
   const [now, setNow] = useState(() => new Date());
+  const { preference, resolvedTheme, setPreference } = useThemePreference();
 
   const week = isoWeekLabel(now).split("-W")[1];
   const dateLabel = toISODateTimeMinute(now).replace("T", " ");
@@ -76,6 +78,9 @@ export default function Shell() {
     setActiveWorkspaceIdState(id);
     window.localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
     queryClient.invalidateQueries();
+  };
+  const toggleTheme = () => {
+    setPreference(resolvedTheme === "dark" ? "light" : "dark");
   };
 
   const workspaceContext = useMemo(
@@ -286,6 +291,21 @@ export default function Shell() {
             </nav>
 
             <div className="mt-auto space-y-3 border-t border-line px-2 pt-4">
+              <button
+                onClick={toggleTheme}
+                className="flex w-full items-center justify-between rounded-lg border border-line bg-canvas-raised/55 px-2.5 py-2 text-xs text-ink-soft transition hover:border-accent/40 hover:bg-canvas-contrast hover:text-ink"
+                title="切换深浅主题"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-accent">
+                    {resolvedTheme === "dark" ? "☾" : "☼"}
+                  </span>
+                  <span>{resolvedTheme === "dark" ? "深色" : "浅色"}</span>
+                </span>
+                <span className="mono-meta">
+                  {preference === "system" ? "SYSTEM" : "THEME"}
+                </span>
+              </button>
               <div className="flex items-center justify-between mono-meta">
                 <span className="flex items-center gap-1.5">
                   <span className="dot-pulse" />

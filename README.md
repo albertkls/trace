@@ -1,183 +1,344 @@
 # Trace
 
-**把每天的碎片工作，变成一份讲得出故事的汇报。**
+**一个本地优先的个人 AI 工作台，把零散记录沉淀成可追溯的工作线和汇报。**
 
-你一定经历过这种时刻：周五下午，老板问"这周推进了什么"，你翻遍聊天记录、邮件、文档，拼凑出一份"好像做了不少但说不清楚"的周报。
+Trace 解决的是一个很具体的问题：你每天在会议、聊天、文档和脑子里留下很多工作碎片，但到了周报、复盘、项目总结的时候，还是要重新翻、重新想、重新组织。
 
-Trace 就是为了解决这个问题而生的。
+Trace 把这个过程变成一条连续的链路：
 
-它是一个**本地优先的个人工作台**——随手记一笔闪记，系统帮你归线程、挂项目、攒证据，最后 AI 帮你起草一份有脉络的汇报。所有数据留在你自己的电脑里，不经过任何第三方。
+```text
+快记 / 文件 / 笔记 → 证据 → 工作线 → 项目上下文 → 汇报
+```
+
+它不是 Jira、Notion 或 Linear 的替代品，也不是只会总结文档的工具。Trace 更像一个只为个人服务的工作记忆层：平时低摩擦记录，事后按线程和项目整理，最后用 AI 帮你生成有上下文、有证据来源的文字输出。
+
+数据默认全部保存在本机 SQLite 中，AI 调用只走你自己配置的模型端点和 API Key。
 
 ---
 
-## 它是怎么工作的
+## 当前状态
 
-想象一个漏斗：
+- 版本：`1.4.1`
+- 技术栈：FastAPI + SQLite + React + TypeScript + pywebview
+- 发行形态：macOS 桌面应用，使用 PyInstaller 打包 `.app` 和 DMG
+- 数据目录：`~/Library/Application Support/Trace`
+- 发布路径：只使用 `make package-mac`
 
-```
-随手记一笔 → 变成可引用的证据 → 串成一条持续的工作线 → 最终输出为汇报
-                                                          ↘
-                                                        属于某个项目
-```
-
-举个例子：
-
-1. **开会时随手记**："跟前端对齐了，方案 B 可行，下周出原型"
-2. 系统自动归入「XX 项目重构」这条**工作线**，打上"决定"标签
-3. 周五你点一下"生成周报"，AI 从这条线程积累的十几条证据里，帮你**起草一段有上下文的汇报**
-4. 你改几个词，直接发出去
-
-从碎片到汇报，中间没有"整理"这个痛苦步骤。
+仓库里保留了 `frontend/src-tauri/` 作为 Tauri 2.x 实验外壳，但正式发布不使用 Tauri。不要用 `npm run tauri:build` 产出发布版本，因为那条路径不会捆绑后端，运行后 API 调用会失败。
 
 ---
 
-## 功能
+## 适合谁
 
-### ⚡ 闪记（Quick Capture）
+Trace 适合这些人：
 
-按 `⌘⇧N` 唤起，**回车直接保存**，零摩擦。
+- 同时推进多个项目、主题或实验的人
+- 经常需要写周报、月报、项目汇报、复盘或 1:1 对齐稿的人
+- 喜欢随手记录，但不想每次输出前都从零整理的人
+- 希望工作资料留在本机，并自己控制 AI 模型和 API Key 的人
 
-- 打字时加 `#线程名` 自动归线程，加 `@项目名` 自动关联项目
-- 保存后弹窗不关闭，继续记下一条——适合开会后批量补录
-- 闪记默认进入收件箱，你随时可以调整分类、归线程、或转成待办
+它尤其适合个人使用。当前项目目标不是多人协作平台，而是一个稳定、可控、长期可用的本地工作台。
 
-### 📅 每日回顾
+---
 
-每天打开 Trace，首页直接告诉你：
+## 核心概念
 
-> 昨天记了 5 条证据，完成了 2 项待办，涉及 3 个线程。
+### Capture / 快记
 
-不用翻，一眼看清昨天到底干了什么。
+随手记录的一句话、一段会议结论、一个风险、一个决定或一个待办线索。
 
-### 📂 收件箱（Inbox）
+### Evidence / 证据
 
-所有还没归线程的闪记都待在这里：
+可以被引用的工作事实。快记、本地 Markdown 文件、笔记内容都会沉淀成证据，后续用于线程整理和报告生成。
 
-- 拖进已有线程，或一键新建线程
-- AI 根据内容自动推荐该挂哪个项目
-- 一键转成待办，设截止时间
+### Thread / 工作线
 
-### 🗂️ 项目
+一件持续推进的事情。它可以跨多天、多周、多素材，记录这个主题从开始、推进、阻塞到完成的过程。
 
-一个项目把相关的线程、笔记、报告、待办、证据全部聚合在一起。项目详情页就是你的作战地图。
+### Project / 项目
 
-### 🧵 工作线（Thread）
+项目是线程、证据、待办、笔记和报告的上层上下文。一个项目下可以有多条工作线。
 
-每条工作线是一条持续的故事：从第一条记录到最终结论，所有证据按时间排列。AI 可以一键生成线程摘要，帮你回忆"这条线到底在讲什么"。
+### Workspace / 工作区
 
-### 📝 笔记
+工作区用于隔离不同生活或工作上下文。项目、线程、证据、待办、笔记和报告都会按工作区过滤。
 
-需要写长文？按天记录 Markdown 笔记，自动保存，挂靠项目。笔记里的关键段落可以"晋升"为证据，进入工作线。
+### Report / 汇报
 
-### ✅ 待办
+基于证据和线程生成的成文输出。可以用于周报、月报、项目报告、复盘、1:1 或自定义场景。
 
-简单直接：创建待办 → 设截止时间 → 挂到线程 → 完成打钩。
+---
 
-### 📊 汇报生成
+## 主要功能
 
-支持周报、月报、项目报告、复盘、1:1 等场景。AI 根据你积累的证据**起草初稿**，你还可以让它续写、压缩、换语气、或按自定义指令改写。
+### 快速捕获
 
-### 🔍 全局搜索（`⌘K`）
+- 全局快记入口，适合会议中或工作间隙快速记录
+- 支持把内容送入收件箱，再统一整理
+- 可以把证据归入线程、挂到项目、转成待办
 
-一个搜索框，覆盖项目、线程、证据、待办、笔记——找到你要的那条记录。
+### 收件箱整理
 
-### 🤖 AI 配置
+- 查看尚未归入线程的证据
+- 将证据挂到已有线程或创建新线程
+- 基于项目和内容进行整理
 
-支持 OpenAI 兼容协议（OpenAI / DeepSeek / Kimi / 通义 / Ollama）和 Anthropic 原生协议。多 Profile 管理，一键测试连接。用你自己的 API Key，数据不经过中间人。
+### 项目与工作线
+
+- 按项目聚合线程、证据、待办、笔记和报告
+- 线程详情页按时间组织证据
+- 支持线程摘要、状态、项目关联和证据追溯
+
+### 本地 Markdown 库
+
+- 在设置页挂载本地 Markdown 文件夹
+- 扫描 `.md` / `.markdown` 文件到收件箱
+- 自动同步开关按工作区保存
+- 记录最近一次同步批次、耗时、错误数量和错误明细
+- 大文件、不可读文件、编码错误不会中断整个批次
+- 支持定位源文件
+
+### 笔记与待办
+
+- Markdown 笔记可按项目组织
+- 待办可关联线程和截止时间
+- 首页和项目页汇总关键工作状态
+
+### 搜索
+
+- 全局搜索覆盖项目、线程、证据、待办和笔记
+- 使用 SQLite FTS5
+- 保留工作区隔离，避免跨工作区串数据
+
+### AI 汇报与改写
+
+- 支持报告草稿、报告生成和局部改写
+- 支持 OpenAI 兼容协议和 Anthropic 协议
+- 可配置多个 LLM Profile
+- 使用你自己的 API Key，不经过中间服务
+
+### 数据备份与恢复
+
+- 设置页可立即备份数据库
+- 自动更新前会自动创建备份
+- 备份文件位于 `~/Library/Application Support/Trace/backups`
+- 备份文件名包含版本、时间和数据库 SHA256 校验信息
+- 恢复前会创建安全快照
+- 恢复需要二次确认
+- 恢复失败不会覆盖当前数据库
+
+### 自动更新
+
+- 通过 GitHub Release 检查新版本
+- 下载 DMG 后进行 SHA256 校验
+- 安装更新前自动备份数据库
 
 ---
 
 ## 快速开始
 
-```bash
-# 安装依赖
-make setup
+### 环境要求
 
-# 启动开发环境（前端 + 后端同时跑起来）
+- macOS
+- Python 3.11
+- Node.js 18+
+
+### 安装依赖
+
+```bash
+make setup
+```
+
+### 启动开发环境
+
+```bash
 make dev
 ```
 
-打开浏览器访问 http://localhost:5173 就能用了。
+开发模式会同时启动：
 
-打包成 macOS 桌面应用：
+- 前端：`http://localhost:5173`
+- 后端：`http://127.0.0.1:8787`
+
+也可以分开启动：
 
 ```bash
-make desktop      # 本地运行桌面版
-make package-mac  # 生成 Trace.app 和 DMG 安装包
+make frontend
+make backend
+```
+
+### 运行桌面联调
+
+```bash
+make desktop
+```
+
+### 构建 macOS 发布包
+
+```bash
+make package-mac
+```
+
+产物位置：
+
+```text
+output/macos/Trace.app
+output/macos/Trace-1.4.1-macOS.dmg
+output/macos/SHA256SUMS.txt
 ```
 
 ---
 
-## 更多命令
+## 常用命令
 
 | 命令 | 用途 |
-|------|------|
-| `make setup` | 安装前后端依赖 |
-| `make dev` | 启动开发环境 |
-| `make build-web` | 构建前端产物 |
-| `make desktop` | 本地桌面模式运行 |
-| `make package-mac` | 构建 .app 与 .dmg |
+| --- | --- |
+| `make setup` | 初始化后端虚拟环境并安装前端依赖 |
+| `make dev` | 同时启动前端和后端开发服务 |
+| `make backend` | 只启动 FastAPI 后端 |
+| `make frontend` | 只启动 Vite 前端 |
+| `make build-web` | 构建前端静态产物 |
+| `make desktop` | 运行 pywebview 桌面联调版本 |
+| `make package-mac` | 构建 macOS `.app` 和 DMG |
 | `make test` | 运行后端测试 |
-| `make fmt` | 代码格式化 |
-| `make reset` | 清除本地数据库，从头开始 |
+| `make fmt` | 运行 Ruff 自动修复与格式化 |
+| `make reset` | 删除本地 SQLite 数据库 |
+| `make clean` | 删除后端虚拟环境、前端依赖和构建产物 |
+
+前端类型检查：
+
+```bash
+cd frontend && npm run typecheck
+```
+
+后端全量测试：
+
+```bash
+cd backend && .venv/bin/python -m pytest
+```
 
 ---
 
-## 技术栈
+## 技术架构
 
-- **前端**：React 18 + TypeScript + Vite + TailwindCSS
-- **后端**：Python 3.11+ / FastAPI + SQLite
-- **桌面壳**：pywebview（macOS 原生窗口）
-- **打包**：PyInstaller + hdiutil
-- **AI**：OpenAI 兼容协议 + Anthropic
+```text
+┌───────────────────────────────────────────────┐
+│ Frontend                                      │
+│ React 18 · TypeScript · Vite · TailwindCSS    │
+│ React Router · TanStack Query                 │
+├───────────────────────────────────────────────┤
+│ HTTP /api                                     │
+├───────────────────────────────────────────────┤
+│ Backend                                       │
+│ FastAPI · Pydantic · SQLite · FTS5            │
+│ LLM clients · updater · backup/restore        │
+├───────────────────────────────────────────────┤
+│ Desktop                                       │
+│ pywebview · bundled FastAPI · PyInstaller     │
+└───────────────────────────────────────────────┘
+```
+
+开发模式下，前端由 Vite 提供，后端由 FastAPI 提供 API。
+
+发布模式下，PyInstaller 将 FastAPI 后端、前端 dist、pywebview 入口打进独立 `.app`，再生成 DMG。
 
 ---
 
 ## 项目结构
 
-```
+```text
 Trace/
-├── backend/               后端服务
+├── backend/
+│   ├── pyproject.toml
+│   ├── tests/
 │   └── src/trace_api/
-│       ├── routers/       API 路由（线程、项目、闪记、汇报、待办、笔记、AI、搜索、每日回顾）
-│       ├── llm/           LLM 调用层
-│       ├── schema.sql     数据库定义
-│       └── desktop.py     桌面应用入口
-├── frontend/              前端应用
-│   └── src/
-│       ├── components/    通用组件（Shell, QuickCapture, SearchModal…）
-│       ├── pages/         页面（首页、收件箱、项目、线程、笔记、待办、汇报、时间线、设置）
-│       └── lib/           工具函数、API 客户端、类型定义
-├── docs/                  产品文档
-└── Makefile
+│       ├── routers/          API 路由
+│       ├── llm/              LLM 客户端与提示词
+│       ├── config.py         运行配置
+│       ├── db.py             SQLite 连接与 schema 演进
+│       ├── desktop.py        pywebview 桌面入口
+│       ├── main.py           FastAPI 应用装配
+│       ├── schema.sql        数据库结构
+│       └── web.py            静态资源托管
+├── frontend/
+│   ├── package.json
+│   ├── src/
+│   │   ├── components/       通用组件
+│   │   ├── lib/              API、类型、工具函数
+│   │   └── pages/            页面
+│   └── src-tauri/            实验外壳，不用于正式发布
+├── docs/                     产品、架构、发布和用户文档
+├── scripts/release/          macOS 打包脚本
+├── output/macos/             本地打包产物
+├── Makefile
+└── AGENTS.md                 AI 开发规范
 ```
 
 ---
 
-## 数据和隐私
+## 数据与隐私
 
-- 所有数据存在本地 SQLite：`~/Library/Application Support/Trace/db.sqlite`
-- **不上传任何服务器**，不联网，不分析
-- AI 调用走你自己的 API Key，直连你配置的端点
-- 本地不做脱敏——调用 AI 前请自行判断数据风险
+Trace 默认不依赖云端数据库。
+
+- SQLite：`~/Library/Application Support/Trace/db.sqlite`
+- 备份目录：`~/Library/Application Support/Trace/backups`
+- AI 调用：直连你在设置页配置的模型端点
+- API Key：保存在本地数据库
+
+使用云端 LLM 时，被选中的上下文会发送给你配置的模型服务商。处理敏感资料前，请先确认该工作区和模型配置是否适合发送这些内容。
+
+---
+
+## 发布流程摘要
+
+正式发布只走 macOS 打包脚本：
+
+```bash
+make package-mac
+```
+
+不要使用：
+
+```bash
+npm run tauri:build
+```
+
+发布时需要：
+
+1. 合并开发分支到 `main`
+2. 更新版本号
+3. 创建 Git tag
+4. 运行 `make package-mac`
+5. 本机安装 `Trace.app` 验证核心流程
+6. 创建 GitHub Release
+7. 上传 `Trace-{版本号}-macOS.dmg`
+
+GitHub Release 是应用内更新提醒的来源。旧版本只有在 Release 版本号更高且包含 macOS DMG 时，才能检测并安装更新。
 
 ---
 
 ## 文档
 
-- [用户指南](docs/08-user-guide.md) — 每个模块怎么用、推荐工作流
-- [产品愿景](docs/00-vision.md) · [PRD](docs/01-prd.md) · [数据模型](docs/02-data-model.md) · [架构设计](docs/03-architecture.md) · [macOS 发布说明](docs/04-release-macos.md)
+- [用户使用说明](docs/08-user-guide.md)
+- [产品愿景](docs/00-vision.md)
+- [PRD](docs/01-prd.md)
+- [数据模型](docs/02-data-model.md)
+- [架构设计](docs/03-architecture.md)
+- [macOS 发布说明](docs/04-release-macos.md)
+- [优化路线图](docs/10-optimization-roadmap.md)
 
 ---
 
-## 谁适合用
+## 开发约定
 
-- 同时推进好几个主题，笔记散落在各处，需要一根线把它们串起来的人
-- 每到周报/月报就痛苦，不想再从零开始回忆的人
-- 习惯边做边记，但希望记录最终能沉淀成有意义的输出的人
+- 日常开发在 `dev` 分支进行
+- `main` 保持稳定，只接收验证后的发布合并
+- 数据库演进遵循“只加表、只加列”的原则
+- 代码修改后至少运行相关后端测试和前端类型检查
+- 发布版只使用 `make package-mac`
 
 ---
 
 ## License
 
-Private — 仅供个人使用。
+Private. 当前仅供个人使用。

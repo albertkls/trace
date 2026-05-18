@@ -9,6 +9,7 @@ import {
   formatDateTime,
   parseDateTime,
 } from "@/lib/periods";
+import { todoPreview } from "@/lib/richText";
 import type {
   InboxItem,
   Note,
@@ -123,7 +124,7 @@ export default function Timeline() {
 
     for (const td of todos) {
       const item = toItem("todo", td.id, td.done_at || td.created_at, {
-        title: td.text,
+        title: todoPreview(td.text),
         body: td.done ? "待办已完成" : "待办创建/更新",
         meta: `${td.thread_title || "未挂线程"}${
           td.due_date

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { APP_VERSION, isPywebviewDesktop } from "@/lib/appInfo";
+import { type ThemePreference, useThemePreference } from "@/lib/theme";
 import type { BackupInfo, LibraryScanResult, LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
 import { useWorkspace } from "@/lib/workspace";
 
@@ -54,11 +55,39 @@ const PRESET_CONFIGS: Record<string, Partial<ProfileInput>> = {
   },
 };
 
+const THEME_OPTIONS: Array<{
+  value: ThemePreference;
+  label: string;
+  detail: string;
+  glyph: string;
+}> = [
+  {
+    value: "light",
+    label: "浅色",
+    detail: "明亮纸感界面，适合白天使用",
+    glyph: "☼",
+  },
+  {
+    value: "dark",
+    label: "深色",
+    detail: "保留原来的夜间高对比风格",
+    glyph: "☾",
+  },
+  {
+    value: "system",
+    label: "跟随系统",
+    detail: "按 macOS 外观自动切换",
+    glyph: "◐",
+  },
+];
+
 export default function Settings() {
   const qc = useQueryClient();
   const isDesktop = isPywebviewDesktop();
   const { activeWorkspaceId, workspaces } = useWorkspace();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const { preference: themePreference, resolvedTheme, setPreference: setThemePreference } =
+    useThemePreference();
 
   // Update state
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -147,6 +176,21 @@ export default function Settings() {
     onError: (e: Error) => setBackupError(e.message),
   });
 
+  const confirmRestoreBackup = (backup: BackupInfo) => {
+    const firstConfirmed = window.confirm(
+      `恢复备份「${backup.name}」？当前数据库会先自动备份。`
+    );
+    if (!firstConfirmed) return;
+
+    const secondConfirmed = window.prompt("请再次输入“恢复”以确认操作");
+    if (secondConfirmed?.trim() !== "恢复") {
+      setBackupMessage(null);
+      setBackupError("已取消恢复：二次确认未通过");
+      return;
+    }
+    restoreBackup.mutate(backup);
+  };
+
   const { data: libraryStatus } = useQuery({
     queryKey: ["library", activeWorkspaceId],
     queryFn: api.library.status,
@@ -155,6 +199,7 @@ export default function Settings() {
   const [libraryAutoScan, setLibraryAutoScan] = useState(true);
   const [libraryResult, setLibraryResult] = useState<LibraryScanResult | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const latestLibraryResult = libraryResult ?? libraryStatus?.last_result ?? null;
 
   useEffect(() => {
     setLibraryPath(libraryStatus?.path || "");
@@ -294,6 +339,59 @@ export default function Settings() {
         </p>
       </header>
 
+      <section className="mb-10">
+        <h2 className="mb-4 flex items-center gap-2">
+          <span className="eyebrow">APPEARANCE</span>
+          <span className="chip">{resolvedTheme === "light" ? "LIGHT" : "DARK"}</span>
+        </h2>
+
+        <div className="panel overflow-hidden p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium text-ink">界面主题</div>
+              <div className="mt-1 text-xs leading-relaxed text-ink-mute">
+                主题会保存在本机，下次打开 Trace 自动沿用。
+              </div>
+            </div>
+            <div className="rounded-xl border border-line bg-canvas-sunken/70 px-3 py-2 text-right">
+              <div className="mono-meta text-[10px]">CURRENT</div>
+              <div className="mt-0.5 text-sm font-medium text-ink">
+                {resolvedTheme === "light" ? "浅色" : "深色"}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {THEME_OPTIONS.map((option) => {
+              const active = themePreference === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setThemePreference(option.value)}
+                  className={clsx(
+                    "rounded-xl border px-4 py-4 text-left transition",
+                    active
+                      ? "border-accent/60 bg-accent/10 shadow-glow"
+                      : "border-line bg-canvas-sunken/45 hover:border-accent/40 hover:bg-canvas-contrast/60"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={clsx("text-lg", active ? "text-accent" : "text-ink-mute")}>
+                      {option.glyph}
+                    </span>
+                    <span className="text-sm font-medium text-ink">{option.label}</span>
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-ink-mute">
+                    {option.detail}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {isDesktop && (
         <section className="mb-10">
           <h2 className="mb-4 flex items-center gap-2">
@@ -429,11 +527,7 @@ export default function Settings() {
                   <button
                     className="btn btn-ghost text-xs text-signal-stop hover:!bg-signal-stop/10 hover:!text-signal-stop"
                     disabled={restoreBackup.isPending}
-                    onClick={() => {
-                      if (window.confirm("恢复此备份？当前数据库会先自动备份。")) {
-                        restoreBackup.mutate(backup);
-                      }
-                    }}
+                    onClick={() => confirmRestoreBackup(backup)}
                   >
                     恢复
                   </button>
@@ -489,12 +583,31 @@ export default function Settings() {
             )}
           </div>
 
-          {libraryResult && (
+          {latestLibraryResult && (
             <div className="mt-4 rounded-xl border border-line bg-canvas-raised/50 px-4 py-3 text-sm text-ink-soft">
-              扫描 {libraryResult.scanned} 个 Markdown：新增 {libraryResult.created}，
-              更新 {libraryResult.updated}，未变化 {libraryResult.unchanged}，
-              清理 {libraryResult.removed}
-              {libraryResult.errors.length > 0 && `，失败 ${libraryResult.errors.length}`}
+              <div>
+                扫描 {latestLibraryResult.scanned} 个 Markdown：新增 {latestLibraryResult.created}，
+                更新 {latestLibraryResult.updated}，未变化 {latestLibraryResult.unchanged}，
+                清理 {latestLibraryResult.removed}
+                {latestLibraryResult.error_count > 0 && `，失败 ${latestLibraryResult.error_count}`}
+              </div>
+              <div className="mono-meta mt-1">
+                用时 {latestLibraryResult.duration_ms} ms · 完成于{" "}
+                {latestLibraryResult.finished_at.slice(0, 16).replace("T", " ")}
+              </div>
+              {latestLibraryResult.errors.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {latestLibraryResult.errors.slice(0, 3).map((error) => (
+                    <div
+                      key={`${error.path}:${error.message}`}
+                      className="rounded-lg border border-signal-stop/25 bg-signal-stop/10 px-3 py-2 text-xs text-signal-stop"
+                    >
+                      <div className="truncate font-mono">{error.path}</div>
+                      <div className="mt-1 text-signal-stop/80">{error.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

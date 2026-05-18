@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from .helpers import create_project
+from .helpers import create_project, db_path
 
 
 def test_create_and_list_backups(client: TestClient) -> None:
@@ -14,6 +14,7 @@ def test_create_and_list_backups(client: TestClient) -> None:
     assert response.status_code == 201, response.text
     backup = response.json()
     assert backup["name"].endswith(".sqlite")
+    assert f"sha256-{backup['sha256'][:12]}" in backup["name"]
     assert backup["size"] > 0
     assert len(backup["sha256"]) == 64
     assert Path(backup["path"]).is_file()
@@ -47,3 +48,17 @@ def test_restore_rejects_files_outside_backup_dir(client: TestClient, tmp_path: 
 
     response = client.post("/api/backups/restore", json={"path": str(outside)})
     assert response.status_code == 403, response.text
+
+
+def test_restore_invalid_backup_does_not_replace_current_database(client: TestClient) -> None:
+    create_project(client, name="保留项目")
+    backup_dir = Path(db_path()).parent / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    invalid_backup = backup_dir / "invalid.sqlite"
+    invalid_backup.write_bytes(b"not a real sqlite database")
+
+    response = client.post("/api/backups/restore", json={"path": str(invalid_backup)})
+    assert response.status_code == 400, response.text
+
+    projects = client.get("/api/projects").json()
+    assert any(item["name"] == "保留项目" for item in projects)

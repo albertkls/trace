@@ -7,6 +7,7 @@ import ProjectModal from "@/components/ProjectModal";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 import { api } from "@/lib/api";
 import { formatDateTime, parseDateTime, PRESETS } from "@/lib/periods";
+import { todoPreview } from "@/lib/richText";
 
 type ActivityItem = {
   id: string;
@@ -70,7 +71,7 @@ export default function ProjectDetail() {
       ...project.todos.map((todo) => ({
         id: `todo:${todo.id}`,
         kind: "todo" as const,
-        title: todo.text,
+        title: todoPreview(todo.text),
         to: "/todos",
         ts: todo.done_at || todo.created_at,
         meta: `${todo.done ? "已完成" : "待处理"} · ${todo.thread_title || "未挂线程"}`,
@@ -126,7 +127,7 @@ export default function ProjectDetail() {
         ? project?.todos ?? []
         : (project?.todos ?? []).filter(
             (todo) =>
-              todo.text.toLowerCase().includes(searchText) ||
+              todoPreview(todo.text).toLowerCase().includes(searchText) ||
               (todo.thread_title || "").toLowerCase().includes(searchText)
           ),
     [project?.todos, searchText]
@@ -395,7 +396,9 @@ export default function ProjectDetail() {
                       to="/todos"
                       className="block rounded-lg border border-line bg-canvas-sunken/40 px-4 py-3 transition hover:border-accent/40"
                     >
-                      <div className="truncate text-sm font-medium text-ink">{todo.text}</div>
+                      <div className="truncate text-sm font-medium text-ink">
+                        {todoPreview(todo.text)}
+                      </div>
                       <div className="mt-1 text-xs text-ink-mute">
                         {todo.thread_title || "未挂线程"}
                         {todo.due_date ? ` · 截止 ${todo.due_date}` : ""}

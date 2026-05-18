@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { AUDIENCE_LABEL, dateKey, formatDateTime, parseDateTime } from "@/lib/periods";
+import { todoPreview } from "@/lib/richText";
 
 type TimelineKind = "evidence" | "thread" | "todo" | "note" | "report";
 type FilterKey = TimelineKind | "all";
@@ -75,7 +76,7 @@ export default function ProjectTimeline() {
         id: `todo:${todo.id}`,
         kind: "todo" as const,
         ts: todo.done_at || todo.created_at,
-        title: todo.text,
+        title: todoPreview(todo.text),
         body: todo.done ? "待办已完成" : "待办创建/更新",
         meta: `${todo.thread_title || "未挂线程"}${todo.due_date ? ` · 截止 ${todo.due_date}` : ""}`,
         to: "/todos",

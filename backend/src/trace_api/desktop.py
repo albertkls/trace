@@ -15,7 +15,6 @@ import urllib.request
 import uvicorn
 import webview
 
-from trace_api import __version__
 from trace_api.main import create_app
 
 APP_TITLE = "Trace"

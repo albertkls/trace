@@ -303,15 +303,20 @@ export interface LibraryStatus {
   source_count: number;
   last_scan: string | null;
   auto_scan: boolean;
+  last_result: LibraryScanResult | null;
 }
 
 export interface LibraryScanResult {
   path: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
   scanned: number;
   created: number;
   updated: number;
   unchanged: number;
   removed: number;
+  error_count: number;
   errors: Array<{ path: string; message: string }>;
 }
 

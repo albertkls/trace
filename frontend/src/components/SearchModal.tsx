@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { todoPreview } from "@/lib/richText";
 import type { SearchResult } from "@/lib/types";
 import { CategoryChip } from "./EvidenceChip";
 
@@ -213,7 +214,7 @@ export default function SearchModal({
                             : "truncate text-sm text-ink"
                         }
                       >
-                        {td.text}
+                        {todoPreview(td.text)}
                       </span>
                     </button>
                   ))}

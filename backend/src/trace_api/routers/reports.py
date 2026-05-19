@@ -317,6 +317,10 @@ def _hydrate_evidence(conn, ids: list[str], workspace_id: str) -> list[dict]:
 class ComposeRequest(BaseModel):
     profile_id: str | None = None
     note: str | None = None
+    mode: str | None = None
+    length: str | None = None
+    structure: str | None = None
+    focus: list[str] | None = None
 
 
 class RewriteRequest(BaseModel):
@@ -460,6 +464,10 @@ async def compose_report(report_id: str, body: ComposeRequest, workspace_id: str
         evidence_lines=lines,
         project_context=project_context,
         context_note=body.note,
+        mode=body.mode,
+        length=body.length,
+        structure=body.structure,
+        focus=body.focus,
     )
     provider = build_provider(profile)
 

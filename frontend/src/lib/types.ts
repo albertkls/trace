@@ -273,6 +273,19 @@ export interface ComposeChunk {
   message?: string;
 }
 
+export type ComposeMode = "brief" | "standard" | "deep" | "executive";
+export type ComposeLength = "short" | "medium" | "long";
+export type ComposeStructure = "narrative" | "bullets" | "memo";
+
+export interface ComposeRequest {
+  profile_id?: string;
+  note?: string;
+  mode?: ComposeMode;
+  length?: ComposeLength;
+  structure?: ComposeStructure;
+  focus?: string[];
+}
+
 export type RewriteOp = "continue" | "compress" | "retone" | "custom";
 
 export interface RewriteRequest {

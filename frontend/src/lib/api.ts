@@ -2,6 +2,7 @@ import type {
   BackupInfo,
   CaptureInput,
   ComposeChunk,
+  ComposeRequest,
   DailyActivity,
   InboxItem,
   LibraryScanResult,
@@ -164,7 +165,7 @@ export const api = {
     remove: (id: string) => req<void>(`/reports/${id}`, { method: "DELETE" }),
     compose: async function* (
       id: string,
-      body: { profile_id?: string; note?: string } = {}
+      body: ComposeRequest = {}
     ): AsyncGenerator<ComposeChunk> {
       const res = await fetch(`${BASE}/reports/${id}/compose`, {
         method: "POST",

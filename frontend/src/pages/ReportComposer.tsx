@@ -4,7 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import type {
+  ComposeLength,
+  ComposeMode,
+  ComposeStructure,
   EvidenceRef,
+  LLMProfile,
   OutlineNode,
   Report,
   ReportAudience,
@@ -26,6 +30,45 @@ const REWRITE_LABEL: Record<RewriteOp, string> = {
   retone: "换成其他口吻",
   custom: "自定义指令",
 };
+
+const COMPOSE_MODES: {
+  value: ComposeMode;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "standard", label: "均衡周报", hint: "进展、风险、计划都覆盖" },
+  { value: "executive", label: "向上汇报", hint: "结论先行，突出影响和决策点" },
+  { value: "brief", label: "快速同步", hint: "压缩成可扫读版本" },
+  { value: "deep", label: "深入复盘", hint: "保留背景、判断和阻塞原因" },
+];
+
+const COMPOSE_LENGTHS: {
+  value: ComposeLength;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "medium", label: "标准", hint: "700-1000 字" },
+  { value: "short", label: "短", hint: "300-500 字" },
+  { value: "long", label: "长", hint: "1200 字以上" },
+];
+
+const COMPOSE_STRUCTURES: {
+  value: ComposeStructure;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "narrative", label: "成文", hint: "段落为主，列表辅助" },
+  { value: "bullets", label: "清单", hint: "短列表，适合复制发送" },
+  { value: "memo", label: "备忘录", hint: "背景 / 判断 / 进展 / 风险 / 下一步" },
+];
+
+const COMPOSE_FOCUS = [
+  "关键进展",
+  "风险阻塞",
+  "数据结果",
+  "协同支持",
+  "下周计划",
+];
 
 type RewriteState = {
   op: RewriteOp;
@@ -70,10 +113,18 @@ export default function ReportComposer() {
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
-  const [showComposeModal, setShowComposeModal] = useState(false);
   const [showPeriodEditor, setShowPeriodEditor] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [composeNote, setComposeNote] = useState("");
+  const [composeMode, setComposeMode] = useState<ComposeMode>("standard");
+  const [composeLength, setComposeLength] = useState<ComposeLength>("medium");
+  const [composeStructure, setComposeStructure] =
+    useState<ComposeStructure>("narrative");
+  const [composeFocus, setComposeFocus] = useState<string[]>([
+    "关键进展",
+    "风险阻塞",
+    "下周计划",
+  ]);
   const [rewrite, setRewrite] = useState<RewriteState | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -85,6 +136,14 @@ export default function ReportComposer() {
     queryKey: ["llm-profiles"],
     queryFn: api.llm.list,
   });
+
+  const activeProfile = useMemo(
+    () =>
+      selectedProfileId
+        ? profiles.find((p) => p.id === selectedProfileId)
+        : profiles.find((p) => p.is_default) ?? profiles[0],
+    [profiles, selectedProfileId]
+  );
 
   useEffect(() => {
     if (!report) return;
@@ -248,12 +307,15 @@ export default function ReportComposer() {
 
   const doCompose = async () => {
     setComposing(true);
-    setShowComposeModal(false);
     let draft = "";
     try {
       for await (const chunk of api.reports.compose(id, {
         profile_id: selectedProfileId || undefined,
         note: composeNote || undefined,
+        mode: composeMode,
+        length: composeLength,
+        structure: composeStructure,
+        focus: composeFocus,
       })) {
         if (chunk.type === "delta" && chunk.text) {
           draft += chunk.text;
@@ -438,8 +500,9 @@ export default function ReportComposer() {
           <span>{String(citationCount).padStart(2, "0")} 引用</span>
           <button
             className="btn btn-ghost"
-            onClick={() => setShowComposeModal(true)}
-            disabled={composing || !profiles.length}
+            onClick={doCompose}
+            disabled={composing || !activeProfile?.api_key_set}
+            title="按右侧 AI 生成控制台的设置重新生成"
           >
             {composing ? "生成中…" : "✨ AI 生成"}
           </button>
@@ -489,7 +552,7 @@ export default function ReportComposer() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[240px_minmax(0,1fr)_340px]">
+      <div className="grid min-h-0 flex-1 grid-cols-[240px_minmax(0,1fr)_390px]">
         <aside className="min-h-0 overflow-y-auto border-r border-line bg-canvas-sunken/60 px-5 py-6">
           <div className="mb-3 flex items-center justify-between">
             <span className="eyebrow">OUTLINE</span>
@@ -584,6 +647,29 @@ export default function ReportComposer() {
         </section>
 
         <aside className="min-h-0 overflow-y-auto border-l border-line bg-canvas-sunken/60 px-5 py-6">
+          <ComposeStudio
+            profiles={profiles}
+            activeProfile={activeProfile}
+            selectedProfileId={selectedProfileId}
+            onSelectProfile={setSelectedProfileId}
+            mode={composeMode}
+            onModeChange={setComposeMode}
+            length={composeLength}
+            onLengthChange={setComposeLength}
+            structure={composeStructure}
+            onStructureChange={setComposeStructure}
+            focus={composeFocus}
+            onFocusChange={setComposeFocus}
+            note={composeNote}
+            onNoteChange={setComposeNote}
+            composing={composing}
+            body={body}
+            report={report}
+            onCompose={doCompose}
+          />
+
+          <div className="my-6 divider" />
+
           <div className="mb-3 flex items-center justify-between">
             <span className="eyebrow">EVIDENCE</span>
             <span className="mono-meta">
@@ -686,76 +772,6 @@ export default function ReportComposer() {
         </aside>
       </div>
 
-      {showComposeModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="panel w-full max-w-md p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="chip chip-accent">AI · COMPOSE</span>
-              <span className="mono-meta">/reports/compose</span>
-            </div>
-            <h2 className="mb-4 font-display text-lg font-semibold">
-              AI 生成周报
-            </h2>
-
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-ink-soft">
-                使用配置
-              </label>
-              <select
-                className="mt-1 w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm outline-none focus:border-accent/60"
-                value={selectedProfileId || ""}
-                onChange={(e) => setSelectedProfileId(e.target.value || null)}
-              >
-                <option value="">（默认配置）</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}{" "}
-                    {p.api_key_set ? "" : "⚠ 无 key"}
-                  </option>
-                ))}
-              </select>
-              {!profiles.some((p) =>
-                selectedProfileId ? p.id === selectedProfileId : p.is_default
-              ) ||
-              !profiles[0]?.api_key_set ? (
-                <div className="mt-1 text-[11px] text-signal-stop">
-                  ⚠ 选定的配置未设置 API Key，请先在设置页配置
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-xs font-medium text-ink-soft">
-                补充说明（可选）
-              </label>
-              <textarea
-                className="mt-1 h-20 w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm outline-none placeholder:text-ink-faint focus:border-accent/60"
-                value={composeNote}
-                onChange={(e) => setComposeNote(e.target.value)}
-                placeholder="e.g. 重点强调新项目启动 / 避免篇幅过长"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                className="btn btn-accent flex-1"
-                onClick={doCompose}
-                disabled={composing}
-              >
-                {composing ? "生成中…" : "生成"}
-              </button>
-              <button
-                className="btn btn-ghost"
-                onClick={() => setShowComposeModal(false)}
-                disabled={composing}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {rewrite && (
         <RewritePanel
           state={rewrite}
@@ -778,6 +794,244 @@ export default function ReportComposer() {
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+function ComposeStudio({
+  profiles,
+  activeProfile,
+  selectedProfileId,
+  onSelectProfile,
+  mode,
+  onModeChange,
+  length,
+  onLengthChange,
+  structure,
+  onStructureChange,
+  focus,
+  onFocusChange,
+  note,
+  onNoteChange,
+  composing,
+  body,
+  report,
+  onCompose,
+}: {
+  profiles: LLMProfile[];
+  activeProfile: LLMProfile | undefined;
+  selectedProfileId: string | null;
+  onSelectProfile: (id: string | null) => void;
+  mode: ComposeMode;
+  onModeChange: (mode: ComposeMode) => void;
+  length: ComposeLength;
+  onLengthChange: (length: ComposeLength) => void;
+  structure: ComposeStructure;
+  onStructureChange: (structure: ComposeStructure) => void;
+  focus: string[];
+  onFocusChange: (focus: string[]) => void;
+  note: string;
+  onNoteChange: (note: string) => void;
+  composing: boolean;
+  body: string;
+  report: Report;
+  onCompose: () => void;
+}) {
+  const evidenceCount = report.cited_evidence.length;
+  const canGenerate = !!activeProfile?.api_key_set && !composing;
+  const draftState = body.trim() ? "将覆盖当前正文" : "生成第一版草稿";
+
+  const toggleFocus = (item: string) => {
+    if (focus.includes(item)) {
+      onFocusChange(focus.filter((x) => x !== item));
+      return;
+    }
+    onFocusChange([...focus, item]);
+  };
+
+  return (
+    <section className="panel p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="chip chip-accent">AI · REPORT</span>
+            <span className="mono-meta">compose</span>
+          </div>
+          <h2 className="font-display text-lg font-semibold text-ink">
+            生成控制台
+          </h2>
+        </div>
+        <span
+          className={clsx(
+            "chip",
+            evidenceCount > 0 ? "chip-go" : "chip-hold"
+          )}
+          title="本次周期筛选出的可引用证据会在生成完成后刷新"
+        >
+          {evidenceCount > 0 ? `${evidenceCount} 条引用` : "待取证据"}
+        </span>
+      </div>
+
+      <div className="space-y-4">
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-ink-soft">
+            使用配置
+          </span>
+          <select
+            className="input py-1.5"
+            value={selectedProfileId || ""}
+            onChange={(e) => onSelectProfile(e.target.value || null)}
+            disabled={composing}
+          >
+            <option value="">默认配置</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.api_key_set ? "" : " / 未设置 key"}
+              </option>
+            ))}
+          </select>
+          {!activeProfile ? (
+            <div className="mt-1 text-[11px] text-signal-stop">
+              未找到可用 LLM 配置，请先到设置页添加。
+            </div>
+          ) : !activeProfile.api_key_set ? (
+            <div className="mt-1 text-[11px] text-signal-stop">
+              当前配置未设置 API Key。
+            </div>
+          ) : null}
+        </label>
+
+        <SegmentGroup
+          label="生成目标"
+          options={COMPOSE_MODES}
+          value={mode}
+          disabled={composing}
+          onChange={onModeChange}
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <SegmentGroup
+            label="篇幅"
+            options={COMPOSE_LENGTHS}
+            value={length}
+            disabled={composing}
+            onChange={onLengthChange}
+          />
+          <SegmentGroup
+            label="结构"
+            options={COMPOSE_STRUCTURES}
+            value={structure}
+            disabled={composing}
+            onChange={onStructureChange}
+          />
+        </div>
+
+        <div>
+          <div className="mb-1 text-xs font-medium text-ink-soft">
+            重点
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {COMPOSE_FOCUS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={clsx(
+                  "chip cursor-pointer",
+                  focus.includes(item) && "chip-accent"
+                )}
+                onClick={() => toggleFocus(item)}
+                disabled={composing}
+              >
+                {focus.includes(item) ? "✓ " : ""}
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-ink-soft">
+            临时指令
+          </span>
+          <textarea
+            className="input h-20 resize-none"
+            value={note}
+            onChange={(e) => onNoteChange(e.target.value)}
+            placeholder="例如：少写技术细节；强调新项目启动；语气更像给老板看的更新。"
+            disabled={composing}
+          />
+        </label>
+
+        <div className="rounded-lg border border-line bg-canvas-sunken/60 px-3 py-2">
+          <div className="mb-1 flex items-center justify-between text-[11px]">
+            <span className="text-ink-mute">写入方式</span>
+            <span className="font-medium text-ink-soft">{draftState}</span>
+          </div>
+          <p className="text-[11px] leading-relaxed text-ink-mute">
+            生成完成后会自动保存正文和引用列表；需要保留旧稿时，先用导出复制一份。
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-accent w-full justify-center"
+          onClick={onCompose}
+          disabled={!canGenerate}
+        >
+          {composing ? (
+            <>
+              <span className="dot-pulse" />
+              生成中…
+            </>
+          ) : body.trim() ? (
+            "重新生成正文"
+          ) : (
+            "生成报告草稿"
+          )}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function SegmentGroup<T extends string>({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string; hint: string }[];
+  value: T;
+  disabled?: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-ink-soft">{label}</div>
+      <div className="grid gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            disabled={disabled}
+            className={clsx(
+              "rounded-lg border px-2.5 py-2 text-left transition",
+              value === o.value
+                ? "border-accent/50 bg-accent/10 text-accent"
+                : "border-line bg-canvas-sunken/50 text-ink-soft hover:border-accent/40 hover:text-ink"
+            )}
+            title={o.hint}
+          >
+            <div className="text-xs font-medium">{o.label}</div>
+            <div className="mt-0.5 truncate text-[10px] opacity-75">
+              {o.hint}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

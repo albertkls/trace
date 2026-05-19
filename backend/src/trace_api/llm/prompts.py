@@ -32,6 +32,29 @@ DEFAULT_OUTLINE = [
     "下周计划",
 ]
 
+REPORT_MODES = {"brief", "standard", "deep", "executive"}
+REPORT_LENGTHS = {"short", "medium", "long"}
+REPORT_STRUCTURES = {"narrative", "bullets", "memo"}
+
+MODE_INSTRUCTIONS = {
+    "brief": "生成一份快速同步稿：只保留最关键进展、风险和下一步，适合直接发给对方扫读。",
+    "standard": "生成一份均衡周报：覆盖关键进展、结果、风险、协同和下周计划。",
+    "deep": "生成一份深入复盘稿：在事实基础上补充背景、影响、阻塞原因和后续动作。",
+    "executive": "生成一份向上汇报稿：先给结论和业务影响，再列关键进展、风险与需要决策的事项。",
+}
+
+LENGTH_INSTRUCTIONS = {
+    "short": "篇幅：控制在 300-500 个汉字，信息密度高。",
+    "medium": "篇幅：控制在 700-1000 个汉字，详略均衡。",
+    "long": "篇幅：可以超过 1200 个汉字，保留较完整上下文和分析。",
+}
+
+STRUCTURE_INSTRUCTIONS = {
+    "narrative": "结构：以成文段落为主，少量列表辅助。",
+    "bullets": "结构：使用清晰的短列表呈现，每条必须有明确动作或结论。",
+    "memo": "结构：写成工作备忘录，包含「背景 / 判断 / 进展 / 风险 / 下一步」。",
+}
+
 
 def build_report_messages(
     *,
@@ -42,17 +65,42 @@ def build_report_messages(
     evidence_lines: list[str],
     project_context: dict | None = None,
     context_note: str | None = None,
+    mode: str | None = None,
+    length: str | None = None,
+    structure: str | None = None,
+    focus: list[str] | None = None,
 ) -> list[ChatMessage]:
     tone = AUDIENCE_TONE.get(audience, AUDIENCE_TONE["boss"])
-    outline_hint = "\n".join(f"## {t}" for t in DEFAULT_OUTLINE)
+    mode_key = mode if mode in REPORT_MODES else "standard"
+    length_key = length if length in REPORT_LENGTHS else "medium"
+    structure_key = structure if structure in REPORT_STRUCTURES else "narrative"
+    focus_items = [item.strip() for item in focus or [] if item and item.strip()]
+
+    if structure_key == "memo":
+        outline = ["背景", "判断", "进展", "风险", "下一步"]
+    elif mode_key == "executive":
+        outline = ["结论先行", "关键进展", "风险与需要支持", "下周计划"]
+    elif mode_key == "deep":
+        outline = ["综述", "关键进展", "影响与判断", "风险与阻塞", "下周计划"]
+    else:
+        outline = DEFAULT_OUTLINE
+    outline_hint = "\n".join(f"## {t}" for t in outline)
 
     user_body = [
         f"周期：{period_label}（{period_start} — {period_end}）",
         f"读者/口吻：{tone}",
+        "",
+        "生成策略：",
+        MODE_INSTRUCTIONS[mode_key],
+        LENGTH_INSTRUCTIONS[length_key],
+        STRUCTURE_INSTRUCTIONS[structure_key],
     ]
+    if focus_items:
+        user_body.extend(["重点关注：", " / ".join(focus_items)])
     if project_context:
         user_body.extend(
             [
+                "",
                 f"所属项目：{project_context.get('name') or '未命名项目'}",
                 f"项目状态：{project_context.get('status') or 'active'}",
             ]

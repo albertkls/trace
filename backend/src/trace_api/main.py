@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .config import get_settings, reset_settings_cache
 from .db import ensure_schema
-from .routers import activity, backups, captures, library, llm, notes, projects, reports, search, threads, todos, updater, workspaces
+from .routers import activity, attachments, backups, captures, library, llm, notes, projects, reports, search, threads, todos, updater, workspaces
 from .web import mount_frontend
 
 
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(threads.router, prefix="/api")
+    app.include_router(attachments.router, prefix="/api")
     app.include_router(workspaces.router, prefix="/api")
     app.include_router(backups.router, prefix="/api")
     app.include_router(projects.router, prefix="/api")

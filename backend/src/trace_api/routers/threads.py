@@ -13,6 +13,7 @@ from ..project_utils import resolve_project_reference
 from ..utils import TZ, new_id, now_iso, today_iso
 from .llm import get_default_profile
 from ..workspace import request_workspace_id
+from .attachments import delete_owner_attachments
 
 router = APIRouter(prefix="/threads", tags=["threads"])
 
@@ -362,6 +363,16 @@ def delete_thread(thread_id: str, workspace_id: str = Depends(request_workspace_
         if not row:
             raise HTTPException(404, "thread not found")
         # Manually cascade-delete evidence and todos (schema uses ON DELETE SET NULL)
+        evidence_ids = [
+            evidence_row["id"]
+            for evidence_row in cur.execute(
+                "SELECT id FROM evidence WHERE thread_id = ? AND workspace_id = ?",
+                (thread_id, workspace_id),
+            ).fetchall()
+        ]
+        delete_owner_attachments(cur, "thread", thread_id, workspace_id)
+        for evidence_id in evidence_ids:
+            delete_owner_attachments(cur, "evidence", evidence_id, workspace_id)
         cur.execute("DELETE FROM evidence WHERE thread_id = ? AND workspace_id = ?", (thread_id, workspace_id))
         cur.execute("DELETE FROM todo WHERE thread_id = ? AND workspace_id = ?", (thread_id, workspace_id))
         # Scrub dead thread_id from note.thread_ids_json and report.thread_ids_json

@@ -13,6 +13,7 @@ import uuid
 
 from ..utils import local_minute, new_id, now_iso
 from ..workspace import request_workspace_id
+from .attachments import delete_owner_attachments
 
 router = APIRouter(prefix="/captures", tags=["captures"])
 
@@ -256,12 +257,17 @@ def update_capture(evidence_id: str, patch: CaptureUpdate, workspace_id: str = D
 def delete_capture(evidence_id: str, workspace_id: str = Depends(request_workspace_id)) -> None:
     conn = connect()
     try:
-        cur = conn.execute(
+        row = conn.execute(
+            "SELECT id FROM evidence WHERE id = ? AND workspace_id = ?",
+            (evidence_id, workspace_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "capture not found")
+        delete_owner_attachments(conn, "evidence", evidence_id, workspace_id)
+        conn.execute(
             "DELETE FROM evidence WHERE id = ? AND workspace_id = ?",
             (evidence_id, workspace_id),
         )
-        if cur.rowcount == 0:
-            raise HTTPException(404, "capture not found")
         conn.commit()
     finally:
         conn.close()

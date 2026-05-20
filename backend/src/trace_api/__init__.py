@@ -5,4 +5,4 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("trace-api")
 except PackageNotFoundError:
-    __version__ = "1.4.3"
+    __version__ = "1.5.0"

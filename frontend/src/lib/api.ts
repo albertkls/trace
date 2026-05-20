@@ -1,4 +1,7 @@
 import type {
+  Attachment,
+  AttachmentInput,
+  AttachmentOwnerType,
   BackupInfo,
   CaptureInput,
   ComposeChunk,
@@ -60,6 +63,24 @@ export const api = {
   health: () => req<{ status: string }>("/health"),
   search: (q: string) =>
     req<SearchResult>(`/search?q=${encodeURIComponent(q)}`),
+  attachments: {
+    list: (ownerType: AttachmentOwnerType, ownerId: string) =>
+      req<Attachment[]>(
+        `/attachments?owner_type=${encodeURIComponent(ownerType)}&owner_id=${encodeURIComponent(ownerId)}`
+      ),
+    create: (body: AttachmentInput) =>
+      req<Attachment>("/attachments", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) => req<void>(`/attachments/${id}`, { method: "DELETE" }),
+    open: (id: string) =>
+      req<{ ok: boolean; last_opened_at?: string }>(`/attachments/${id}/open`, {
+        method: "POST",
+      }),
+    reveal: (id: string) =>
+      req<{ ok: boolean }>(`/attachments/${id}/reveal`, { method: "POST" }),
+  },
   workspaces: {
     list: () => req<Workspace[]>("/workspaces"),
     create: (body: WorkspaceInput) =>

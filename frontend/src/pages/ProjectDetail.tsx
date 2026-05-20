@@ -5,6 +5,7 @@ import NewReportModal from "@/components/NewReportModal";
 import NewThreadModal from "@/components/NewThreadModal";
 import ProjectModal from "@/components/ProjectModal";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
+import AttachmentPanel from "@/components/AttachmentPanel";
 import { api } from "@/lib/api";
 import { formatDateTime, parseDateTime, PRESETS } from "@/lib/periods";
 import { todoPreview } from "@/lib/richText";
@@ -349,6 +350,8 @@ export default function ProjectDetail() {
         </section>
 
         <aside className="space-y-6">
+          <AttachmentPanel ownerType="project" ownerId={project.id} />
+
           <div className="panel p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="eyebrow">NOTES</div>

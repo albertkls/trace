@@ -17,6 +17,7 @@ from ..project_utils import (
 )
 from .llm import get_default_profile
 from ..workspace import request_workspace_id
+from .attachments import delete_owner_attachments
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -263,6 +264,7 @@ def delete_project(project_id: str, workspace_id: str = Depends(request_workspac
             "UPDATE thread SET project = NULL WHERE project_id = ? AND workspace_id = ?",
             (project_id, workspace_id),
         )
+        delete_owner_attachments(conn, "project", project_id, workspace_id)
         conn.execute(
             "DELETE FROM project WHERE id = ? AND workspace_id = ?",
             (project_id, workspace_id),

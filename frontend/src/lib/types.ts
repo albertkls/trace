@@ -219,6 +219,32 @@ export interface ProjectDetail extends Project {
   evidence: Evidence[];
 }
 
+export type AttachmentOwnerType = "project" | "thread" | "evidence" | "note" | "report";
+
+export interface Attachment {
+  id: string;
+  workspace_id: string;
+  owner_type: AttachmentOwnerType;
+  owner_id: string;
+  file_path: string;
+  display_name: string;
+  file_kind: string | null;
+  file_size: number | null;
+  mtime: string | null;
+  created_at: string;
+  last_opened_at: string | null;
+  metadata: Record<string, unknown>;
+  exists: boolean;
+  can_open: boolean;
+}
+
+export interface AttachmentInput {
+  owner_type: AttachmentOwnerType;
+  owner_id: string;
+  file_path: string;
+  display_name?: string | null;
+}
+
 export interface ProjectInput {
   name: string;
   status?: ProjectStatus;

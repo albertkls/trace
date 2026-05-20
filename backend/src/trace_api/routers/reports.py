@@ -19,6 +19,7 @@ from ..project_utils import require_project
 from ..utils import TZ, new_id, now_iso
 from .llm import get_default_profile
 from ..workspace import request_workspace_id
+from .attachments import delete_owner_attachments
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -722,6 +723,7 @@ def delete_report(report_id: str, workspace_id: str = Depends(request_workspace_
         ).fetchone()
         if not row:
             raise HTTPException(404, "report not found")
+        delete_owner_attachments(conn, "report", report_id, workspace_id)
         conn.execute(
             "DELETE FROM report WHERE id = ? AND workspace_id = ?",
             (report_id, workspace_id),

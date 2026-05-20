@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import CategoryChoiceChips from "@/components/CategoryChoiceChips";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
+import AttachmentPanel from "@/components/AttachmentPanel";
 import ProjectSelect from "@/components/ProjectSelect";
 import { api } from "@/lib/api";
 import type { InboxItem, Thread } from "@/lib/types";
@@ -188,6 +189,14 @@ function InboxCard({
               hint="点击后在该项目下筛线程"
             />
           </div>
+
+          <AttachmentPanel
+            ownerType="evidence"
+            ownerId={item.id}
+            title="关联文件"
+            compact
+            className="mt-3"
+          />
         </div>
 
         <div className="relative flex flex-col items-end gap-1.5">

@@ -9,6 +9,7 @@ from ..db import connect, row_to_dict
 from ..project_utils import require_project
 from ..utils import local_minute, new_id, now_iso
 from ..workspace import request_workspace_id
+from .attachments import delete_owner_attachments
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -209,6 +210,7 @@ def delete_note(note_id: str, workspace_id: str = Depends(request_workspace_id))
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "note not found")
+        delete_owner_attachments(conn, "note", note_id, workspace_id)
         conn.commit()
     finally:
         conn.close()

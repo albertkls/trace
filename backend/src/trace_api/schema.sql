@@ -118,6 +118,21 @@ CREATE TABLE IF NOT EXISTS report (
     workspace_id         TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS attachment (
+    id             TEXT PRIMARY KEY,
+    workspace_id   TEXT NOT NULL DEFAULT 'ws_default' REFERENCES workspace(id) ON DELETE CASCADE,
+    owner_type     TEXT NOT NULL,
+    owner_id       TEXT NOT NULL,
+    file_path      TEXT NOT NULL,
+    display_name   TEXT NOT NULL,
+    file_kind      TEXT,
+    file_size      INTEGER,
+    mtime          TEXT,
+    created_at     TEXT NOT NULL,
+    last_opened_at TEXT,
+    metadata_json  TEXT NOT NULL DEFAULT '{}'
+);
+
 CREATE TABLE IF NOT EXISTS llm_profile (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
@@ -146,6 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_thread_project_id ON thread(project_id, last_acti
 CREATE INDEX IF NOT EXISTS idx_report_period ON report(period_label, audience, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_report_project_id ON report(project_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_report_workspace ON report(workspace_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_attachment_owner ON attachment(workspace_id, owner_type, owner_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_todo_thread ON todo(thread_id, done);
 CREATE INDEX IF NOT EXISTS idx_note_day ON note(day DESC);
 CREATE INDEX IF NOT EXISTS idx_note_project_id ON note(project_id, updated_at DESC);

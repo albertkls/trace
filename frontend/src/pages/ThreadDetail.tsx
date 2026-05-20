@@ -9,6 +9,7 @@ import QuickCapture from "@/components/QuickCapture";
 import EditThreadModal from "@/components/EditThreadModal";
 import MergeThreadModal from "@/components/MergeThreadModal";
 import ThreadReportModal from "@/components/ThreadReportModal";
+import AttachmentPanel from "@/components/AttachmentPanel";
 import {
   CATEGORY_OPTIONS,
   CATEGORY_TIMELINE_MARKER_STYLE,
@@ -180,6 +181,8 @@ export default function ThreadDetail() {
         </section>
 
         <aside className="space-y-5">
+          <AttachmentPanel ownerType="thread" ownerId={thread.id} />
+
           <div className="panel p-5">
             <div className="mb-3 flex items-center gap-2">
               <span className="chip chip-accent">AI 概览</span>
@@ -297,6 +300,13 @@ function EvidenceTimelineItem({
           {evidence.owners.length > 0 && (
             <div className="mt-2 mono-meta">{evidence.owners.join(" · ")}</div>
           )}
+          <AttachmentPanel
+            ownerType="evidence"
+            ownerId={evidence.id}
+            title="证据附件"
+            compact
+            className="mt-3"
+          />
         </div>
       )}
     </li>

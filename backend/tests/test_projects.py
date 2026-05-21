@@ -69,3 +69,37 @@ def test_project_detail_includes_evidence_and_todos(client):
     body = detail.json()
     assert any(item['id'] == evidence['id'] for item in body['evidence'])
     assert any(item['id'] == todo['id'] for item in body['todos'])
+
+
+def test_project_health_and_weekly_metrics(client):
+    project = create_project(client, name='健康度项目')
+    blocked_thread = client.post(
+        '/api/threads',
+        json={'title': '阻塞线程', 'project_id': project['id']},
+    ).json()
+    client.patch(f"/api/threads/{blocked_thread['id']}", json={'status': 'blocked'})
+    evidence = create_capture(client, text='本周新增证据', thread_id=blocked_thread['id'])
+    todo = client.post(
+        '/api/todos',
+        json={'text': '待推进事项', 'thread_id': blocked_thread['id']},
+    ).json()
+    report = create_report(client, project_id=project['id'], thread_ids=[blocked_thread['id']])
+
+    detail = client.get(f"/api/projects/{project['id']}")
+    assert detail.status_code == 200, detail.text
+    health = detail.json()['health']
+    assert health['health_status'] == 'blocked'
+    assert health['blocked_thread_count'] == 1
+    assert health['open_todo_count'] == 1
+    assert health['draft_report_count'] == 1
+    assert health['week_evidence_count'] >= 1
+    assert health['week_active_thread_count'] >= 1
+    assert '阻塞' in health['next_action']
+
+    listed = client.get('/api/projects').json()
+    listed_health = next(item['health'] for item in listed if item['id'] == project['id'])
+    assert listed_health['blocked_thread_count'] == 1
+    assert listed_health['open_todo_count'] == 1
+    assert evidence['id']
+    assert todo['id']
+    assert report['id']

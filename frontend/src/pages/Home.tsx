@@ -24,6 +24,10 @@ export default function Home() {
     queryKey: ["reports"],
     queryFn: () => api.reports.list(),
   });
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
+  });
   const { data: inbox = [] } = useQuery({
     queryKey: ["inbox"],
     queryFn: api.captures.inbox,
@@ -35,6 +39,18 @@ export default function Home() {
 
   const maxEv = Math.max(1, ...threads.map((t) => t.evidence_count ?? 0));
   const draftReport = reports.find((r) => r.status === "draft");
+  const projectAlerts = projects
+    .filter((project) =>
+      ["blocked", "quiet", "reporting"].includes(project.health?.health_status ?? "")
+    )
+    .sort((a, b) => {
+      const rank = { blocked: 0, quiet: 1, reporting: 2, active: 3, healthy: 4 };
+      return (
+        rank[a.health?.health_status ?? "healthy"] -
+        rank[b.health?.health_status ?? "healthy"]
+      );
+    })
+    .slice(0, 3);
 
   const today = new Date();
   const weekLabel = isoWeekLabel(today);
@@ -61,6 +77,12 @@ export default function Home() {
     items.push({
       text: `${blocked.length} 条工作线处于阻塞`,
       to: "/threads",
+    });
+  }
+  for (const project of projectAlerts) {
+    items.push({
+      text: `${project.name} · ${project.health?.next_action}`,
+      to: `/projects/${project.id}`,
     });
   }
   if (items.length === 0) {
@@ -134,6 +156,43 @@ export default function Home() {
           )}
         </ul>
       </section>
+
+      {/* Yesterday Review */}
+      {projects.length > 0 && (
+        <section className="panel mb-6 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <div className="flex items-center gap-2">
+              <span className="eyebrow">PROJECT HEALTH</span>
+              <span className="chip">{projects.length}</span>
+            </div>
+            <Link to="/projects" className="text-xs text-accent transition hover:brightness-125">
+              项目 →
+            </Link>
+          </div>
+          <div className="grid gap-px bg-line/50 sm:grid-cols-2 lg:grid-cols-4">
+            {projects.slice(0, 4).map((project) => (
+              <Link
+                key={project.id}
+                to={`/projects/${project.id}`}
+                className="bg-canvas-raised px-5 py-4 transition hover:bg-canvas-contrast/40"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium text-ink">{project.name}</span>
+                  <HealthChip status={project.health?.health_status ?? "healthy"} />
+                </div>
+                <p className="truncate text-xs text-ink-soft">
+                  {project.health?.next_action ?? "暂无紧急动作"}
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <MiniStat label="证据" value={project.health?.week_evidence_count ?? 0} />
+                  <MiniStat label="完成" value={project.health?.week_done_todo_count ?? 0} />
+                  <MiniStat label="活跃" value={project.health?.week_active_thread_count ?? 0} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Yesterday Review */}
       {yesterday && (
@@ -292,6 +351,37 @@ export default function Home() {
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+function HealthChip({
+  status,
+}: {
+  status: "healthy" | "active" | "blocked" | "quiet" | "reporting";
+}) {
+  const label = {
+    healthy: "健康",
+    active: "活跃",
+    blocked: "阻塞",
+    quiet: "沉默",
+    reporting: "待汇报",
+  }[status];
+  const tone = {
+    healthy: "chip-go",
+    active: "chip-accent",
+    blocked: "chip-stop",
+    quiet: "chip-hold",
+    reporting: "chip",
+  }[status];
+  return <span className={clsx("chip", tone)}>{label}</span>;
+}
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-canvas-sunken/70 px-2 py-1.5">
+      <div className="mono-meta text-[10px]">{label}</div>
+      <div className="text-sm font-semibold text-ink">{value}</div>
     </div>
   );
 }

@@ -33,6 +33,19 @@ export interface Project {
   thread_count?: number;
   note_count?: number;
   report_count?: number;
+  health?: ProjectHealth;
+}
+
+export interface ProjectHealth {
+  health_status: "healthy" | "active" | "blocked" | "quiet" | "reporting";
+  next_action: string;
+  blocked_thread_count: number;
+  stale_thread_count: number;
+  open_todo_count: number;
+  draft_report_count: number;
+  week_evidence_count: number;
+  week_done_todo_count: number;
+  week_active_thread_count: number;
 }
 
 export interface Thread {

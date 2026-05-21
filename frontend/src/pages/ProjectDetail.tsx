@@ -282,6 +282,29 @@ export default function ProjectDetail() {
         />
       </div>
 
+      {project.health && (
+        <section className="panel mb-8 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <div className="flex items-center gap-2">
+              <div className="eyebrow">PROJECT HEALTH</div>
+              <HealthChip status={project.health.health_status} />
+            </div>
+            <span className="text-xs text-ink-soft">{project.health.next_action}</span>
+          </div>
+          <div className="grid gap-px bg-line/50 md:grid-cols-4">
+            <HealthMetric label="阻塞线程" value={project.health.blocked_thread_count} tone="stop" />
+            <HealthMetric label="沉默线程" value={project.health.stale_thread_count} tone="hold" />
+            <HealthMetric label="待办未完成" value={project.health.open_todo_count} tone="accent" />
+            <HealthMetric label="报告草稿" value={project.health.draft_report_count} tone="muted" />
+          </div>
+          <div className="grid gap-px bg-line/50 border-t border-line md:grid-cols-3">
+            <HealthMetric label="本周新增证据" value={project.health.week_evidence_count} tone="go" />
+            <HealthMetric label="本周完成待办" value={project.health.week_done_todo_count} tone="go" />
+            <HealthMetric label="本周活跃线程" value={project.health.week_active_thread_count} tone="accent" />
+          </div>
+        </section>
+      )}
+
       <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-6">
         <section className="space-y-6">
           <div className="panel p-5">
@@ -451,6 +474,54 @@ function MetricCard({ label, value }: { label: string; value: number }) {
     <div className="panel p-5">
       <div className="eyebrow">{label}</div>
       <div className="mt-3 font-display text-[28px] font-semibold text-ink">{value}</div>
+    </div>
+  );
+}
+
+function HealthChip({
+  status,
+}: {
+  status: "healthy" | "active" | "blocked" | "quiet" | "reporting";
+}) {
+  const label = {
+    healthy: "健康",
+    active: "活跃",
+    blocked: "阻塞",
+    quiet: "沉默",
+    reporting: "待汇报",
+  }[status];
+  const tone = {
+    healthy: "chip-go",
+    active: "chip-accent",
+    blocked: "chip-stop",
+    quiet: "chip-hold",
+    reporting: "chip",
+  }[status];
+  return <span className={`chip ${tone}`}>{label}</span>;
+}
+
+function HealthMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "go" | "hold" | "stop" | "accent" | "muted";
+}) {
+  const color = {
+    go: "text-signal-go",
+    hold: "text-signal-hold",
+    stop: "text-signal-stop",
+    accent: "text-accent",
+    muted: "text-ink-soft",
+  }[tone];
+  return (
+    <div className="bg-canvas-raised px-5 py-4">
+      <div className="eyebrow">{label}</div>
+      <div className={`mt-2 font-display text-[26px] font-semibold ${color}`}>
+        {value}
+      </div>
     </div>
   );
 }

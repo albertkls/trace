@@ -119,6 +119,15 @@ export const api = {
   projects: {
     list: () => req<Project[]>("/projects"),
     get: (id: string) => req<ProjectDetail>(`/projects/${id}`),
+    exportZip: async (id: string) => {
+      const res = await fetch(`${BASE}/projects/${id}/export`, {
+        headers: { "X-Trace-Workspace": currentWorkspaceId() },
+      });
+      if (!res.ok) {
+        throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+      }
+      return res.blob();
+    },
     create: (body: ProjectInput) =>
       req<Project>("/projects", {
         method: "POST",

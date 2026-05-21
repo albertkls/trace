@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import io
 import json
+import re
+import zipfile
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..db import connect, cursor, row_to_dict
@@ -111,6 +116,152 @@ def _attach_project_health(conn, projects: list[dict], workspace_id: str) -> lis
     for project in projects:
         project["health"] = _project_health_snapshot(conn, project["id"], workspace_id)
     return projects
+
+
+def _safe_filename(value: str, fallback: str) -> str:
+    text = (value or fallback).strip() or fallback
+    text = re.sub(r'[\\/:*?"<>|\n\r\t]+', "_", text)
+    return text[:120] or fallback
+
+
+def _project_export_markdown(project: dict, reports: list[dict]) -> bytes:
+    project_name = project.get("name") or "project"
+    root = _safe_filename(project_name, "project")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        health = project.get("health") or {}
+        readme = [
+            f"# {project_name}",
+            "",
+            f"- 状态：{project.get('status') or 'unknown'}",
+            f"- 负责人：{project.get('owner') or '未设置'}",
+            f"- 线程：{project.get('thread_count') or len(project.get('threads') or [])}",
+            f"- 记事：{project.get('note_count') or len(project.get('notes') or [])}",
+            f"- 汇报：{project.get('report_count') or len(project.get('reports') or [])}",
+            f"- 健康度：{health.get('health_status') or 'unknown'}",
+            f"- 下一步：{health.get('next_action') or '暂无'}",
+            "",
+            "## 摘要",
+            "",
+            project.get("summary") or "暂无摘要。",
+            "",
+            "## 本周指标",
+            "",
+            f"- 新增证据：{health.get('week_evidence_count') or 0}",
+            f"- 完成待办：{health.get('week_done_todo_count') or 0}",
+            f"- 活跃线程：{health.get('week_active_thread_count') or 0}",
+            "",
+            "## 文件索引",
+            "",
+            "- `threads/`：项目工作线和线索",
+            "- `notes/`：项目记事",
+            "- `reports/`：项目报告",
+            "- `evidence.md`：全部证据",
+            "- `todos.md`：全部待办",
+        ]
+        zf.writestr(f"{root}/README.md", "\n".join(readme) + "\n")
+
+        evidence_by_thread: dict[str, list[dict]] = {}
+        for evidence in project.get("evidence") or []:
+            evidence_by_thread.setdefault(evidence.get("thread_id") or "", []).append(evidence)
+        todos_by_thread: dict[str, list[dict]] = {}
+        for todo in project.get("todos") or []:
+            todos_by_thread.setdefault(todo.get("thread_id") or "", []).append(todo)
+
+        for idx, thread in enumerate(project.get("threads") or [], start=1):
+            title = thread.get("title") or f"thread-{idx}"
+            lines = [
+                f"# {title}",
+                "",
+                f"- 状态：{thread.get('status') or 'unknown'}",
+                f"- 负责人：{thread.get('owner') or '未设置'}",
+                f"- 开始时间：{thread.get('started_at') or '未知'}",
+                f"- 最近活跃：{thread.get('last_active_at') or '未知'}",
+                f"- 证据数：{thread.get('evidence_count') or 0}",
+                "",
+                "## 摘要",
+                "",
+                thread.get("summary") or "暂无摘要。",
+                "",
+                "## 证据",
+                "",
+            ]
+            thread_evidence = evidence_by_thread.get(thread.get("id") or "", [])
+            if thread_evidence:
+                for n, item in enumerate(thread_evidence, start=1):
+                    lines.append(
+                        f"{n}. {item.get('event_date') or item.get('created_at') or '无日期'} · "
+                        f"{item.get('category') or 'progress'} · {item.get('text') or ''}"
+                    )
+            else:
+                lines.append("暂无证据。")
+            lines.extend(["", "## 待办", ""])
+            thread_todos = todos_by_thread.get(thread.get("id") or "", [])
+            if thread_todos:
+                for todo in thread_todos:
+                    mark = "x" if todo.get("done") else " "
+                    due = f" · 截止 {todo.get('due_date')}" if todo.get("due_date") else ""
+                    lines.append(f"- [{mark}] {todo.get('text') or ''}{due}")
+            else:
+                lines.append("暂无待办。")
+            zf.writestr(
+                f"{root}/threads/{idx:02d}-{_safe_filename(title, f'thread-{idx}')}.md",
+                "\n".join(lines) + "\n",
+            )
+
+        evidence_lines = [f"# {project_name} · 证据", ""]
+        for idx, item in enumerate(project.get("evidence") or [], start=1):
+            evidence_lines.append(
+                f"{idx}. {item.get('event_date') or item.get('created_at') or '无日期'} · "
+                f"{item.get('thread_title') or '未挂线程'} · {item.get('category') or 'progress'} · "
+                f"{item.get('text') or ''}"
+            )
+        if len(evidence_lines) == 2:
+            evidence_lines.append("暂无证据。")
+        zf.writestr(f"{root}/evidence.md", "\n".join(evidence_lines) + "\n")
+
+        todo_lines = [f"# {project_name} · 待办", ""]
+        for item in project.get("todos") or []:
+            mark = "x" if item.get("done") else " "
+            due = f" · 截止 {item.get('due_date')}" if item.get("due_date") else ""
+            todo_lines.append(f"- [{mark}] {item.get('thread_title') or '未挂线程'} · {item.get('text') or ''}{due}")
+        if len(todo_lines) == 2:
+            todo_lines.append("暂无待办。")
+        zf.writestr(f"{root}/todos.md", "\n".join(todo_lines) + "\n")
+
+        for idx, note in enumerate(project.get("notes") or [], start=1):
+            title = note.get("title") or f"note-{idx}"
+            content = [
+                f"# {title}",
+                "",
+                f"- 日期：{note.get('day') or '未知'}",
+                f"- 更新时间：{note.get('updated_at') or '未知'}",
+                "",
+                note.get("body_md") or "",
+            ]
+            zf.writestr(
+                f"{root}/notes/{idx:02d}-{_safe_filename(title, f'note-{idx}')}.md",
+                "\n".join(content).rstrip() + "\n",
+            )
+
+        for idx, report in enumerate(reports, start=1):
+            title = report.get("title") or f"report-{idx}"
+            body = (report.get("body_md") or "").strip()
+            content = [
+                f"# {title}",
+                "",
+                f"- 周期：{report.get('period_label') or ''}（{report.get('period_start') or ''} — {report.get('period_end') or ''}）",
+                f"- 状态：{report.get('status') or 'draft'}",
+                f"- 受众：{report.get('audience') or 'boss'}",
+                "",
+                body or "暂无正文。",
+            ]
+            zf.writestr(
+                f"{root}/reports/{idx:02d}-{_safe_filename(title, f'report-{idx}')}.md",
+                "\n".join(content).rstrip() + "\n",
+            )
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 @router.get("")
@@ -318,6 +469,39 @@ def get_project(project_id: str, workspace_id: str = Depends(request_workspace_i
         return project
     finally:
         conn.close()
+
+
+@router.get("/{project_id}/export")
+def export_project(project_id: str, workspace_id: str = Depends(request_workspace_id)):
+    project = get_project(project_id, workspace_id)
+    conn = connect()
+    try:
+        report_rows = conn.execute(
+            """
+            SELECT r.*
+            FROM report r
+            WHERE r.project_id = ? AND r.workspace_id = ?
+            ORDER BY r.updated_at DESC
+            """,
+            (project_id, workspace_id),
+        ).fetchall()
+        reports = [row_to_dict(row) for row in report_rows]
+    finally:
+        conn.close()
+
+    raw_filename = f"Trace-{_safe_filename(project.get('name') or project_id, 'project')}.zip"
+    ascii_filename = f"Trace-{project_id}.zip"
+    content = _project_export_markdown(project, reports)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"{ascii_filename}\"; "
+                f"filename*=UTF-8''{quote(raw_filename)}"
+            )
+        },
+    )
 
 
 @router.delete("/{project_id}", status_code=204)

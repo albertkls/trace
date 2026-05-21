@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import io
+import zipfile
+
 from .helpers import create_capture, create_project, create_report
 
 
@@ -103,3 +106,33 @@ def test_project_health_and_weekly_metrics(client):
     assert evidence['id']
     assert todo['id']
     assert report['id']
+
+
+def test_project_export_markdown_zip(client):
+    project = create_project(client, name='导出项目')
+    thread = client.post(
+        '/api/threads',
+        json={'title': '导出线程', 'project_id': project['id'], 'summary': '线程摘要'},
+    ).json()
+    create_capture(client, text='导出证据', thread_id=thread['id'])
+    client.post('/api/todos', json={'text': '导出待办', 'thread_id': thread['id']})
+    client.post('/api/notes', json={'title': '导出记事', 'body_md': '记事正文', 'project_id': project['id']})
+    create_report(client, project_id=project['id'], thread_ids=[thread['id']], body_md='报告正文')
+
+    response = client.get(f"/api/projects/{project['id']}/export")
+    assert response.status_code == 200, response.text
+    assert response.headers['content-type'] == 'application/zip'
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        names = archive.namelist()
+        assert '导出项目/README.md' in names
+        assert '导出项目/evidence.md' in names
+        assert '导出项目/todos.md' in names
+        assert any(name.startswith('导出项目/threads/') for name in names)
+        assert any(name.startswith('导出项目/notes/') for name in names)
+        assert any(name.startswith('导出项目/reports/') for name in names)
+        readme = archive.read('导出项目/README.md').decode()
+        evidence = archive.read('导出项目/evidence.md').decode()
+        todos = archive.read('导出项目/todos.md').decode()
+    assert '# 导出项目' in readme
+    assert '导出证据' in evidence
+    assert '导出待办' in todos

@@ -7,6 +7,7 @@ import ProjectModal from "@/components/ProjectModal";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
 import AttachmentPanel from "@/components/AttachmentPanel";
 import { api } from "@/lib/api";
+import { downloadBlob, safeFilename } from "@/lib/clipboard";
 import { formatDateTime, parseDateTime, PRESETS } from "@/lib/periods";
 import { todoPreview } from "@/lib/richText";
 
@@ -180,6 +181,15 @@ export default function ProjectDetail() {
     onError: (e: Error) => setActionError(`创建本周项目报告失败：${e.message}`),
   });
 
+  const exportProject = useMutation({
+    mutationFn: () => api.projects.exportZip(safeProjectId),
+    onSuccess: (blob) => {
+      downloadBlob(`Trace-${safeFilename(safeProjectName)}.zip`, blob);
+      setActionError(null);
+    },
+    onError: (e: Error) => setActionError(`导出项目失败：${e.message}`),
+  });
+
   if (isLoading || !project) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-ink-mute">
@@ -253,6 +263,13 @@ export default function ProjectDetail() {
               disabled={createWeeklyReport.isPending}
             >
               {createWeeklyReport.isPending ? "创建中…" : "一键本周报告"}
+            </button>
+            <button
+              className="btn"
+              onClick={() => exportProject.mutate()}
+              disabled={exportProject.isPending}
+            >
+              {exportProject.isPending ? "导出中…" : "导出项目"}
             </button>
             <button className="btn btn-accent" onClick={() => setNewReportOpen(true)}>
               写项目报告

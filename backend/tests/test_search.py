@@ -15,6 +15,8 @@ def test_search_includes_projects(client):
     body = result.json()
     assert any(item["id"] == project["id"] for item in body["projects"])
     assert any(item["id"] == thread["id"] for item in body["threads"])
+    prefix_result = client.get("/api/search?q=权限平").json()
+    assert any(item["id"] == project["id"] for item in prefix_result["projects"])
 
 
 def test_search_uses_full_text_index_across_content_types(client):
@@ -50,3 +52,27 @@ def test_search_is_scoped_by_workspace(client):
 
     assert all(item["id"] != side_capture["id"] for item in default_result["evidence"])
     assert any(item["id"] == side_capture["id"] for item in side_result["evidence"])
+
+
+def test_search_index_tracks_updates_and_deletes(client):
+    capture = create_capture(client, text="DeltaSignal 初始记录")
+    assert any(
+        item["id"] == capture["id"]
+        for item in client.get("/api/search?q=DeltaSignal").json()["evidence"]
+    )
+
+    updated = client.patch(
+        f"/api/captures/{capture['id']}",
+        json={"text": "OmegaSignal 更新记录"},
+    )
+    assert updated.status_code == 200, updated.text
+
+    old_result = client.get("/api/search?q=DeltaSignal").json()
+    new_result = client.get("/api/search?q=OmegaSignal").json()
+    assert all(item["id"] != capture["id"] for item in old_result["evidence"])
+    assert any(item["id"] == capture["id"] for item in new_result["evidence"])
+
+    deleted = client.delete(f"/api/captures/{capture['id']}")
+    assert deleted.status_code == 204, deleted.text
+    deleted_result = client.get("/api/search?q=OmegaSignal").json()
+    assert all(item["id"] != capture["id"] for item in deleted_result["evidence"])

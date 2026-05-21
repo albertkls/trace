@@ -13,6 +13,136 @@ from .workspace import DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_NAME
 PACKAGE_DIR = Path(__file__).resolve().parent
 SCHEMA_PATH = PACKAGE_DIR / "schema.sql"
 
+SEARCH_FTS_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
+    kind UNINDEXED,
+    ref_id UNINDEXED,
+    workspace_id UNINDEXED,
+    title,
+    body,
+    tokenize='unicode61'
+)
+"""
+
+SEARCH_TRIGGER_SQL = """
+CREATE TRIGGER IF NOT EXISTS trg_search_project_ai
+AFTER INSERT ON project
+BEGIN
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('project', NEW.id, NEW.workspace_id, NEW.name, NEW.summary);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_project_au
+AFTER UPDATE ON project
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'project' AND ref_id = OLD.id;
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('project', NEW.id, NEW.workspace_id, NEW.name, NEW.summary);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_project_ad
+AFTER DELETE ON project
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'project' AND ref_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_thread_ai
+AFTER INSERT ON thread
+BEGIN
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES (
+        'thread',
+        NEW.id,
+        NEW.workspace_id,
+        NEW.title,
+        TRIM(COALESCE(NEW.summary, '') || ' ' || COALESCE(NEW.project, ''))
+    );
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_thread_au
+AFTER UPDATE ON thread
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'thread' AND ref_id = OLD.id;
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES (
+        'thread',
+        NEW.id,
+        NEW.workspace_id,
+        NEW.title,
+        TRIM(COALESCE(NEW.summary, '') || ' ' || COALESCE(NEW.project, ''))
+    );
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_thread_ad
+AFTER DELETE ON thread
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'thread' AND ref_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_evidence_ai
+AFTER INSERT ON evidence
+BEGIN
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('evidence', NEW.id, NEW.workspace_id, '', NEW.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_evidence_au
+AFTER UPDATE ON evidence
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'evidence' AND ref_id = OLD.id;
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('evidence', NEW.id, NEW.workspace_id, '', NEW.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_evidence_ad
+AFTER DELETE ON evidence
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'evidence' AND ref_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_todo_ai
+AFTER INSERT ON todo
+BEGIN
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('todo', NEW.id, NEW.workspace_id, '', NEW.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_todo_au
+AFTER UPDATE ON todo
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'todo' AND ref_id = OLD.id;
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('todo', NEW.id, NEW.workspace_id, '', NEW.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_todo_ad
+AFTER DELETE ON todo
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'todo' AND ref_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_note_ai
+AFTER INSERT ON note
+BEGIN
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('note', NEW.id, NEW.workspace_id, NEW.title, NEW.body_md);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_note_au
+AFTER UPDATE ON note
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'note' AND ref_id = OLD.id;
+    INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+    VALUES ('note', NEW.id, NEW.workspace_id, NEW.title, NEW.body_md);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_search_note_ad
+AFTER DELETE ON note
+BEGIN
+    DELETE FROM search_fts WHERE kind = 'note' AND ref_id = OLD.id;
+END;
+"""
+
 
 def default_db_path() -> Path:
     override = os.getenv("TRACE_DB_PATH")
@@ -124,6 +254,76 @@ def _apply_schema_statements(conn: sqlite3.Connection) -> list[str]:
     return skipped_index_statements
 
 
+def rebuild_search_index(conn: sqlite3.Connection, workspace_id: str | None = None) -> None:
+    if workspace_id:
+        conn.execute("DELETE FROM search_fts WHERE workspace_id = ?", (workspace_id,))
+        scope = "WHERE workspace_id = ?"
+        params: tuple[str, ...] = (workspace_id,)
+    else:
+        conn.execute("DELETE FROM search_fts")
+        scope = ""
+        params = ()
+
+    conn.execute(
+        f"""
+        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+        SELECT 'project', id, workspace_id, name, summary
+        FROM project
+        {scope}
+        """,
+        params,
+    )
+    conn.execute(
+        f"""
+        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+        SELECT 'thread', id, workspace_id, title,
+               TRIM(COALESCE(summary, '') || ' ' || COALESCE(project, ''))
+        FROM thread
+        {scope}
+        """,
+        params,
+    )
+    conn.execute(
+        f"""
+        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+        SELECT 'evidence', id, workspace_id, '', text
+        FROM evidence
+        {scope}
+        """,
+        params,
+    )
+    conn.execute(
+        f"""
+        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+        SELECT 'todo', id, workspace_id, '', text
+        FROM todo
+        {scope}
+        """,
+        params,
+    )
+    conn.execute(
+        f"""
+        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
+        SELECT 'note', id, workspace_id, title, body_md
+        FROM note
+        {scope}
+        """,
+        params,
+    )
+
+
+def ensure_search_index(conn: sqlite3.Connection, *, rebuild: bool = False) -> bool:
+    try:
+        conn.execute(SEARCH_FTS_SQL)
+        conn.executescript(SEARCH_TRIGGER_SQL)
+        row = conn.execute("SELECT COUNT(*) AS count FROM search_fts").fetchone()
+        if rebuild or not row or row["count"] == 0:
+            rebuild_search_index(conn)
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
 def _ensure_default_workspace(conn: sqlite3.Connection) -> None:
     tables = {
         row["name"]
@@ -158,6 +358,7 @@ def ensure_schema(db_path: Path | None = None) -> None:
         _backfill_projects(conn)
         for statement in skipped_indexes:
             conn.execute(statement)
+        ensure_search_index(conn, rebuild=True)
         conn.commit()
     finally:
         conn.close()

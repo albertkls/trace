@@ -179,6 +179,28 @@ def test_get_report_tombstones_missing_evidence(client):
     assert detail[0].get('missing') is True
 
 
+def test_export_report_appends_citation_list(client):
+    thread = create_thread(client, title='导出引用线程')
+    ev = create_capture(
+        client,
+        text='导出引用证据',
+        thread_id=thread['id'],
+    )
+    client.patch(f"/api/captures/{ev['id']}", json={'event_date': '2026-04-15T10:00:00'})
+    report = create_report(client, body_md='## 进展\n\n已经完成关键动作 [1]。')
+    attach_citations(report['id'], [ev['id'], 'ev_missing'])
+
+    exported = client.get(f"/api/reports/{report['id']}/export")
+    assert exported.status_code == 200, exported.text
+    markdown = exported.json()['markdown']
+    assert markdown.startswith(f"# {report['title']}")
+    assert "## 引用清单" in markdown
+    assert "- [1] 2026-04-15T10:00:00" in markdown
+    assert "导出引用线程" in markdown
+    assert "导出引用证据" in markdown
+    assert "证据已删除或不可访问（ID: ev_missing）" in markdown
+
+
 def test_delete_report(client):
     rid = create_report(client)['id']
     r = client.delete(f"/api/reports/{rid}")

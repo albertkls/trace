@@ -315,6 +315,36 @@ def _hydrate_evidence(conn, ids: list[str], workspace_id: str) -> list[dict]:
     return out
 
 
+def _report_markdown_with_citations(report: dict) -> str:
+    title = (report.get("title") or "").strip()
+    body = (report.get("body_md") or "").strip()
+    if title and not body.startswith("# "):
+        body = f"# {title}\n\n{body}" if body else f"# {title}"
+
+    details = report.get("cited_evidence_detail") or []
+    if not details:
+        return body
+
+    lines = ["", "---", "", "## 引用清单"]
+    for idx, detail in enumerate(details, start=1):
+        marker = f"[{idx}]"
+        if detail.get("missing"):
+            lines.append(f"- {marker} 证据已删除或不可访问（ID: {detail.get('id') or 'unknown'}）")
+            continue
+        date = detail.get("event_date") or "无日期"
+        thread = detail.get("thread_title") or "未挂线程"
+        project = detail.get("thread_project") or "未分项目"
+        text = " ".join(str(detail.get("text") or "").split())
+        lines.append(f"- {marker} {date} · {project} / {thread} · {text}")
+    return body.rstrip() + "\n" + "\n".join(lines) + "\n"
+
+
+@router.get("/{report_id}/export")
+def export_report(report_id: str, workspace_id: str = Depends(request_workspace_id)) -> dict:
+    report = get_report(report_id, workspace_id)
+    return {"markdown": _report_markdown_with_citations(report)}
+
+
 class ComposeRequest(BaseModel):
     profile_id: str | None = None
     note: str | None = None

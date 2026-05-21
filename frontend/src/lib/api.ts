@@ -24,6 +24,7 @@ import type {
   ProfilePatch,
   Report,
   ReportCreate,
+  ReportExport,
   ReportPatch,
   ReportSummary,
   RestoreResult,
@@ -189,6 +190,7 @@ export const api = {
     list: (projectId?: string) =>
       req<ReportSummary[]>(`/reports${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
     get: (id: string) => req<Report>(`/reports/${id}`),
+    exportMarkdown: (id: string) => req<ReportExport>(`/reports/${id}/export`),
     create: (body: ReportCreate) =>
       req<Report>("/reports", {
         method: "POST",

@@ -42,6 +42,77 @@ def _project_row_to_dict(row) -> dict:
     return row_to_dict(row)
 
 
+def _project_health_snapshot(conn, project_id: str, workspace_id: str) -> dict:
+    metrics = conn.execute(
+        """
+        SELECT
+          COUNT(DISTINCT CASE WHEN t.status = 'blocked' THEN t.id END) AS blocked_thread_count,
+          COUNT(DISTINCT CASE
+            WHEN t.status IN ('active', 'blocked')
+             AND datetime(t.last_active_at) < datetime('now', '-14 days')
+            THEN t.id
+          END) AS stale_thread_count,
+          COUNT(DISTINCT CASE WHEN td.done = 0 THEN td.id END) AS open_todo_count,
+          COUNT(DISTINCT CASE WHEN r.status = 'draft' THEN r.id END) AS draft_report_count,
+          COUNT(DISTINCT CASE
+            WHEN datetime(COALESCE(e.event_date, e.created_at)) >= datetime('now', '-6 days')
+            THEN e.id
+          END) AS week_evidence_count,
+          COUNT(DISTINCT CASE
+            WHEN td.done = 1 AND td.done_at IS NOT NULL AND datetime(td.done_at) >= datetime('now', '-6 days')
+            THEN td.id
+          END) AS week_done_todo_count,
+          COUNT(DISTINCT CASE
+            WHEN datetime(t.last_active_at) >= datetime('now', '-6 days')
+            THEN t.id
+          END) AS week_active_thread_count
+        FROM project p
+        LEFT JOIN thread t ON t.project_id = p.id AND t.workspace_id = p.workspace_id
+        LEFT JOIN evidence e ON e.thread_id = t.id AND e.workspace_id = p.workspace_id
+        LEFT JOIN todo td ON td.thread_id = t.id AND td.workspace_id = p.workspace_id
+        LEFT JOIN report r ON r.project_id = p.id AND r.workspace_id = p.workspace_id
+        WHERE p.id = ? AND p.workspace_id = ?
+        GROUP BY p.id
+        """,
+        (project_id, workspace_id),
+    ).fetchone()
+    data = row_to_dict(metrics) if metrics else {}
+    for key in (
+        "blocked_thread_count",
+        "stale_thread_count",
+        "open_todo_count",
+        "draft_report_count",
+        "week_evidence_count",
+        "week_done_todo_count",
+        "week_active_thread_count",
+    ):
+        data[key] = int(data.get(key) or 0)
+
+    if data["blocked_thread_count"] > 0:
+        status = "blocked"
+        next_action = f"处理 {data['blocked_thread_count']} 条阻塞线程"
+    elif data["stale_thread_count"] > 0:
+        status = "quiet"
+        next_action = f"复盘 {data['stale_thread_count']} 条沉默线程"
+    elif data["draft_report_count"] > 0:
+        status = "reporting"
+        next_action = f"定稿 {data['draft_report_count']} 份报告草稿"
+    elif data["open_todo_count"] > 0:
+        status = "active"
+        next_action = f"推进 {data['open_todo_count']} 项待办"
+    else:
+        status = "healthy"
+        next_action = "暂无紧急动作"
+
+    return {**data, "health_status": status, "next_action": next_action}
+
+
+def _attach_project_health(conn, projects: list[dict], workspace_id: str) -> list[dict]:
+    for project in projects:
+        project["health"] = _project_health_snapshot(conn, project["id"], workspace_id)
+    return projects
+
+
 @router.get("")
 def list_projects(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
     conn = connect()
@@ -70,7 +141,7 @@ def list_projects(workspace_id: str = Depends(request_workspace_id)) -> list[dic
             """,
             (workspace_id,),
         ).fetchall()
-        return [_project_row_to_dict(row) for row in rows]
+        return _attach_project_health(conn, [_project_row_to_dict(row) for row in rows], workspace_id)
     finally:
         conn.close()
 
@@ -243,6 +314,7 @@ def get_project(project_id: str, workspace_id: str = Depends(request_workspace_i
         project["reports"] = reports
         project["todos"] = todos
         project["evidence"] = evidence
+        project["health"] = _project_health_snapshot(conn, project_id, workspace_id)
         return project
     finally:
         conn.close()

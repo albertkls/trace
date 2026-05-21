@@ -445,3 +445,7 @@ export interface UpdateInfo {
   dmg_size?: number;
   dmg_sha256?: string | null;
 }
+
+export interface ThemePreferenceResponse {
+  preference: "dark" | "light" | "system";
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api } from "./api";
 
 export type ThemePreference = "dark" | "light" | "system";
 export type ResolvedTheme = "dark" | "light";
@@ -45,6 +46,29 @@ export function initializeTheme(): void {
   applyThemePreference(getStoredThemePreference());
 }
 
+export async function loadPersistedThemePreference(): Promise<ThemePreference> {
+  try {
+    const { preference } = await api.preferences.getTheme();
+    window.localStorage.setItem(THEME_STORAGE_KEY, preference);
+    applyThemePreference(preference);
+    window.dispatchEvent(
+      new CustomEvent(THEME_CHANGED_EVENT, { detail: preference })
+    );
+    return preference;
+  } catch {
+    return getStoredThemePreference();
+  }
+}
+
+export async function persistThemePreference(preference: ThemePreference): Promise<void> {
+  try {
+    await api.preferences.setTheme(preference);
+  } catch {
+    // LocalStorage still keeps the preference for browser/dev mode even if the
+    // backend is unavailable.
+  }
+}
+
 export function useThemePreference() {
   const [preference, setPreferenceState] = useState<ThemePreference>(() =>
     getStoredThemePreference()
@@ -71,6 +95,7 @@ export function useThemePreference() {
     };
 
     sync();
+    loadPersistedThemePreference();
     window.addEventListener("storage", sync);
     window.addEventListener(THEME_CHANGED_EVENT, onThemeChanged);
     media.addEventListener("change", sync);
@@ -83,6 +108,7 @@ export function useThemePreference() {
 
   const setPreference = (nextPreference: ThemePreference) => {
     setThemePreference(nextPreference);
+    persistThemePreference(nextPreference);
     setPreferenceState(nextPreference);
     setResolvedTheme(resolveTheme(nextPreference));
   };

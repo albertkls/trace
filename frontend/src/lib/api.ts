@@ -28,6 +28,7 @@ import type {
   RewriteChunk,
   RewriteRequest,
   SearchResult,
+  ThemePreferenceResponse,
   Thread,
   ThreadDetail,
   ThreadInput,
@@ -102,6 +103,14 @@ export const api = {
       req<RestoreResult>("/backups/restore", {
         method: "POST",
         body: JSON.stringify({ path }),
+      }),
+  },
+  preferences: {
+    getTheme: () => req<ThemePreferenceResponse>("/preferences/theme"),
+    setTheme: (preference: ThemePreferenceResponse["preference"]) =>
+      req<ThemePreferenceResponse>("/preferences/theme", {
+        method: "PUT",
+        body: JSON.stringify({ preference }),
       }),
   },
   projects: {

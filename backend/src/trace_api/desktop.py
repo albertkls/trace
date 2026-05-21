@@ -23,6 +23,20 @@ WINDOW_SIZE = (1440, 920)
 STARTUP_TIMEOUT_SECONDS = 20.0
 
 
+class DesktopApi:
+    def choose_file(self) -> str | None:
+        window = webview.windows[0] if webview.windows else None
+        if window is None:
+            return None
+        paths = window.create_file_dialog(
+            webview.OPEN_DIALOG,
+            allow_multiple=False,
+        )
+        if not paths:
+            return None
+        return str(paths[0])
+
+
 def _customize_macos_window(*_args: object, **_kwargs: object) -> None:
     """Merge the native title bar into the app — transparent titlebar +
     full-size content view so the app's dark background extends behind the
@@ -174,6 +188,7 @@ def run_desktop() -> None:
         height=WINDOW_SIZE[1],
         min_size=WINDOW_MIN_SIZE,
         text_select=True,
+        js_api=DesktopApi(),
     )
     # Hook every relevant lifecycle event so the title bar styling lands no
     # matter when the NSWindow is first observable. Each handler dispatches

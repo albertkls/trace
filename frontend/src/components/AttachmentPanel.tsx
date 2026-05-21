@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import { chooseLocalFile } from "@/lib/desktopFile";
 import type { Attachment, AttachmentOwnerType } from "@/lib/types";
 
 function formatBytes(value: number | null): string {
@@ -38,6 +39,7 @@ export default function AttachmentPanel({
   const [adding, setAdding] = useState(false);
   const [expanded, setExpanded] = useState(!compact);
   const [message, setMessage] = useState<string | null>(null);
+  const [choosingFile, setChoosingFile] = useState(false);
 
   const { data: attachments = [], isLoading } = useQuery({
     queryKey,
@@ -94,6 +96,21 @@ export default function AttachmentPanel({
     create.mutate();
   };
 
+  const pickFile = async () => {
+    setChoosingFile(true);
+    try {
+      const selected = await chooseLocalFile();
+      if (selected) {
+        setPath(selected);
+        setDisplayName((current) => current || selected.split("/").pop() || "");
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChoosingFile(false);
+    }
+  };
+
   return (
     <div className={clsx(compact ? "rounded-lg border border-line bg-canvas-sunken/35 p-3" : "panel p-5", className)}>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -119,17 +136,26 @@ export default function AttachmentPanel({
 
       {adding && (
         <div className="mb-3 space-y-2">
-          <input
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-              if (e.key === "Escape") setAdding(false);
-            }}
-            placeholder="/Users/albert/Documents/example.pdf"
-            className="input w-full !py-2 text-xs"
-            autoFocus
-          />
+          <div className="flex gap-2">
+            <input
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submit();
+                if (e.key === "Escape") setAdding(false);
+              }}
+              placeholder="/Users/albert/Documents/example.pdf"
+              className="input min-w-0 flex-1 !py-2 text-xs"
+              autoFocus
+            />
+            <button
+              className="btn btn-ghost text-xs"
+              onClick={pickFile}
+              disabled={choosingFile}
+            >
+              {choosingFile ? "选择中…" : "浏览…"}
+            </button>
+          </div>
           <div className="flex gap-2">
             <input
               value={displayName}
@@ -220,8 +246,8 @@ function AttachmentRow({
             attachment.exists ? "text-ink hover:text-accent" : "text-ink-mute"
           )}
           title={attachment.file_path}
-          onClick={onOpen}
-          disabled={!attachment.exists || opening}
+          onClick={attachment.can_open ? onOpen : onReveal}
+          disabled={!attachment.exists || (attachment.can_open ? opening : revealing)}
         >
           <div className={clsx("truncate font-medium", compact ? "text-xs" : "text-sm")}>
             {attachment.display_name}

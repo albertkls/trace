@@ -275,10 +275,13 @@ export default function ReportComposer() {
   };
 
   const exportMarkdown = async () => {
-    const md = buildExportMarkdown(title, body);
     try {
+      if (dirty) {
+        await save.mutateAsync();
+      }
+      const { markdown: md } = await api.reports.exportMarkdown(id);
       await copyPlain(md);
-      flashToast("已复制 Markdown");
+      flashToast("已复制 Markdown · 已附引用清单");
     } catch (e) {
       alert(`复制失败：${e}`);
     }
@@ -286,23 +289,33 @@ export default function ReportComposer() {
   };
 
   const exportRich = async () => {
-    const md = buildExportMarkdown(title, body);
-    const html = mdToHtmlDoc(md, title);
     try {
+      if (dirty) {
+        await save.mutateAsync();
+      }
+      const { markdown: md } = await api.reports.exportMarkdown(id);
+      const html = mdToHtmlDoc(md, title);
       await copyRich({ html, text: md });
-      flashToast("已复制为富文本 · 可直接粘贴到飞书 / Notion");
+      flashToast("已复制富文本 · 已附引用清单");
     } catch (e) {
       alert(`复制失败：${e}`);
     }
     setExportOpen(false);
   };
 
-  const exportDownload = () => {
-    const md = buildExportMarkdown(title, body);
-    const fname = `${safeFilename(title || report?.period_label || "report")}.md`;
-    downloadFile(fname, md);
-    flashToast(`已下载 ${fname}`);
-    setExportOpen(false);
+  const exportDownload = async () => {
+    try {
+      if (dirty) {
+        await save.mutateAsync();
+      }
+      const { markdown: md } = await api.reports.exportMarkdown(id);
+      const fname = `${safeFilename(title || report?.period_label || "report")}.md`;
+      downloadFile(fname, md);
+      flashToast(`已下载 ${fname} · 已附引用清单`);
+      setExportOpen(false);
+    } catch (e) {
+      alert(`下载失败：${e}`);
+    }
   };
 
   const doCompose = async () => {
@@ -368,6 +381,15 @@ export default function ReportComposer() {
 
   const refMatches = Array.from(body.matchAll(/\[(\d+)\]/g));
   const citedIndices = new Set(refMatches.map((m) => Number(m[1])));
+  const invalidCitations = Array.from(citedIndices)
+    .filter((n) => n < 1 || n > report.cited_evidence.length)
+    .sort((a, b) => a - b);
+  const missingEvidenceCount = report.cited_evidence_detail.filter(
+    (item) => item.missing
+  ).length;
+  const uncitedEvidenceCount = report.cited_evidence.filter(
+    (_, idx) => !citedIndices.has(idx + 1)
+  ).length;
   const citationCount = refMatches.length;
   const wordCount = body.replace(/\s+/g, "").length;
 
@@ -677,6 +699,22 @@ export default function ReportComposer() {
               {String(report.cited_evidence.length).padStart(2, "0")}
             </span>
           </div>
+
+          {(invalidCitations.length > 0 || missingEvidenceCount > 0 || uncitedEvidenceCount > 0) && (
+            <div className="mb-3 rounded-lg border border-signal-hold/40 bg-signal-hold/10 px-3 py-2 text-[11px] leading-relaxed text-ink-soft">
+              {invalidCitations.length > 0 && (
+                <div>
+                  正文中有无效引用：{invalidCitations.map((n) => `[${n}]`).join("、")}
+                </div>
+              )}
+              {missingEvidenceCount > 0 && (
+                <div>{missingEvidenceCount} 条引用证据已删除或不可访问。</div>
+              )}
+              {uncitedEvidenceCount > 0 && (
+                <div>{uncitedEvidenceCount} 条证据尚未在正文中引用。</div>
+              )}
+            </div>
+          )}
 
           {report.cited_evidence.length === 0 ? (
             <p className="text-xs text-ink-mute">
@@ -1128,6 +1166,15 @@ function EvidenceCard({
                 ↗ 线程
               </Link>
             )}
+            {!detail?.thread_id && !missing && (
+              <Link
+                to="/inbox"
+                className="text-ink-mute hover:text-accent"
+                title="打开收件箱定位未归档证据"
+              >
+                ↗ 收件箱
+              </Link>
+            )}
             {!cited && !missing && (
               <span className="text-ink-mute">· 未引用</span>
             )}
@@ -1136,14 +1183,6 @@ function EvidenceCard({
       </div>
     </li>
   );
-}
-
-/** Compose the Markdown we actually export: title as H1 if body doesn't start with one. */
-function buildExportMarkdown(title: string, body: string): string {
-  const trimmed = body.trimStart();
-  if (!title.trim()) return trimmed;
-  if (/^# /.test(trimmed)) return trimmed;
-  return `# ${title.trim()}\n\n${trimmed}`;
 }
 
 function ExportMenu({

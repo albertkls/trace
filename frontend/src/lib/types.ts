@@ -169,6 +169,10 @@ export interface Report {
   updated_at: string;
 }
 
+export interface ReportExport {
+  markdown: string;
+}
+
 export type ReportAudience = "boss" | "internal" | "1on1" | "retro" | "self";
 export type ReportStatus = "draft" | "final" | "archived";
 

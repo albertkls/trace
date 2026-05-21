@@ -111,6 +111,49 @@ def test_create_thread_with_adopt(client):
     assert any(e['id'] == cap['id'] for e in detail['evidence'])
 
 
+def test_batch_assign_category_promote_and_delete(client):
+    first = client.post('/api/captures', json={'text': '批量一', 'category': 'progress'}).json()
+    second = client.post('/api/captures', json={'text': '批量二', 'category': 'progress'}).json()
+
+    category = client.post(
+        '/api/captures/batch',
+        json={'ids': [first['id'], second['id']], 'action': 'category', 'category': 'risk'},
+    )
+    assert category.status_code == 200, category.text
+    assert category.json()['updated'] == 2
+    inbox = client.get('/api/captures/inbox').json()
+    assert {item['id']: item['category'] for item in inbox if item['id'] in {first['id'], second['id']}} == {
+        first['id']: 'risk',
+        second['id']: 'risk',
+    }
+
+    thread = create_thread(client, title='批量线程')
+    assigned = client.post(
+        '/api/captures/batch',
+        json={'ids': [first['id'], second['id']], 'action': 'assign_thread', 'thread_id': thread['id']},
+    )
+    assert assigned.status_code == 200, assigned.text
+    assert assigned.json()['updated'] == 2
+    detail = client.get(f"/api/threads/{thread['id']}").json()
+    assert {item['id'] for item in detail['evidence']} >= {first['id'], second['id']}
+
+    promoted = client.post(
+        '/api/captures/batch',
+        json={'ids': [first['id'], second['id']], 'action': 'promote_todo', 'due_date': '2026-05-30'},
+    )
+    assert promoted.status_code == 200, promoted.text
+    assert promoted.json()['promoted'] == 2
+    todos = client.get('/api/todos').json()
+    assert len([todo for todo in todos if todo['due_date'] == '2026-05-30']) == 2
+
+    deleted = client.post(
+        '/api/captures/batch',
+        json={'ids': [first['id'], second['id']], 'action': 'delete'},
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()['deleted'] == 2
+
+
 def test_patch_thread(client):
     thread = create_thread(client, title='待编辑线程')
     tid = thread['id']

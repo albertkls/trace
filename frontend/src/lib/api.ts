@@ -3,6 +3,8 @@ import type {
   AttachmentInput,
   AttachmentOwnerType,
   BackupInfo,
+  CaptureBatchInput,
+  CaptureBatchResult,
   CaptureInput,
   ComposeChunk,
   ComposeRequest,
@@ -167,6 +169,11 @@ export const api = {
         body: JSON.stringify(patch),
       }),
     remove: (id: string) => req<void>(`/captures/${id}`, { method: "DELETE" }),
+    batch: (body: CaptureBatchInput) =>
+      req<CaptureBatchResult>("/captures/batch", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     promoteToTodo: (id: string, body: { due_date?: string | null; text?: string } = {}) =>
       req<Todo>(`/captures/${id}/promote-todo`, {
         method: "POST",

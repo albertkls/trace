@@ -336,6 +336,22 @@ export interface InboxItem extends Evidence {
   source_file_path?: string | null;
 }
 
+export type CaptureBatchAction = "assign_thread" | "category" | "delete" | "promote_todo";
+
+export interface CaptureBatchInput {
+  ids: string[];
+  action: CaptureBatchAction;
+  thread_id?: string | null;
+  category?: Category;
+  due_date?: string | null;
+}
+
+export interface CaptureBatchResult {
+  updated: number;
+  deleted: number;
+  promoted: number;
+}
+
 export interface LibraryStatus {
   path: string | null;
   exists: boolean;

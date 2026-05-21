@@ -90,6 +90,20 @@ class CaptureUpdate(BaseModel):
     clear_thread: bool | None = None  # explicit unassign
 
 
+class CaptureBatchIn(BaseModel):
+    ids: list[str]
+    action: Literal["assign_thread", "category", "delete", "promote_todo"]
+    thread_id: str | None = None
+    category: str | None = None
+    due_date: str | None = None
+
+
+class CaptureBatchResult(BaseModel):
+    updated: int = 0
+    deleted: int = 0
+    promoted: int = 0
+
+
 @router.get("/inbox")
 def list_inbox(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
     conn = connect()
@@ -111,6 +125,91 @@ def list_inbox(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
             d["tags"] = json.loads(d.pop("tags_json") or "[]")
             out.append(d)
         return out
+    finally:
+        conn.close()
+
+
+@router.post("/batch")
+def batch_update_captures(
+    body: CaptureBatchIn,
+    workspace_id: str = Depends(request_workspace_id),
+) -> dict:
+    ids = [item_id for item_id in dict.fromkeys(body.ids) if item_id]
+    if not ids:
+        raise HTTPException(400, "ids are required")
+    conn = connect()
+    try:
+        placeholders = ",".join("?" for _ in ids)
+        rows = conn.execute(
+            f"SELECT * FROM evidence WHERE workspace_id = ? AND id IN ({placeholders})",
+            (workspace_id, *ids),
+        ).fetchall()
+        by_id = {row["id"]: row for row in rows}
+        missing = [item_id for item_id in ids if item_id not in by_id]
+        if missing:
+            raise HTTPException(404, f"captures not found: {', '.join(missing)}")
+
+        result = CaptureBatchResult()
+        now = _now()
+
+        if body.action == "assign_thread":
+            if not body.thread_id:
+                raise HTTPException(400, "thread_id is required")
+            thread = conn.execute(
+                "SELECT id FROM thread WHERE id = ? AND workspace_id = ?",
+                (body.thread_id, workspace_id),
+            ).fetchone()
+            if not thread:
+                raise HTTPException(404, "thread not found")
+            conn.execute(
+                f"UPDATE evidence SET thread_id = ? WHERE workspace_id = ? AND id IN ({placeholders})",
+                (body.thread_id, workspace_id, *ids),
+            )
+            conn.execute(
+                "UPDATE thread SET last_active_at = ? WHERE id = ? AND workspace_id = ?",
+                (now, body.thread_id, workspace_id),
+            )
+            result.updated = len(ids)
+
+        elif body.action == "category":
+            if body.category not in VALID_CATEGORIES:
+                raise HTTPException(400, f"invalid category: {body.category}")
+            conn.execute(
+                f"UPDATE evidence SET category = ? WHERE workspace_id = ? AND id IN ({placeholders})",
+                (body.category, workspace_id, *ids),
+            )
+            result.updated = len(ids)
+
+        elif body.action == "delete":
+            for evidence_id in ids:
+                delete_owner_attachments(conn, "evidence", evidence_id, workspace_id)
+            conn.execute(
+                f"DELETE FROM evidence WHERE workspace_id = ? AND id IN ({placeholders})",
+                (workspace_id, *ids),
+            )
+            result.deleted = len(ids)
+
+        elif body.action == "promote_todo":
+            for evidence_id in ids:
+                ev = by_id[evidence_id]
+                conn.execute(
+                    "INSERT INTO todo (id,thread_id,text,due_date,done,done_at,created_at,workspace_id) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        _id("td"),
+                        ev["thread_id"],
+                        ev["text"],
+                        body.due_date,
+                        0,
+                        None,
+                        now,
+                        workspace_id,
+                    ),
+                )
+            result.promoted = len(ids)
+
+        conn.commit()
+        return result.model_dump()
     finally:
         conn.close()
 

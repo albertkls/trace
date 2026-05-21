@@ -6,22 +6,10 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends
 
-from ..db import connect, row_to_dict
+from ..db import connect, ensure_search_index, row_to_dict
 from ..workspace import request_workspace_id
 
 router = APIRouter(prefix="/search", tags=["search"])
-
-
-FTS_TABLE_SQL = """
-CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
-    kind UNINDEXED,
-    ref_id UNINDEXED,
-    workspace_id UNINDEXED,
-    title,
-    body,
-    tokenize='unicode61'
-)
-"""
 
 
 def _tokenize_query(q: str) -> list[str]:
@@ -37,72 +25,12 @@ def _match_query(q: str) -> str:
     return " AND ".join(tokens)
 
 
-def _ensure_fts(conn: sqlite3.Connection) -> bool:
-    try:
-        conn.execute(FTS_TABLE_SQL)
-        return True
-    except sqlite3.OperationalError:
-        return False
-
-
-def _refresh_fts(conn: sqlite3.Connection, workspace_id: str) -> None:
-    conn.execute("DELETE FROM search_fts WHERE workspace_id = ?", (workspace_id,))
-    conn.execute(
-        """
-        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
-        SELECT 'project', id, workspace_id, name, summary
-        FROM project
-        WHERE workspace_id = ?
-        """,
-        (workspace_id,),
-    )
-    conn.execute(
-        """
-        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
-        SELECT 'thread', t.id, t.workspace_id, t.title,
-               TRIM(COALESCE(t.summary, '') || ' ' || COALESCE(p.name, t.project, ''))
-        FROM thread t
-        LEFT JOIN project p ON p.id = t.project_id
-        WHERE t.workspace_id = ?
-        """,
-        (workspace_id,),
-    )
-    conn.execute(
-        """
-        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
-        SELECT 'evidence', id, workspace_id, '', text
-        FROM evidence
-        WHERE workspace_id = ?
-        """,
-        (workspace_id,),
-    )
-    conn.execute(
-        """
-        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
-        SELECT 'todo', id, workspace_id, '', text
-        FROM todo
-        WHERE workspace_id = ?
-        """,
-        (workspace_id,),
-    )
-    conn.execute(
-        """
-        INSERT INTO search_fts (kind, ref_id, workspace_id, title, body)
-        SELECT 'note', id, workspace_id, title, body_md
-        FROM note
-        WHERE workspace_id = ?
-        """,
-        (workspace_id,),
-    )
-
-
 def _search_fts(conn: sqlite3.Connection, *, q: str, limit: int, workspace_id: str) -> dict | None:
-    if not _ensure_fts(conn):
+    if not ensure_search_index(conn):
         return None
     match = _match_query(q)
     if not match:
         return {"projects": [], "threads": [], "evidence": [], "todos": [], "notes": []}
-    _refresh_fts(conn, workspace_id)
     rows = conn.execute(
         """
         SELECT kind, ref_id

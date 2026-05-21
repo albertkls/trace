@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import CategoryChoiceChips from "@/components/CategoryChoiceChips";
@@ -6,7 +6,7 @@ import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import AttachmentPanel from "@/components/AttachmentPanel";
 import ProjectSelect from "@/components/ProjectSelect";
 import { api } from "@/lib/api";
-import type { InboxItem, Thread } from "@/lib/types";
+import type { Category, InboxItem, Thread } from "@/lib/types";
 import { recommendProjects } from "@/lib/projectRecommendations";
 import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
@@ -26,6 +26,23 @@ export default function Inbox() {
     queryKey: ["projects"],
     queryFn: api.projects.list,
   });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [groupBySource, setGroupBySource] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allSelected = inbox.length > 0 && selectedIds.length === inbox.length;
+  const groupedInbox = useMemo(() => {
+    const groups = new Map<string, { key: string; label: string; items: InboxItem[] }>();
+    for (const item of inbox) {
+      const label = item.source_file_path || item.source_title || item.source_kind || "闪记";
+      const key = label;
+      const group = groups.get(key) ?? { key, label, items: [] };
+      group.items.push(item);
+      groups.set(key, group);
+    }
+    return Array.from(groups.values());
+  }, [inbox]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["inbox"] });
@@ -33,6 +50,28 @@ export default function Inbox() {
     qc.invalidateQueries({ queryKey: ["todos"] });
     qc.invalidateQueries({ queryKey: ["projects"] });
     qc.invalidateQueries({ queryKey: ["project"] });
+  };
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) =>
+      current.includes(id)
+        ? current.filter((itemId) => itemId !== id)
+        : [...current, id]
+    );
+  };
+  const clearSelection = () => setSelectedIds([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : inbox.map((item) => item.id));
+  };
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key]
+    );
+  };
+  const onBatchDone = () => {
+    clearSelection();
+    invalidate();
   };
 
   return (
@@ -49,12 +88,20 @@ export default function Inbox() {
               : `${inbox.length} 条待整理 · 逐条归入线程，或升级为待办。`}
           </p>
         </div>
-        <button className="btn btn-accent" onClick={openCapture}>
-          ＋ 写一笔
-          <span className="ml-1 kbd !border-accent-ink/15 !bg-accent-ink/10 !text-accent-ink">
-            ⌘⇧N
-          </span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className={clsx("btn", groupBySource ? "btn-accent" : "btn-ghost")}
+            onClick={() => setGroupBySource((value) => !value)}
+          >
+            按源文件
+          </button>
+          <button className="btn btn-accent" onClick={openCapture}>
+            ＋ 写一笔
+            <span className="ml-1 kbd !border-accent-ink/15 !bg-accent-ink/10 !text-accent-ink">
+              ⌘⇧N
+            </span>
+          </button>
+        </div>
       </header>
 
       {isLoading ? (
@@ -73,18 +120,209 @@ export default function Inbox() {
           </div>
         </div>
       ) : (
-        <ul className="space-y-3">
-          {inbox.map((item) => (
-            <InboxCard
-              key={item.id}
-              item={item}
-              projects={projects}
-              threads={threads}
-              onChanged={invalidate}
-            />
-          ))}
-        </ul>
+        <>
+          <BatchToolbar
+            selectedIds={selectedIds}
+            threads={threads}
+            onDone={onBatchDone}
+            onClear={clearSelection}
+            onToggleAll={toggleAll}
+            allSelected={allSelected}
+          />
+          {groupBySource ? (
+            <div className="space-y-4">
+              {groupedInbox.map((group) => {
+                const collapsed = collapsedGroups.includes(group.key);
+                return (
+                  <section key={group.key} className="space-y-3">
+                    <button
+                      className="flex w-full items-center justify-between rounded-lg border border-line bg-canvas-sunken/50 px-4 py-2 text-left"
+                      onClick={() => toggleGroup(group.key)}
+                    >
+                      <span className="truncate text-sm font-medium text-ink">
+                        {collapsed ? "▸" : "▾"} {group.label}
+                      </span>
+                      <span className="chip">{group.items.length} 条</span>
+                    </button>
+                    {!collapsed && (
+                      <ul className="space-y-3">
+                        {group.items.map((item) => (
+                          <InboxCard
+                            key={item.id}
+                            item={item}
+                            projects={projects}
+                            threads={threads}
+                            selected={selectedSet.has(item.id)}
+                            onToggleSelected={() => toggleSelected(item.id)}
+                            onChanged={invalidate}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {inbox.map((item) => (
+                <InboxCard
+                  key={item.id}
+                  item={item}
+                  projects={projects}
+                  threads={threads}
+                  selected={selectedSet.has(item.id)}
+                  onToggleSelected={() => toggleSelected(item.id)}
+                  onChanged={invalidate}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+function BatchToolbar({
+  selectedIds,
+  threads,
+  allSelected,
+  onDone,
+  onClear,
+  onToggleAll,
+}: {
+  selectedIds: string[];
+  threads: Thread[];
+  allSelected: boolean;
+  onDone: () => void;
+  onClear: () => void;
+  onToggleAll: () => void;
+}) {
+  const [category, setCategory] = useState<Category>("progress");
+  const [projectId, setProjectId] = useState("");
+  const [threadId, setThreadId] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const scopedThreads = projectId
+    ? threads.filter((thread) => thread.project_id === projectId)
+    : threads;
+  const selectedCount = selectedIds.length;
+  const batch = useMutation({
+    mutationFn: (body: Parameters<typeof api.captures.batch>[0]) =>
+      api.captures.batch(body),
+    onSuccess: () => {
+      setError(null);
+      setThreadId("");
+      onDone();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+  const disabled = selectedCount === 0 || batch.isPending;
+
+  return (
+    <div className="panel sticky top-4 z-20 mb-4 space-y-3 p-4">
+      {error && (
+        <div className="rounded-lg border border-signal-stop/40 bg-signal-stop/10 px-3 py-1.5 text-xs text-signal-stop">
+          批量操作失败：{error}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button className="btn btn-ghost text-xs" onClick={onToggleAll}>
+          {allSelected ? "取消全选" : "全选"}
+        </button>
+        <span className="chip chip-accent">已选 {selectedCount} 条</span>
+        {selectedCount > 0 && (
+          <button className="text-xs text-ink-mute transition hover:text-accent" onClick={onClear}>
+            清空选择
+          </button>
+        )}
+      </div>
+      <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+        <ProjectSelect
+          value={projectId}
+          onChange={(value) => {
+            setProjectId(value);
+            setThreadId("");
+          }}
+          emptyLabel="全部项目"
+          className="input w-full !py-2 text-xs"
+        />
+        <select
+          value={threadId}
+          onChange={(e) => setThreadId(e.target.value)}
+          className="input w-full !py-2 text-xs"
+          disabled={disabled}
+        >
+          <option value="">选择归入线程</option>
+          {scopedThreads.map((thread) => (
+            <option key={thread.id} value={thread.id}>
+              {thread.title}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn btn-accent text-xs"
+          disabled={disabled || !threadId}
+          onClick={() =>
+            batch.mutate({ ids: selectedIds, action: "assign_thread", thread_id: threadId })
+          }
+        >
+          归入线程
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as Category)}
+          className="input !w-auto !py-2 text-xs"
+          disabled={disabled}
+        >
+          <option value="progress">进展</option>
+          <option value="decision">决定</option>
+          <option value="risk">风险</option>
+          <option value="plan">计划</option>
+          <option value="support">协同</option>
+        </select>
+        <button
+          className="btn btn-ghost text-xs"
+          disabled={disabled}
+          onClick={() => batch.mutate({ ids: selectedIds, action: "category", category })}
+        >
+          批量改分类
+        </button>
+        <input
+          type="datetime-local"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="input !w-auto !py-2 text-xs"
+          disabled={disabled}
+        />
+        <button
+          className="btn btn-ghost text-xs"
+          disabled={disabled}
+          onClick={() =>
+            batch.mutate({
+              ids: selectedIds,
+              action: "promote_todo",
+              due_date: dueDate || null,
+            })
+          }
+        >
+          转为待办
+        </button>
+        <button
+          className="btn btn-ghost text-xs text-signal-stop hover:!bg-signal-stop/10 hover:!text-signal-stop"
+          disabled={disabled}
+          onClick={() => {
+            if (window.confirm(`删除选中的 ${selectedCount} 条记录？`)) {
+              batch.mutate({ ids: selectedIds, action: "delete" });
+            }
+          }}
+        >
+          批量删除
+        </button>
+      </div>
     </div>
   );
 }
@@ -93,11 +331,15 @@ function InboxCard({
   item,
   projects,
   threads,
+  selected,
+  onToggleSelected,
   onChanged,
 }: {
   item: InboxItem;
   projects: Array<{ id: string; name: string; status: string; summary: string }>;
   threads: Thread[];
+  selected: boolean;
+  onToggleSelected: () => void;
   onChanged: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -143,13 +385,22 @@ function InboxCard({
   });
 
   return (
-    <li className="panel p-4">
+    <li className={clsx("panel p-4", selected && "border-accent/70 shadow-glow")}>
       {error && (
         <div className="mb-3 rounded-lg border border-signal-stop/40 bg-signal-stop/10 px-3 py-1.5 text-xs text-signal-stop">
           操作失败：{error}
         </div>
       )}
       <div className="flex items-start gap-3">
+        <label className="mt-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border border-line bg-canvas-sunken">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelected}
+            className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+            aria-label="选择记录"
+          />
+        </label>
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <CategoryChip category={item.category} />

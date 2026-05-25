@@ -147,7 +147,9 @@ def test_attachment_open_and_reveal_use_macos_open(client, tmp_path: Path, monke
 
     project = create_project(client, name="打开附件项目")
     file_path = tmp_path / "open-me.txt"
+    spreadsheet_path = tmp_path / "plan.xlsx"
     file_path.write_text("open", encoding="utf-8")
+    spreadsheet_path.write_text("sheet", encoding="utf-8")
     attachment = client.post(
         "/api/attachments",
         json={
@@ -156,25 +158,41 @@ def test_attachment_open_and_reveal_use_macos_open(client, tmp_path: Path, monke
             "file_path": str(file_path),
         },
     ).json()
+    spreadsheet_attachment = client.post(
+        "/api/attachments",
+        json={
+            "owner_type": "project",
+            "owner_id": project["id"],
+            "file_path": str(spreadsheet_path),
+        },
+    ).json()
     calls: list[list[str]] = []
 
     monkeypatch.setattr(attachments.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(attachments.subprocess, "Popen", lambda args: calls.append(args))
 
     opened = client.post(f"/api/attachments/{attachment['id']}/open")
+    spreadsheet_opened = client.post(f"/api/attachments/{spreadsheet_attachment['id']}/open")
     revealed = client.post(f"/api/attachments/{attachment['id']}/reveal")
 
     assert opened.status_code == 200, opened.text
     assert opened.json()["ok"] is True
     assert opened.json()["last_opened_at"]
+    assert spreadsheet_opened.status_code == 200, spreadsheet_opened.text
     assert revealed.status_code == 200, revealed.text
-    assert calls == [["open", str(file_path.resolve())], ["open", "-R", str(file_path.resolve())]]
+    assert calls == [
+        ["open", str(file_path.resolve())],
+        ["open", str(spreadsheet_path.resolve())],
+        ["open", "-R", str(file_path.resolve())],
+    ]
 
     listed = client.get(
         "/api/attachments",
         params={"owner_type": "project", "owner_id": project["id"]},
     ).json()
-    assert listed[0]["last_opened_at"] == opened.json()["last_opened_at"]
+    by_name = {item["display_name"]: item for item in listed}
+    assert by_name["open-me.txt"]["last_opened_at"] == opened.json()["last_opened_at"]
+    assert by_name["plan.xlsx"]["can_open"] is True
 
 
 def test_attachment_open_blocks_unsafe_file_types(client, tmp_path: Path, monkeypatch):

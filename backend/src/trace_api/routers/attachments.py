@@ -20,6 +20,7 @@ OwnerType = Literal["project", "thread", "evidence", "note", "report"]
 VALID_OWNER_TYPES = {"project", "thread", "evidence", "note", "report"}
 SAFE_OPEN_SUFFIXES = {
     ".csv",
+    ".docx",
     ".gif",
     ".jpeg",
     ".jpg",
@@ -28,8 +29,10 @@ SAFE_OPEN_SUFFIXES = {
     ".md",
     ".pdf",
     ".png",
+    ".pptx",
     ".txt",
     ".webp",
+    ".xlsx",
 }
 
 

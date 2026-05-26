@@ -1,4 +1,4 @@
-.PHONY: setup dev backend frontend build-web desktop package-mac reset test fmt clean
+.PHONY: setup dev backend frontend build-web desktop package-mac reset test test-frontend test-all fmt clean
 
 PY ?= python3.11
 VENV := backend/.venv
@@ -32,6 +32,11 @@ package-mac:
 
 test:
 	cd backend && .venv/bin/pytest -q
+
+test-frontend:
+	cd frontend && npm run test
+
+test-all: test test-frontend
 
 fmt:
 	cd backend && .venv/bin/ruff check --fix . && .venv/bin/ruff format .

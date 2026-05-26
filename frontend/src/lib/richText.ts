@@ -49,6 +49,12 @@ function cleanNode(node: Node): Node | null {
 
   const tag = element.tagName.toLowerCase();
   const cleanedElement = document.createElement(tag);
+  // Defense-in-depth: explicitly strip all attributes.
+  // createElement() doesn't copy attributes from the source, but an explicit
+  // loop guards against future code that might clone or copy attributes.
+  for (const attr of Array.from(element.attributes)) {
+    cleanedElement.removeAttribute(attr.name);
+  }
   element.childNodes.forEach((child) => {
     const cleaned = cleanNode(child);
     if (cleaned) cleanedElement.appendChild(cleaned);

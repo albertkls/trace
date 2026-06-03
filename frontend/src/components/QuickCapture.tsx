@@ -6,7 +6,7 @@ import ProjectSelect from "@/components/ProjectSelect";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import { api } from "@/lib/api";
 import { recommendProjects } from "@/lib/projectRecommendations";
-import type { Category, CaptureInput, Thread } from "@/lib/types";
+import type { Category, CaptureInput, Project, Thread } from "@/lib/types";
 import { toISODateTimeMinute } from "@/lib/periods";
 
 type ThreadChoice =
@@ -101,12 +101,12 @@ export default function QuickCapture({
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
     enabled: open,
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: () => api.threads.list(),
+    queryFn: (): Promise<Thread[]> => api.threads.list().then((r) => r.items),
     enabled: open,
   });
 

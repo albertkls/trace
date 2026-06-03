@@ -8,6 +8,7 @@ import ProjectSelect from "@/components/ProjectSelect";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import ThreadMultiSelectChips from "@/components/ThreadMultiSelectChips";
 import { api } from "@/lib/api";
+import Skeleton from "@/components/Skeleton";
 import { recommendProjects } from "@/lib/projectRecommendations";
 import type { Note, NotePatch, Thread, Category, Project } from "@/lib/types";
 import { dateKey, formatDateTime, toDateTimeInputValue } from "@/lib/periods";
@@ -20,7 +21,7 @@ export default function Notes() {
   const [projectFilter, setProjectFilter] = useState(queryProjectId);
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
   const { data: notes = [], isLoading } = useQuery({
     queryKey: ["notes", projectFilter],
@@ -28,7 +29,7 @@ export default function Notes() {
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: () => api.threads.list(),
+    queryFn: () => api.threads.list().then((r) => r.items),
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -144,8 +145,8 @@ export default function Notes() {
       </div>
 
       {isLoading ? (
-        <div className="panel p-12 text-center text-sm text-ink-mute">
-          加载中…
+        <div className="space-y-3">
+          <Skeleton variant="text" count={5} />
         </div>
       ) : notes.length === 0 ? (
         <div className="panel p-12 text-center text-sm text-ink-mute">

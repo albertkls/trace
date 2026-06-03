@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { Project } from "@/lib/types";
 
 type Props = {
   value: string;
@@ -20,7 +21,7 @@ export default function ProjectSelect({
 }: Props) {
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
 
   const visibleProjects = includeArchived

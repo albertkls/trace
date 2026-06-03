@@ -3,10 +3,11 @@ from __future__ import annotations
 import io
 import json
 import re
+import time
 import zipfile
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -81,7 +82,65 @@ def _project_health_snapshot(conn, project_id: str, workspace_id: str) -> dict:
         """,
         (project_id, workspace_id),
     ).fetchone()
+    return _parse_health_metrics(metrics)
+
+
+def _project_health_snapshot_batch(conn, project_ids: list[str], workspace_id: str) -> dict[str, dict]:
+    """Batch version - single query for all projects, O(1) DB calls instead of O(n)."""
+    if not project_ids:
+        return {}
+
+    placeholders = ",".join(["?"] * len(project_ids))
+    metrics = conn.execute(
+        f"""
+        SELECT
+          p.id AS project_id,
+          COUNT(DISTINCT CASE WHEN t.status = 'blocked' THEN t.id END) AS blocked_thread_count,
+          COUNT(DISTINCT CASE
+            WHEN t.status IN ('active', 'blocked')
+             AND datetime(t.last_active_at) < datetime('now', '-14 days')
+            THEN t.id
+          END) AS stale_thread_count,
+          COUNT(DISTINCT CASE WHEN td.done = 0 THEN td.id END) AS open_todo_count,
+          COUNT(DISTINCT CASE WHEN r.status = 'draft' THEN r.id END) AS draft_report_count,
+          COUNT(DISTINCT CASE
+            WHEN datetime(COALESCE(e.event_date, e.created_at)) >= datetime('now', '-6 days')
+            THEN e.id
+          END) AS week_evidence_count,
+          COUNT(DISTINCT CASE
+            WHEN td.done = 1 AND td.done_at IS NOT NULL AND datetime(td.done_at) >= datetime('now', '-6 days')
+            THEN td.id
+          END) AS week_done_todo_count,
+          COUNT(DISTINCT CASE
+            WHEN datetime(t.last_active_at) >= datetime('now', '-6 days')
+            THEN t.id
+          END) AS week_active_thread_count
+        FROM project p
+        LEFT JOIN thread t ON t.project_id = p.id AND t.workspace_id = p.workspace_id
+        LEFT JOIN evidence e ON e.thread_id = t.id AND e.workspace_id = p.workspace_id
+        LEFT JOIN todo td ON td.thread_id = t.id AND td.workspace_id = p.workspace_id
+        LEFT JOIN report r ON r.project_id = p.id AND r.workspace_id = p.workspace_id
+        WHERE p.id IN ({placeholders}) AND p.workspace_id = ?
+        GROUP BY p.id
+        """,
+        (*project_ids, workspace_id),
+    ).fetchall()
+
+    result = {}
+    for row in metrics:
+        data = row_to_dict(row)
+        result[data["project_id"]] = _parse_health_metrics_from_dict(data)
+    return result
+
+
+def _parse_health_metrics(metrics) -> dict:
+    """Parse health metrics from cursor row (single project)."""
     data = row_to_dict(metrics) if metrics else {}
+    return _parse_health_metrics_from_dict(data)
+
+
+def _parse_health_metrics_from_dict(data: dict) -> dict:
+    """Parse health metrics dict and compute status/action."""
     for key in (
         "blocked_thread_count",
         "stale_thread_count",
@@ -113,9 +172,74 @@ def _project_health_snapshot(conn, project_id: str, workspace_id: str) -> dict:
 
 
 def _attach_project_health(conn, projects: list[dict], workspace_id: str) -> list[dict]:
+    """Attach health data to projects using batch query with TTL cache.
+
+    The snapshot query joins 4 tables, so we cache the per-project result
+    for HEALTH_TTL_SECONDS to avoid repeated work on rapid list-refreshes.
+    """
+    if not projects:
+        return projects
+
+    project_ids = [p["id"] for p in projects]
+    health_map = _project_health_snapshot_batch_cached(conn, project_ids, workspace_id)
+
     for project in projects:
-        project["health"] = _project_health_snapshot(conn, project["id"], workspace_id)
+        project["health"] = health_map.get(project["id"], {
+            "health_status": "unknown",
+            "next_action": "无法获取健康状态",
+            "blocked_thread_count": 0,
+            "stale_thread_count": 0,
+            "open_todo_count": 0,
+            "draft_report_count": 0,
+            "week_evidence_count": 0,
+            "week_done_todo_count": 0,
+            "week_active_thread_count": 0,
+        })
     return projects
+
+
+HEALTH_TTL_SECONDS = 30
+_HEALTH_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
+def _project_health_snapshot_batch_cached(
+    conn, project_ids: list[str], workspace_id: str
+) -> dict[str, dict]:
+    """Batch snapshot with per-project TTL cache.
+
+    Each (project_id, workspace_id) entry is cached for HEALTH_TTL_SECONDS.
+    Misses (or expired entries) are filled in via a single batched query
+    against the underlying DB.
+    """
+    now = time.monotonic()
+    misses: list[str] = []
+    result: dict[str, dict] = {}
+
+    for pid in project_ids:
+        key = (pid, workspace_id)
+        cached = _HEALTH_CACHE.get(key)
+        if cached and (now - cached[0]) < HEALTH_TTL_SECONDS:
+            result[pid] = cached[1]
+        else:
+            misses.append(pid)
+
+    if misses:
+        fresh = _project_health_snapshot_batch(conn, misses, workspace_id)
+        for pid, snapshot in fresh.items():
+            _HEALTH_CACHE[(pid, workspace_id)] = (now, snapshot)
+            result[pid] = snapshot
+
+    return result
+
+
+def invalidate_project_health_cache(workspace_id: str | None = None) -> None:
+    """Invalidate cached health data, called from write paths."""
+    if workspace_id is None:
+        _HEALTH_CACHE.clear()
+        return
+    keys_to_drop = [k for k in _HEALTH_CACHE if k[1] == workspace_id]
+    for k in keys_to_drop:
+        _HEALTH_CACHE.pop(k, None)
 
 
 def _safe_filename(value: str, fallback: str) -> str:
@@ -265,9 +389,19 @@ def _project_export_markdown(project: dict, reports: list[dict]) -> bytes:
 
 
 @router.get("")
-def list_projects(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
+def list_projects(
+    workspace_id: str = Depends(request_workspace_id),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> dict:
     conn = connect()
     try:
+        count_row = conn.execute(
+            "SELECT COUNT(*) AS total FROM project WHERE workspace_id = ?",
+            (workspace_id,),
+        ).fetchone()
+        total = int(count_row["total"])
+
         rows = conn.execute(
             """
             SELECT p.*,
@@ -289,10 +423,14 @@ def list_projects(workspace_id: str = Depends(request_workspace_id)) -> list[dic
               END,
               p.updated_at DESC,
               p.name COLLATE NOCASE ASC
+            LIMIT ? OFFSET ?
             """,
-            (workspace_id,),
+            (workspace_id, limit, offset),
         ).fetchall()
-        return _attach_project_health(conn, [_project_row_to_dict(row) for row in rows], workspace_id)
+        return {
+            "items": _attach_project_health(conn, [_project_row_to_dict(row) for row in rows], workspace_id),
+            "total": total,
+        }
     finally:
         conn.close()
 
@@ -396,7 +534,7 @@ def get_project(project_id: str, workspace_id: str = Depends(request_workspace_i
             note["project_name"] = note.pop("project_name", None)
             try:
                 note["thread_ids"] = json.loads(raw_thread_ids or "[]")
-            except Exception:  # noqa: BLE001
+            except (json.JSONDecodeError, TypeError, ValueError):
                 note["thread_ids"] = []
             notes.append(note)
 
@@ -452,11 +590,11 @@ def get_project(project_id: str, workspace_id: str = Depends(request_workspace_i
             raw_tags = item.pop("tags_json", "[]")
             try:
                 item["owners"] = json.loads(raw_owners or "[]")
-            except Exception:  # noqa: BLE001
+            except (json.JSONDecodeError, TypeError, ValueError):
                 item["owners"] = []
             try:
                 item["tags"] = json.loads(raw_tags or "[]")
-            except Exception:  # noqa: BLE001
+            except (json.JSONDecodeError, TypeError, ValueError):
                 item["tags"] = []
             evidence.append(item)
 

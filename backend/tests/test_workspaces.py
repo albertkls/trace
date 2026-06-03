@@ -44,11 +44,11 @@ def test_workspace_isolates_core_lists(client):
         json={"text": "side todo", "thread_id": side_thread["id"]},
     )
 
-    assert [p["name"] for p in client.get("/api/projects").json()] == ["Default Project"]
-    assert [p["name"] for p in client.get("/api/projects", headers={"X-Trace-Workspace": side_id}).json()] == ["Side Project"]
+    assert [p["name"] for p in client.get("/api/projects").json()["items"]] == ["Default Project"]
+    assert [p["name"] for p in client.get("/api/projects", headers={"X-Trace-Workspace": side_id}).json()["items"]] == ["Side Project"]
 
-    assert [t["title"] for t in client.get("/api/threads").json()] == ["Default Thread"]
-    assert [t["title"] for t in client.get("/api/threads", headers={"X-Trace-Workspace": side_id}).json()] == ["Side Thread"]
+    assert [t["title"] for t in client.get("/api/threads").json()["items"]] == ["Default Thread"]
+    assert [t["title"] for t in client.get("/api/threads", headers={"X-Trace-Workspace": side_id}).json()["items"]] == ["Side Thread"]
 
     assert [i["text"] for i in client.get("/api/captures/inbox").json()] == ["default inbox"]
     assert [i["text"] for i in client.get("/api/captures/inbox", headers={"X-Trace-Workspace": side_id}).json()] == ["side inbox"]

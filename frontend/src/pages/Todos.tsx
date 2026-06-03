@@ -13,6 +13,7 @@ import {
   todoRichTextToPlainText,
 } from "@/lib/richText";
 import type { Thread, Todo, TodoPatch } from "@/lib/types";
+import { TodoListSkeleton } from "@/components/Skeleton";
 
 export default function Todos() {
   const qc = useQueryClient();
@@ -23,7 +24,7 @@ export default function Todos() {
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: () => api.threads.list(),
+    queryFn: () => api.threads.list().then((r) => r.items),
   });
 
   const invalidate = () => {
@@ -68,8 +69,8 @@ export default function Todos() {
       />
 
       {isLoading ? (
-        <div className="panel mt-6 p-12 text-center text-sm text-ink-mute">
-          加载中…
+        <div className="mt-6">
+          <TodoListSkeleton count={5} />
         </div>
       ) : todos.length === 0 ? (
         <div className="panel mt-6 p-12 text-center text-sm text-ink-mute">

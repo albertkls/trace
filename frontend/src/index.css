@@ -344,3 +344,46 @@
     @apply bg-canvas-contrast text-ink shadow-chip;
   }
 }
+
+/* ───── Responsive layout ───── */
+@media (max-width: 1100px) {
+  .app-sidebar {
+    width: 60px !important;
+  }
+  .app-sidebar .nav-label {
+    display: none;
+  }
+  .app-sidebar .sidebar-logo-text {
+    display: none;
+  }
+  .app-sidebar .sidebar-capture-btn span:last-child {
+    display: none;
+  }
+  .app-sidebar .workspace-label {
+    display: none;
+  }
+  .app-sidebar .workspace-add-btn {
+    display: none;
+  }
+  .app-sidebar .nav-eyebrow {
+    display: none;
+  }
+  .app-sidebar .theme-section {
+    display: none;
+  }
+  .app-sidebar .search-btn {
+    display: none;
+  }
+  .app-sidebar .date-meta {
+    display: none;
+  }
+  .app-main {
+    margin-left: 60px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .panel-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -117,7 +117,7 @@ export const api = {
       }),
   },
   projects: {
-    list: () => req<Project[]>("/projects"),
+    list: () => req<{ items: Project[]; total: number }>("/projects"),
     get: (id: string) => req<ProjectDetail>(`/projects/${id}`),
     exportZip: async (id: string) => {
       const res = await fetch(`${BASE}/projects/${id}/export`, {
@@ -144,7 +144,7 @@ export const api = {
   },
   threads: {
     list: (projectId?: string) =>
-      req<Thread[]>(`/threads${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
+      req<{ items: Thread[]; total: number }>(`/threads${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
     get: (id: string) => req<ThreadDetail>(`/threads/${id}`),
     create: (body: ThreadInput) =>
       req<Thread>("/threads", { method: "POST", body: JSON.stringify(body) }),

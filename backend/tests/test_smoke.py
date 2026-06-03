@@ -12,7 +12,7 @@ def test_health(client):
 def test_threads_start_empty(client):
     r = client.get('/api/threads')
     assert r.status_code == 200
-    assert r.json() == []
+    assert r.json() == {"items": [], "total": 0}
 
 
 def test_thread_detail(client):

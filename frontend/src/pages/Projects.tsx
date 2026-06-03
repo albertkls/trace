@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import ProjectModal from "@/components/ProjectModal";
 import ProjectStatusBadge from "@/components/ProjectStatusBadge";
+import { ProjectCardSkeleton } from "@/components/Skeleton";
 import { api } from "@/lib/api";
 import type { Project, ProjectStatus } from "@/lib/types";
 
@@ -25,7 +26,7 @@ export default function Projects() {
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
 
   const visibleProjects = useMemo(
@@ -83,7 +84,7 @@ export default function Projects() {
       </div>
 
       {isLoading ? (
-        <div className="panel p-12 text-center text-sm text-ink-mute">加载中…</div>
+        <ProjectCardSkeleton count={6} />
       ) : visibleProjects.length === 0 ? (
         <div className="panel p-12 text-center">
           <div className="mb-3 text-sm text-ink-soft">还没有项目。</div>

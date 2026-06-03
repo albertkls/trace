@@ -30,7 +30,7 @@ def test_restore_backup_creates_safety_backup_and_restores_data(client: TestClie
 
     deleted = client.delete(f"/api/projects/{project['id']}")
     assert deleted.status_code == 204, deleted.text
-    assert client.get("/api/projects").json() == []
+    assert client.get("/api/projects").json()["items"] == []
 
     restored = client.post("/api/backups/restore", json={"path": backup["path"]})
     assert restored.status_code == 200, restored.text
@@ -38,7 +38,7 @@ def test_restore_backup_creates_safety_backup_and_restores_data(client: TestClie
     assert body["ok"] is True
     assert body["safety_backup"]["name"].endswith(".sqlite")
 
-    projects = client.get("/api/projects").json()
+    projects = client.get("/api/projects").json()["items"]
     assert any(item["name"] == "恢复前项目" for item in projects)
 
 
@@ -60,5 +60,5 @@ def test_restore_invalid_backup_does_not_replace_current_database(client: TestCl
     response = client.post("/api/backups/restore", json={"path": str(invalid_backup)})
     assert response.status_code == 400, response.text
 
-    projects = client.get("/api/projects").json()
+    projects = client.get("/api/projects").json()["items"]
     assert any(item["name"] == "保留项目" for item in projects)

@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import { useVirtualList } from "@/lib/useVirtualList";
 import StatusDot from "@/components/StatusDot";
 import NewThreadModal from "@/components/NewThreadModal";
-import type { Thread } from "@/lib/types";
+import { ThreadListSkeleton } from "@/components/Skeleton";
+import type { Project, Thread } from "@/lib/types";
 
 export default function Threads() {
   const navigate = useNavigate();
@@ -13,12 +15,20 @@ export default function Threads() {
   const [projectFilter, setProjectFilter] = useState("");
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
   const { data: threads = [], isLoading } = useQuery({
     queryKey: ["threads", projectFilter],
-    queryFn: () => api.threads.list(projectFilter || undefined),
+    queryFn: () => api.threads.list(projectFilter || undefined).then((r) => r.items),
   });
+
+  const {
+    parentRef,
+    virtualItems,
+    totalSize,
+    enableVirtualization,
+    containerHeight,
+  } = useVirtualList(threads);
 
   return (
     <div className="mx-auto max-w-5xl px-10 py-10">
@@ -64,9 +74,7 @@ export default function Threads() {
       </div>
 
       {isLoading ? (
-        <div className="panel py-12 text-center text-sm text-ink-mute">
-          加载中…
-        </div>
+        <ThreadListSkeleton count={6} />
       ) : threads.length === 0 ? (
         <div className="panel py-16 text-center text-sm text-ink-mute">
           还没有任何线程。点右上角「＋ 新建线程」起第一条。
@@ -80,45 +88,106 @@ export default function Threads() {
             <span>EVIDENCE</span>
             <span className="w-4" />
           </div>
-          <ul>
-            {threads.map((t) => (
-              <li key={t.id}>
-                <Link
-                  to={`/threads/${t.id}`}
-                  className="group grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line/60 px-5 py-4 transition last:border-b-0 hover:bg-canvas-contrast/40"
-                >
-                  <StatusDot status={t.status} withLabel={false} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[15px] font-medium text-ink transition group-hover:text-accent">
-                        {t.title}
-                      </span>
-                      {t.pinned ? (
-                        <span className="chip chip-accent">置顶</span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 truncate text-xs text-ink-mute">
-                      {t.summary || "（暂无摘要）"}
-                    </div>
-                  </div>
-                  <span
-                    className={clsx(
-                      "chip",
-                      t.project ? "" : "opacity-0 pointer-events-none"
-                    )}
+          {enableVirtualization ? (
+            <ul
+              ref={parentRef}
+              style={{ height: containerHeight, overflow: "auto" }}
+            >
+              <div style={{ height: totalSize, position: "relative" }}>
+                {virtualItems.map((virtualItem) => {
+                  const t = threads[virtualItem.index];
+                  return (
+                    <li
+                      key={t.id}
+                      data-index={virtualItem.index}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                        height: virtualItem.size,
+                      }}
+                    >
+                      <Link
+                        to={`/threads/${t.id}`}
+                        className="group grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line/60 px-5 py-4 transition last:border-b-0 hover:bg-canvas-contrast/40"
+                      >
+                        <StatusDot status={t.status} withLabel={false} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-[15px] font-medium text-ink transition group-hover:text-accent">
+                              {t.title}
+                            </span>
+                            {t.pinned ? (
+                              <span className="chip chip-accent">置顶</span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 truncate text-xs text-ink-mute">
+                            {t.summary || "（暂无摘要）"}
+                          </div>
+                        </div>
+                        <span
+                          className={clsx(
+                            "chip",
+                            t.project ? "" : "opacity-0 pointer-events-none"
+                          )}
+                        >
+                          {t.project ?? ""}
+                        </span>
+                        <span className="mono-meta whitespace-nowrap">
+                          {String(t.evidence_count ?? 0).padStart(2, "0")} · ev
+                        </span>
+                        <span className="text-ink-mute transition group-hover:translate-x-0.5 group-hover:text-accent">
+                          →
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </div>
+            </ul>
+          ) : (
+            <ul>
+              {threads.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    to={`/threads/${t.id}`}
+                    className="group grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b border-line/60 px-5 py-4 transition last:border-b-0 hover:bg-canvas-contrast/40"
                   >
-                    {t.project ?? ""}
-                  </span>
-                  <span className="mono-meta whitespace-nowrap">
-                    {String(t.evidence_count ?? 0).padStart(2, "0")} · ev
-                  </span>
-                  <span className="text-ink-mute transition group-hover:translate-x-0.5 group-hover:text-accent">
-                    →
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    <StatusDot status={t.status} withLabel={false} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[15px] font-medium text-ink transition group-hover:text-accent">
+                          {t.title}
+                        </span>
+                        {t.pinned ? (
+                          <span className="chip chip-accent">置顶</span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 truncate text-xs text-ink-mute">
+                        {t.summary || "（暂无摘要）"}
+                      </div>
+                    </div>
+                    <span
+                      className={clsx(
+                        "chip",
+                        t.project ? "" : "opacity-0 pointer-events-none"
+                      )}
+                    >
+                      {t.project ?? ""}
+                    </span>
+                    <span className="mono-meta whitespace-nowrap">
+                      {String(t.evidence_count ?? 0).padStart(2, "0")} · ev
+                    </span>
+                    <span className="text-ink-mute transition group-hover:translate-x-0.5 group-hover:text-accent">
+                      →
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
     </div>

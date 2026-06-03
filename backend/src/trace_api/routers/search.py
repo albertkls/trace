@@ -36,7 +36,7 @@ def _search_fts(conn: sqlite3.Connection, *, q: str, limit: int, workspace_id: s
         SELECT kind, ref_id
         FROM search_fts
         WHERE workspace_id = ? AND search_fts MATCH ?
-        ORDER BY bm25(search_fts)
+        ORDER BY bm25(search_fts, 1.0, 0.1) DESC, title IS NOT NULL AND title != '' DESC
         LIMIT ?
         """,
         (workspace_id, match, limit * 5),

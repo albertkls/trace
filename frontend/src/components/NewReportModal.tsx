@@ -4,7 +4,7 @@ import clsx from "clsx";
 import ProjectSelect from "@/components/ProjectSelect";
 import ThreadMultiSelectChips from "@/components/ThreadMultiSelectChips";
 import { api } from "@/lib/api";
-import type { Report, ReportAudience } from "@/lib/types";
+import type { Report, ReportAudience, Project, Thread } from "@/lib/types";
 import {
   AUDIENCE_OPTIONS,
   PRESETS,
@@ -40,12 +40,12 @@ export default function NewReportModal({
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
     enabled: open,
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: () => api.threads.list(),
+    queryFn: (): Promise<Thread[]> => api.threads.list().then((r) => r.items),
     enabled: open,
   });
 

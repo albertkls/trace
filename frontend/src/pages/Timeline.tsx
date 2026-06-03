@@ -1,22 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
 import { api } from "@/lib/api";
-import {
-  AUDIENCE_LABEL,
-  dateKey,
-  formatDateTime,
-  parseDateTime,
-} from "@/lib/periods";
+import { AUDIENCE_LABEL, dateKey, formatDateTime, parseDateTime } from "@/lib/periods";
 import { todoPreview } from "@/lib/richText";
-import type {
-  InboxItem,
-  Note,
-  ReportSummary,
-  Thread,
-  Todo,
-} from "@/lib/types";
+import type { InboxItem, Note, ReportSummary, Thread, Todo } from "@/lib/types";
 
 type TimelineKind = "thread" | "inbox" | "todo" | "note" | "report";
 type FilterKey = TimelineKind | "all";
@@ -32,10 +22,7 @@ type TimelineItem = {
   to: string;
 };
 
-const KIND_META: Record<
-  TimelineKind,
-  { label: string; tone: string; short: string }
-> = {
+const KIND_META: Record<TimelineKind, { label: string; tone: string; short: string }> = {
   thread: { label: "工作线", tone: "text-accent", short: "THREAD" },
   inbox: { label: "收件箱", tone: "text-signal-go", short: "INBOX" },
   todo: { label: "待办", tone: "text-signal-hold", short: "TODO" },
@@ -43,17 +30,14 @@ const KIND_META: Record<
   report: { label: "汇报", tone: "text-signal-stop", short: "REPORT" },
 };
 
-const FILTER_ORDER: FilterKey[] = [
-  "all",
-  "thread",
-  "inbox",
-  "todo",
-  "note",
-  "report",
-];
+const FILTER_ORDER: FilterKey[] = ["all", "thread", "inbox", "todo", "note", "report"];
 
 function preview(md: string): string {
-  return md.replace(/[#*_`>-]/g, "").trim().replace(/\s+/g, " ").slice(0, 72);
+  return md
+    .replace(/[#*_`>-]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 72);
 }
 
 function toItem(
@@ -83,7 +67,7 @@ export default function Timeline() {
 
   const results = useQueries({
     queries: [
-      { queryKey: ["threads"], queryFn: () => api.threads.list() },
+      { queryKey: ["threads"], queryFn: () => api.threads.list().then((r) => r.items) },
       { queryKey: ["inbox"], queryFn: api.captures.inbox },
       { queryKey: ["todos"], queryFn: () => api.todos.list() },
       { queryKey: ["notes"], queryFn: () => api.notes.list() },
@@ -127,9 +111,7 @@ export default function Timeline() {
         title: todoPreview(td.text),
         body: td.done ? "待办已完成" : "待办创建/更新",
         meta: `${td.thread_title || "未挂线程"}${
-          td.due_date
-            ? ` · 截止 ${formatDateTime(td.due_date, { withYear: false })}`
-            : ""
+          td.due_date ? ` · 截止 ${formatDateTime(td.due_date, { withYear: false })}` : ""
         }`,
         to: "/todos",
       });
@@ -177,6 +159,17 @@ export default function Timeline() {
     [items, filter]
   );
 
+  const VIRTUALIZATION_THRESHOLD = 50;
+  const useVirtual = filtered.length > VIRTUALIZATION_THRESHOLD;
+
+  const flatVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => document.getElementById("timeline-scroll"),
+    estimateSize: () => 88,
+    overscan: 5,
+    enabled: useVirtual,
+  });
+
   const grouped = useMemo(() => {
     const map = new Map<string, TimelineItem[]>();
     for (const it of filtered) {
@@ -214,30 +207,78 @@ export default function Timeline() {
               onClick={() => !disabled && setFilter(key)}
               className={clsx(
                 "chip",
-                disabled
-                  ? "cursor-not-allowed opacity-40"
-                  : "cursor-pointer",
+                disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
                 filter === key && "chip-accent"
               )}
             >
               {label}
-              <span className="mono-meta ml-1 !text-[10px]">
-                {counts[key]}
-              </span>
+              <span className="mono-meta ml-1 !text-[10px]">{counts[key]}</span>
             </button>
           );
         })}
       </div>
 
       {isLoading ? (
-        <div className="panel p-12 text-center text-sm text-ink-mute">
-          加载中…
-        </div>
+        <div className="panel p-12 text-center text-sm text-ink-mute">加载中…</div>
       ) : grouped.length === 0 ? (
         <div className="panel p-12 text-center text-sm text-ink-mute">
-          {items.length === 0
-            ? "还没有可展示的活动记录。"
-            : "当前筛选下没有匹配项。"}
+          {items.length === 0 ? "还没有可展示的活动记录。" : "当前筛选下没有匹配项。"}
+        </div>
+      ) : useVirtual ? (
+        <div
+          id="timeline-scroll"
+          className="overflow-auto"
+          style={{ height: "calc(100vh - 280px)" }}
+        >
+          <div
+            style={{
+              height: `${flatVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {flatVirtualizer.getVirtualItems().map((vRow) => {
+              const item = filtered[vRow.index];
+              const meta = KIND_META[item.kind];
+              return (
+                <div
+                  key={item.id}
+                  data-index={vRow.index}
+                  ref={flatVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${vRow.start}px)`,
+                  }}
+                >
+                  <Link
+                    to={item.to}
+                    className="panel mb-2 flex items-start gap-4 p-4 transition hover:border-accent/40 hover:bg-canvas-contrast/30"
+                  >
+                    <div className="min-w-[88px] text-right">
+                      <div className="mono-meta">
+                        {formatDateTime(item.rawTimestamp, {
+                          withYear: false,
+                          includeTime: true,
+                        })}
+                      </div>
+                      <div className={`mt-1 font-mono text-[10px] tracking-wider ${meta.tone}`}>
+                        {meta.short}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-ink">{item.title}</div>
+                      <div className="mt-1 line-clamp-2 text-sm text-ink-soft">{item.body}</div>
+                      <div className="mt-2 mono-meta">{item.meta}</div>
+                    </div>
+                    <span className="text-ink-mute">→</span>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div className="space-y-8">
@@ -265,21 +306,14 @@ export default function Timeline() {
                             })}
                           </div>
                           <div
-                            className={clsx(
-                              "mt-1 font-mono text-[10px] tracking-wider",
-                              meta.tone
-                            )}
+                            className={clsx("mt-1 font-mono text-[10px] tracking-wider", meta.tone)}
                           >
                             {meta.short}
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium text-ink">
-                            {item.title}
-                          </div>
-                          <div className="mt-1 line-clamp-2 text-sm text-ink-soft">
-                            {item.body}
-                          </div>
+                          <div className="truncate text-sm font-medium text-ink">{item.title}</div>
+                          <div className="mt-1 line-clamp-2 text-sm text-ink-soft">{item.body}</div>
                           <div className="mt-2 mono-meta">{item.meta}</div>
                         </div>
                         <span className="text-ink-mute">→</span>

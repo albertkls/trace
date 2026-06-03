@@ -234,7 +234,17 @@ def open_attachment(
         if not path.exists() or not path.is_file():
             raise HTTPException(404, "file not found")
         _ensure_safe_to_open(path)
-        subprocess.Popen(["open", str(path)])
+        try:
+            subprocess.run(
+                ["open", str(path)],
+                timeout=5,
+                check=False,
+                capture_output=True,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "open command timed out")
+        except FileNotFoundError:
+            raise HTTPException(500, "open command not available")
         now = _now()
         conn.execute(
             "UPDATE attachment SET last_opened_at = ? WHERE id = ? AND workspace_id = ?",
@@ -259,7 +269,17 @@ def reveal_attachment(
         path = Path(attachment["file_path"]).expanduser()
         if not path.exists() or not path.is_file():
             raise HTTPException(404, "file not found")
-        subprocess.Popen(["open", "-R", str(path)])
+        try:
+            subprocess.run(
+                ["open", "-R", str(path)],
+                timeout=5,
+                check=False,
+                capture_output=True,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "reveal command timed out")
+        except FileNotFoundError:
+            raise HTTPException(500, "open command not available")
         return {"ok": True}
     finally:
         conn.close()

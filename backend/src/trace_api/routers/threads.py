@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from ..db import connect, cursor, row_to_dict
@@ -253,9 +253,18 @@ def patch_thread(thread_id: str, patch: ThreadPatch, workspace_id: str = Depends
 def list_threads(
     project_id: str | None = None,
     workspace_id: str = Depends(request_workspace_id),
-) -> list[dict]:
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> dict:
     conn = connect()
     try:
+        count_sql = "SELECT COUNT(*) AS total FROM thread WHERE workspace_id = ?"
+        count_params: list[str] = [workspace_id]
+        if project_id:
+            count_sql += " AND project_id = ?"
+            count_params.append(project_id)
+        total = int(conn.execute(count_sql, tuple(count_params)).fetchone()["total"])
+
         sql = """
             SELECT t.*, COALESCE(p.name, t.project) AS project_name, COUNT(e.id) AS evidence_count
             FROM thread t
@@ -267,14 +276,14 @@ def list_threads(
         if project_id:
             sql += " AND t.project_id = ?"
             params.append(project_id)
-        sql += " GROUP BY t.id ORDER BY t.pinned DESC, t.last_active_at DESC"
-        rows = conn.execute(sql, tuple(params)).fetchall()
+        sql += " GROUP BY t.id ORDER BY t.pinned DESC, t.last_active_at DESC LIMIT ? OFFSET ?"
+        rows = conn.execute(sql, (*params, limit, offset)).fetchall()
         out = []
         for row in rows:
             thread = row_to_dict(row)
             thread["project"] = thread.pop("project_name") or thread.get("project")
             out.append(thread)
-        return out
+        return {"items": out, "total": total}
     finally:
         conn.close()
 
@@ -388,7 +397,7 @@ def delete_thread(thread_id: str, workspace_id: str = Depends(request_workspace_
                         "UPDATE note SET thread_ids_json=? WHERE id=?",
                         (json.dumps(ids, ensure_ascii=False), note_row["id"]),
                     )
-            except Exception:  # noqa: BLE001
+            except (json.JSONDecodeError, TypeError, ValueError):
                 pass
         for report_row in cur.execute(
             "SELECT id, thread_ids_json FROM report WHERE workspace_id = ? AND thread_ids_json LIKE ?",
@@ -402,7 +411,7 @@ def delete_thread(thread_id: str, workspace_id: str = Depends(request_workspace_
                         "UPDATE report SET thread_ids_json=? WHERE id=?",
                         (json.dumps(ids, ensure_ascii=False), report_row["id"]),
                     )
-            except Exception:  # noqa: BLE001
+            except (json.JSONDecodeError, TypeError, ValueError):
                 pass
         cur.execute("DELETE FROM thread WHERE id = ? AND workspace_id = ?", (thread_id, workspace_id))
 

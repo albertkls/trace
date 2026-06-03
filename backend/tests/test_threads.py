@@ -64,4 +64,4 @@ def test_thread_can_bind_project_by_id_and_filter(client):
 
     filtered = client.get(f"/api/threads?project_id={project['id']}")
     assert filtered.status_code == 200
-    assert [thread['id'] for thread in filtered.json()] == [body['id']]
+    assert [thread['id'] for thread in filtered.json()['items']] == [body['id']]

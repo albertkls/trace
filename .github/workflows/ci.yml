@@ -39,3 +39,10 @@ jobs:
         run: cd frontend && npm run typecheck
       - name: Run tests
         run: cd frontend && npm run test
+      - name: Lint
+        run: cd frontend && npm run lint || true
+        continue-on-error: true
+        # Known lint violations tracked; tighten threshold in future PRs
+      - name: Security audit
+        run: cd frontend && npm audit --audit-level=moderate
+        # Detect known vulnerabilities in frontend dependencies without blocking on low-severity warnings

@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 import NewReportModal from "@/components/NewReportModal";
 import { AUDIENCE_LABEL } from "@/lib/periods";
-import type { ReportAudience } from "@/lib/types";
+import type { ReportAudience, Project } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
@@ -25,7 +25,7 @@ export default function Reports() {
   const [projectFilter, setProjectFilter] = useState("");
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ["reports", projectFilter],

@@ -169,7 +169,12 @@ def test_attachment_open_and_reveal_use_macos_open(client, tmp_path: Path, monke
     calls: list[list[str]] = []
 
     monkeypatch.setattr(attachments.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(attachments.subprocess, "Popen", lambda args: calls.append(args))
+
+    def fake_run(args, **_kwargs):
+        calls.append(args)
+        return None
+
+    monkeypatch.setattr(attachments.subprocess, "run", fake_run)
 
     opened = client.post(f"/api/attachments/{attachment['id']}/open")
     spreadsheet_opened = client.post(f"/api/attachments/{spreadsheet_attachment['id']}/open")
@@ -222,7 +227,12 @@ def test_attachment_open_blocks_unsafe_file_types(client, tmp_path: Path, monkey
     calls: list[list[str]] = []
 
     monkeypatch.setattr(attachments.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(attachments.subprocess, "Popen", lambda args: calls.append(args))
+
+    def fake_run(args, **_kwargs):
+        calls.append(args)
+        return None
+
+    monkeypatch.setattr(attachments.subprocess, "run", fake_run)
 
     command_opened = client.post(f"/api/attachments/{command_attachment['id']}/open")
     docm_opened = client.post(f"/api/attachments/{docm_attachment['id']}/open")

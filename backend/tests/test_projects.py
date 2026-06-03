@@ -11,7 +11,7 @@ def test_project_crud_and_detail(client):
 
     listed = client.get('/api/projects')
     assert listed.status_code == 200
-    assert any(project['id'] == created['id'] for project in listed.json())
+    assert any(project['id'] == created['id'] for project in listed.json()['items'])
 
     thread = client.post(
         '/api/threads',
@@ -51,7 +51,7 @@ def test_thread_legacy_project_name_auto_creates_project(client):
     assert thread['project'] == '平台侧'
     assert thread['project_id']
 
-    projects = client.get('/api/projects').json()
+    projects = client.get('/api/projects').json()['items']
     assert any(project['name'] == '平台侧' for project in projects)
 
 
@@ -99,7 +99,7 @@ def test_project_health_and_weekly_metrics(client):
     assert health['week_active_thread_count'] >= 1
     assert '阻塞' in health['next_action']
 
-    listed = client.get('/api/projects').json()
+    listed = client.get('/api/projects').json()['items']
     listed_health = next(item['health'] for item in listed if item['id'] == project['id'])
     assert listed_health['blocked_thread_count'] == 1
     assert listed_health['open_todo_count'] == 1

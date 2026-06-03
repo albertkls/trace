@@ -6,10 +6,11 @@ import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import AttachmentPanel from "@/components/AttachmentPanel";
 import ProjectSelect from "@/components/ProjectSelect";
 import { api } from "@/lib/api";
-import type { Category, InboxItem, Thread } from "@/lib/types";
+import type { Category, InboxItem, Project, Thread } from "@/lib/types";
 import { recommendProjects } from "@/lib/projectRecommendations";
 import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
+import { ThreadListSkeleton } from "@/components/Skeleton";
 
 export default function Inbox() {
   const qc = useQueryClient();
@@ -20,11 +21,11 @@ export default function Inbox() {
   });
   const { data: threads = [] } = useQuery({
     queryKey: ["threads"],
-    queryFn: () => api.threads.list(),
+    queryFn: (): Promise<Thread[]> => api.threads.list().then((r) => r.items),
   });
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [groupBySource, setGroupBySource] = useState(false);
@@ -105,9 +106,7 @@ export default function Inbox() {
       </header>
 
       {isLoading ? (
-        <div className="panel p-12 text-center text-sm text-ink-mute">
-          加载中…
-        </div>
+        <ThreadListSkeleton count={4} />
       ) : inbox.length === 0 ? (
         <div className="panel p-12 text-center">
           <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-pill border border-line bg-canvas-sunken/70 px-3 py-1">

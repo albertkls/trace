@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import StatusDot from "@/components/StatusDot";
+import Skeleton from "@/components/Skeleton";
 import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
 import { isoWeekLabel, toISODate, formatDateTime } from "@/lib/periods";
 import { todoPreview } from "@/lib/richText";
+import type { Project, Thread } from "@/lib/types";
 
 function yesterdayISO(): string {
   const d = new Date();
@@ -18,7 +20,7 @@ export default function Home() {
   const { open: openCapture } = useQuickCapture();
   const { data: threads = [], isLoading } = useQuery({
     queryKey: ["threads"],
-    queryFn: () => api.threads.list(),
+    queryFn: (): Promise<Thread[]> => api.threads.list().then((r) => r.items),
   });
   const { data: reports = [] } = useQuery({
     queryKey: ["reports"],
@@ -26,7 +28,7 @@ export default function Home() {
   });
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects.list,
+    queryFn: (): Promise<Project[]> => api.projects.list().then((r) => r.items),
   });
   const { data: inbox = [] } = useQuery({
     queryKey: ["inbox"],
@@ -290,7 +292,9 @@ export default function Home() {
         </div>
 
         {isLoading ? (
-          <div className="py-10 text-center text-sm text-ink-mute">加载中…</div>
+          <div className="space-y-3 px-5 py-4">
+            <Skeleton variant="text" count={5} />
+          </div>
         ) : threads.length === 0 ? (
           <div className="py-12 text-center text-sm text-ink-mute">
             空窗期。开一个新线程把事情串起来。

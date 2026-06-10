@@ -18,7 +18,7 @@ Trace 把这个过程变成一条连续的链路：
 
 ## 当前状态
 
-- 版本：`1.4.1`
+- 版本：`2.0.1`
 - 技术栈：FastAPI + SQLite + React + TypeScript + pywebview
 - 发行形态：macOS 桌面应用，使用 PyInstaller 打包 `.app` 和 DMG
 - 数据目录：`~/Library/Application Support/Trace`
@@ -102,6 +102,7 @@ Trace 适合这些人：
 
 - Markdown 笔记可按项目组织
 - 待办可关联线程和截止时间
+- 统一的应用内时间选择器，支持快捷时间、月历、小时/分钟选择和清除时间
 - 首页和项目页汇总关键工作状态
 
 ### 搜索
@@ -183,7 +184,7 @@ make package-mac
 
 ```text
 output/macos/Trace.app
-output/macos/Trace-1.4.1-macOS.dmg
+output/macos/Trace-2.0.1-macOS.dmg
 output/macos/SHA256SUMS.txt
 ```
 

@@ -13,12 +13,7 @@ type Props = {
   onCreated?: (t: Thread) => void;
 };
 
-export default function NewThreadModal({
-  open,
-  onClose,
-  defaultProjectId,
-  onCreated,
-}: Props) {
+export default function NewThreadModal({ open, onClose, defaultProjectId, onCreated }: Props) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -110,18 +105,10 @@ export default function NewThreadModal({
         )}
 
         <div className="flex items-center justify-end gap-2 pt-1">
-          <button
-            className="btn btn-ghost"
-            onClick={onClose}
-            disabled={create.isPending}
-          >
+          <button className="btn btn-ghost" onClick={onClose} disabled={create.isPending}>
             取消
           </button>
-          <button
-            className="btn btn-accent"
-            onClick={() => create.mutate()}
-            disabled={!canSubmit}
-          >
+          <button className="btn btn-accent" onClick={() => create.mutate()} disabled={!canSubmit}>
             {create.isPending ? "创建中…" : "创建线程"}
           </button>
         </div>

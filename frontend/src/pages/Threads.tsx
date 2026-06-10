@@ -22,13 +22,8 @@ export default function Threads() {
     queryFn: () => api.threads.list(projectFilter || undefined).then((r) => r.items),
   });
 
-  const {
-    parentRef,
-    virtualItems,
-    totalSize,
-    enableVirtualization,
-    containerHeight,
-  } = useVirtualList(threads);
+  const { parentRef, virtualItems, totalSize, enableVirtualization, containerHeight } =
+    useVirtualList(threads);
 
   return (
     <div className="mx-auto max-w-5xl px-10 py-10">
@@ -43,14 +38,9 @@ export default function Threads() {
           <h1 className="mt-2 font-display text-[32px] font-semibold leading-none tracking-tight">
             工作线
           </h1>
-          <p className="mt-2 text-sm text-ink-soft">
-            每一条工作线，都是你正在推进的一件事。
-          </p>
+          <p className="mt-2 text-sm text-ink-soft">每一条工作线，都是你正在推进的一件事。</p>
         </div>
-        <button
-          className="btn btn-accent"
-          onClick={() => setNewThreadOpen(true)}
-        >
+        <button className="btn btn-accent" onClick={() => setNewThreadOpen(true)}>
           ＋ 新建线程
         </button>
       </header>
@@ -89,10 +79,7 @@ export default function Threads() {
             <span className="w-4" />
           </div>
           {enableVirtualization ? (
-            <ul
-              ref={parentRef}
-              style={{ height: containerHeight, overflow: "auto" }}
-            >
+            <ul ref={parentRef} style={{ height: containerHeight, overflow: "auto" }}>
               <div style={{ height: totalSize, position: "relative" }}>
                 {virtualItems.map((virtualItem) => {
                   const t = threads[virtualItem.index];
@@ -119,19 +106,14 @@ export default function Threads() {
                             <span className="truncate text-[15px] font-medium text-ink transition group-hover:text-accent">
                               {t.title}
                             </span>
-                            {t.pinned ? (
-                              <span className="chip chip-accent">置顶</span>
-                            ) : null}
+                            {t.pinned ? <span className="chip chip-accent">置顶</span> : null}
                           </div>
                           <div className="mt-1 truncate text-xs text-ink-mute">
                             {t.summary || "（暂无摘要）"}
                           </div>
                         </div>
                         <span
-                          className={clsx(
-                            "chip",
-                            t.project ? "" : "opacity-0 pointer-events-none"
-                          )}
+                          className={clsx("chip", t.project ? "" : "opacity-0 pointer-events-none")}
                         >
                           {t.project ?? ""}
                         </span>
@@ -161,19 +143,14 @@ export default function Threads() {
                         <span className="truncate text-[15px] font-medium text-ink transition group-hover:text-accent">
                           {t.title}
                         </span>
-                        {t.pinned ? (
-                          <span className="chip chip-accent">置顶</span>
-                        ) : null}
+                        {t.pinned ? <span className="chip chip-accent">置顶</span> : null}
                       </div>
                       <div className="mt-1 truncate text-xs text-ink-mute">
                         {t.summary || "（暂无摘要）"}
                       </div>
                     </div>
                     <span
-                      className={clsx(
-                        "chip",
-                        t.project ? "" : "opacity-0 pointer-events-none"
-                      )}
+                      className={clsx("chip", t.project ? "" : "opacity-0 pointer-events-none")}
                     >
                       {t.project ?? ""}
                     </span>

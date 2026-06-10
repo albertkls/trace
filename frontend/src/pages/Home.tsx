@@ -48,8 +48,7 @@ export default function Home() {
     .sort((a, b) => {
       const rank = { blocked: 0, quiet: 1, reporting: 2, active: 3, healthy: 4 };
       return (
-        rank[a.health?.health_status ?? "healthy"] -
-        rank[b.health?.health_status ?? "healthy"]
+        rank[a.health?.health_status ?? "healthy"] - rank[b.health?.health_status ?? "healthy"]
       );
     })
     .slice(0, 3);
@@ -97,9 +96,7 @@ export default function Home() {
         <div>
           <div className="flex items-center gap-2.5">
             <span className="dot-pulse" />
-            <span className="eyebrow">
-              TODAY · {weekLabel}
-            </span>
+            <span className="eyebrow">TODAY · {weekLabel}</span>
           </div>
           <h1 className="mt-4 font-display text-[44px] font-semibold leading-none tracking-tight">
             今日
@@ -207,18 +204,13 @@ export default function Home() {
                 {yesterday.todo_done_count > 0 && ` · ${yesterday.todo_done_count} 项完成`}
               </span>
             </div>
-            <Link
-              to="/timeline"
-              className="text-xs text-accent transition hover:brightness-125"
-            >
+            <Link to="/timeline" className="text-xs text-accent transition hover:brightness-125">
               时间线 →
             </Link>
           </div>
 
           {yesterday.capture_count === 0 && yesterday.todo_done_count === 0 ? (
-            <div className="px-5 py-6 text-center text-sm text-ink-mute">
-              昨天没有活动记录。
-            </div>
+            <div className="px-5 py-6 text-center text-sm text-ink-mute">昨天没有活动记录。</div>
           ) : (
             <ul>
               {/* Evidence items */}
@@ -261,9 +253,7 @@ export default function Home() {
                       {todoPreview(td.text)}
                     </p>
                     {td.thread_title && (
-                      <div className="mt-0.5 text-[11px] text-ink-mute">
-                        {td.thread_title}
-                      </div>
+                      <div className="mt-0.5 text-[11px] text-ink-mute">{td.thread_title}</div>
                     )}
                   </div>
                   <span className="mono-meta shrink-0 text-[10px]">
@@ -283,10 +273,7 @@ export default function Home() {
             <span className="eyebrow">THREADS · ACTIVITY</span>
             <span className="chip">{threads.length}</span>
           </div>
-          <Link
-            to="/threads"
-            className="text-xs text-accent transition hover:brightness-125"
-          >
+          <Link to="/threads" className="text-xs text-accent transition hover:brightness-125">
             查看全部 →
           </Link>
         </div>
@@ -302,10 +289,7 @@ export default function Home() {
         ) : (
           <ul>
             {threads.map((t) => {
-              const pct = Math.max(
-                4,
-                Math.min(100, ((t.evidence_count ?? 0) / maxEv) * 100)
-              );
+              const pct = Math.max(4, Math.min(100, ((t.evidence_count ?? 0) / maxEv) * 100));
               return (
                 <li key={t.id}>
                   <Link
@@ -318,18 +302,14 @@ export default function Home() {
                         <span className="truncate text-[15px] font-medium text-ink transition group-hover:text-accent">
                           {t.title}
                         </span>
-                        {t.pinned && (
-                          <span className="chip chip-accent">置顶</span>
-                        )}
+                        {t.pinned && <span className="chip chip-accent">置顶</span>}
                       </div>
                       <div className="mt-2 flex items-center gap-3">
                         <div className="relative h-1.5 flex-1 overflow-hidden rounded-pill bg-canvas-sunken">
                           <div
                             className={clsx(
                               "h-full rounded-pill transition-all duration-500",
-                              t.status === "blocked"
-                                ? "bg-signal-stop"
-                                : "bg-accent"
+                              t.status === "blocked" ? "bg-signal-stop" : "bg-accent"
                             )}
                             style={{
                               width: `${pct}%`,

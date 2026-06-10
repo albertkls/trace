@@ -2,16 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import clsx from "clsx";
+import DateTimeField from "@/components/DateTimeField";
 import { api } from "@/lib/api";
-import {
-  formatDateTime,
-  toDateTimeInputValue,
-} from "@/lib/periods";
-import {
-  sanitizeTodoHtml,
-  todoPreview,
-  todoRichTextToPlainText,
-} from "@/lib/richText";
+import { formatDateTime } from "@/lib/periods";
+import { sanitizeTodoHtml, todoPreview, todoRichTextToPlainText } from "@/lib/richText";
 import type { Thread, Todo, TodoPatch } from "@/lib/types";
 import { TodoListSkeleton } from "@/components/Skeleton";
 
@@ -56,9 +50,7 @@ export default function Todos() {
         <h1 className="mt-2 font-display text-[32px] font-semibold leading-none tracking-tight">
           待办
         </h1>
-        <p className="mt-2 text-sm text-ink-soft">
-          轻量清单，每条可挂到对应的工作线。
-        </p>
+        <p className="mt-2 text-sm text-ink-soft">轻量清单，每条可挂到对应的工作线。</p>
       </header>
 
       <QuickAdd
@@ -149,15 +141,16 @@ function QuickAdd({
         />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <label className="chip cursor-pointer">
+        <div className="chip">
           <span className="mono-meta">截止</span>
-          <input
-            type="datetime-local"
+          <DateTimeField
             value={due}
-            onChange={(e) => setDue(e.target.value)}
-            className="bg-transparent font-mono text-[11px] text-ink outline-none"
+            onChange={(next) => setDue(next ?? "")}
+            className="min-w-[8.5rem]"
+            buttonClassName="border-0 bg-transparent px-0 py-0 font-mono text-[11px] shadow-none hover:border-transparent"
+            popoverClassName="-left-16"
           />
-        </label>
+        </div>
         <label className="chip cursor-pointer">
           <span className="mono-meta">线程</span>
           <select
@@ -214,18 +207,11 @@ function TodoList({
         <span className="chip">{String(count).padStart(2, "0")}</span>
       </h2>
       {items.length === 0 && empty ? (
-        <div className="panel p-5 text-center text-sm text-ink-mute">
-          {empty}
-        </div>
+        <div className="panel p-5 text-center text-sm text-ink-mute">{empty}</div>
       ) : (
         <ul className={clsx("space-y-2", muted && "opacity-65")}>
           {items.map((t) => (
-            <TodoRow
-              key={t.id}
-              todo={t}
-              threads={threads}
-              onChanged={onChanged}
-            />
+            <TodoRow key={t.id} todo={t} threads={threads} onChanged={onChanged} />
           ))}
         </ul>
       )}
@@ -278,10 +264,7 @@ function TodoRow({
     if (next !== sanitizeTodoHtml(todo.text)) patch.mutate({ text: next });
   };
 
-  const overdue =
-    !todo.done &&
-    todo.due_date &&
-    Date.parse(todo.due_date) < Date.now();
+  const overdue = !todo.done && todo.due_date && Date.parse(todo.due_date) < Date.now();
 
   return (
     <li className="panel group flex items-start gap-3 p-3">
@@ -294,11 +277,7 @@ function TodoRow({
             ? "border-accent bg-accent text-accent-ink"
             : "border-line bg-canvas-sunken hover:border-accent"
         )}
-        style={
-          todo.done
-            ? { boxShadow: "0 0 10px rgba(94,230,197,0.35)" }
-            : undefined
-        }
+        style={todo.done ? { boxShadow: "0 0 10px rgba(94,230,197,0.35)" } : undefined}
       >
         {todo.done ? "✓" : ""}
       </button>
@@ -350,8 +329,7 @@ function TodoRow({
               )}
               title={todoPreview(todo.text)}
               dangerouslySetInnerHTML={{ __html: sanitizeTodoHtml(todo.text) }}
-            >
-            </div>
+            ></div>
             <button
               className="flex-shrink-0 rounded px-1 py-0.5 text-[11px] text-ink-faint opacity-70 transition hover:bg-canvas-contrast hover:text-ink"
               title="编辑"
@@ -371,18 +349,14 @@ function TodoRow({
             value={todo.due_date}
             overdue={!!overdue}
             onChange={(v) =>
-              v
-                ? patch.mutate({ due_date: v })
-                : patch.mutate({ clear_due_date: true })
+              v ? patch.mutate({ due_date: v }) : patch.mutate({ clear_due_date: true })
             }
           />
           <ThreadSelect
             value={todo.thread_id}
             threads={threads}
             onChange={(v) =>
-              v
-                ? patch.mutate({ thread_id: v })
-                : patch.mutate({ clear_thread: true })
+              v ? patch.mutate({ thread_id: v }) : patch.mutate({ clear_thread: true })
             }
           />
           {todo.thread_id && todo.thread_title && (
@@ -466,7 +440,11 @@ function RichTextComposer({
         <EditorButton label="U" title="下划线" onClick={() => runCommand("underline")} />
         <EditorButton label="S" title="删除线" onClick={() => runCommand("strikeThrough")} />
         <span className="mx-1 h-4 w-px bg-line" />
-        <EditorButton label="•" title="无序列表" onClick={() => runCommand("insertUnorderedList")} />
+        <EditorButton
+          label="•"
+          title="无序列表"
+          onClick={() => runCommand("insertUnorderedList")}
+        />
         <EditorButton label="1." title="有序列表" onClick={() => runCommand("insertOrderedList")} />
         <span className="ml-auto mono-meta">⌘ Enter 保存</span>
       </div>
@@ -529,33 +507,16 @@ function DueDateChip({
   onChange: (v: string | null) => void;
 }) {
   return (
-    <label
-      className={clsx(
-        "chip cursor-pointer",
-        overdue && "chip-stop"
-      )}
-    >
+    <div className={clsx("chip", overdue && "chip-stop")}>
       <span className="font-mono text-[10px]">DUE</span>
-      <input
-        type="datetime-local"
-        className="min-w-0 bg-transparent font-mono text-[11px] text-ink outline-none"
-        value={toDateTimeInputValue(value)}
-        onChange={(e) => onChange(e.target.value || null)}
+      <DateTimeField
+        value={value}
+        onChange={onChange}
+        className="min-w-[8.5rem]"
+        buttonClassName="border-0 bg-transparent px-0 py-0 font-mono text-[11px] shadow-none hover:border-transparent"
+        popoverClassName="-left-16"
       />
-      {value && (
-        <button
-          type="button"
-          className="rounded px-1 text-[11px] text-ink-faint transition hover:bg-canvas-contrast hover:text-ink"
-          onClick={(e) => {
-            e.preventDefault();
-            onChange(null);
-          }}
-          title="清除截止时间"
-        >
-          ×
-        </button>
-      )}
-    </label>
+    </div>
   );
 }
 

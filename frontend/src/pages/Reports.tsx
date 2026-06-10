@@ -40,9 +40,7 @@ export default function Reports() {
           <h1 className="mt-2 font-display text-[32px] font-semibold leading-none tracking-tight">
             汇报
           </h1>
-          <p className="mt-2 text-sm text-ink-soft">
-            从工作线里织一段故事，交给需要它的人。
-          </p>
+          <p className="mt-2 text-sm text-ink-soft">从工作线里织一段故事，交给需要它的人。</p>
         </div>
         <button className="btn btn-accent" onClick={() => setOpen(true)}>
           ＋ 新建周期报告
@@ -68,9 +66,7 @@ export default function Reports() {
       </div>
 
       {isLoading ? (
-        <div className="panel p-12 text-center text-sm text-ink-mute">
-          加载中…
-        </div>
+        <div className="panel p-12 text-center text-sm text-ink-mute">加载中…</div>
       ) : reports.length === 0 ? (
         <div className="panel p-12 text-center">
           <div className="mb-3 text-sm text-ink-soft">还没有报告。</div>
@@ -93,18 +89,11 @@ export default function Reports() {
                   <span className="font-mono text-[13px] font-semibold tracking-tight text-ink-soft group-hover:text-accent">
                     {r.period_label}
                   </span>
-                  <span
-                    className={clsx(
-                      "chip",
-                      STATUS_CHIP[r.status] || ""
-                    )}
-                  >
+                  <span className={clsx("chip", STATUS_CHIP[r.status] || "")}>
                     {STATUS_LABEL[r.status] ?? r.status}
                   </span>
                 </div>
-                <div className="mt-3 text-[15px] font-medium text-ink">
-                  {r.title}
-                </div>
+                <div className="mt-3 text-[15px] font-medium text-ink">{r.title}</div>
                 {r.project_name && (
                   <div className="mt-2">
                     <span className="chip">{r.project_name}</span>
@@ -115,10 +104,7 @@ export default function Reports() {
                     {r.period_start} → {r.period_end}
                   </span>
                   <span className="opacity-50">·</span>
-                  <span>
-                    {AUDIENCE_LABEL[r.audience as ReportAudience] ??
-                      r.audience}
-                  </span>
+                  <span>{AUDIENCE_LABEL[r.audience as ReportAudience] ?? r.audience}</span>
                 </div>
               </Link>
             </li>

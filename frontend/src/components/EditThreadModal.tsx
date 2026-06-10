@@ -5,12 +5,7 @@ import Modal from "@/components/Modal";
 import ProjectModal from "@/components/ProjectModal";
 import ProjectSelect from "@/components/ProjectSelect";
 import { toISODate } from "@/lib/periods";
-import type {
-  Project,
-  ThreadDetail,
-  ThreadPatchInput,
-  ThreadStatus,
-} from "@/lib/types";
+import type { Project, ThreadDetail, ThreadPatchInput, ThreadStatus } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -101,11 +96,7 @@ export default function EditThreadModal({ open, onClose, onDeleted, thread }: Pr
   });
 
   const futureStartedAt = !!startedAt && startedAt > today;
-  const canSubmit =
-    title.trim().length > 0 &&
-    !!startedAt &&
-    !futureStartedAt &&
-    !save.isPending;
+  const canSubmit = title.trim().length > 0 && !!startedAt && !futureStartedAt && !save.isPending;
 
   return (
     <Modal
@@ -201,9 +192,7 @@ export default function EditThreadModal({ open, onClose, onDeleted, thread }: Pr
           />
           <div>
             <div className="text-sm font-medium text-ink">置顶线程</div>
-            <div className="mt-1 text-xs text-ink-mute">
-              置顶后会在列表和首页优先展示。
-            </div>
+            <div className="mt-1 text-xs text-ink-mute">置顶后会在列表和首页优先展示。</div>
           </div>
         </label>
 
@@ -251,18 +240,10 @@ export default function EditThreadModal({ open, onClose, onDeleted, thread }: Pr
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              className="btn btn-ghost"
-              onClick={onClose}
-              disabled={save.isPending}
-            >
+            <button className="btn btn-ghost" onClick={onClose} disabled={save.isPending}>
               取消
             </button>
-            <button
-              className="btn btn-accent"
-              onClick={() => save.mutate()}
-              disabled={!canSubmit}
-            >
+            <button className="btn btn-accent" onClick={() => save.mutate()} disabled={!canSubmit}>
               {save.isPending ? "保存中…" : "保存修改"}
             </button>
           </div>

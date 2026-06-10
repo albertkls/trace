@@ -4,6 +4,7 @@ import clsx from "clsx";
 import CategoryChoiceChips from "@/components/CategoryChoiceChips";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import AttachmentPanel from "@/components/AttachmentPanel";
+import DateTimeField from "@/components/DateTimeField";
 import ProjectSelect from "@/components/ProjectSelect";
 import { api } from "@/lib/api";
 import type { Category, InboxItem, Project, Thread } from "@/lib/types";
@@ -54,9 +55,7 @@ export default function Inbox() {
   };
   const toggleSelected = (id: string) => {
     setSelectedIds((current) =>
-      current.includes(id)
-        ? current.filter((itemId) => itemId !== id)
-        : [...current, id]
+      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]
     );
   };
   const clearSelection = () => setSelectedIds([]);
@@ -65,9 +64,7 @@ export default function Inbox() {
   };
   const toggleGroup = (key: string) => {
     setCollapsedGroups((current) =>
-      current.includes(key)
-        ? current.filter((item) => item !== key)
-        : [...current, key]
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
     );
   };
   const onBatchDone = () => {
@@ -114,8 +111,7 @@ export default function Inbox() {
             <span className="mono-meta">INBOX ZERO</span>
           </div>
           <div className="text-sm text-ink-soft">
-            空如新纸。按{" "}
-            <span className="kbd">⌘⇧N</span> 写下第一笔。
+            空如新纸。按 <span className="kbd">⌘⇧N</span> 写下第一笔。
           </div>
         </div>
       ) : (
@@ -208,8 +204,7 @@ function BatchToolbar({
     : threads;
   const selectedCount = selectedIds.length;
   const batch = useMutation({
-    mutationFn: (body: Parameters<typeof api.captures.batch>[0]) =>
-      api.captures.batch(body),
+    mutationFn: (body: Parameters<typeof api.captures.batch>[0]) => api.captures.batch(body),
     onSuccess: () => {
       setError(null);
       setThreadId("");
@@ -290,12 +285,14 @@ function BatchToolbar({
         >
           批量改分类
         </button>
-        <input
-          type="datetime-local"
+        <DateTimeField
           value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          className="input !w-auto !py-2 text-xs"
+          onChange={(next) => setDueDate(next ?? "")}
           disabled={disabled}
+          className="w-52"
+          buttonClassName="!py-2 text-xs"
+          popoverClassName="-left-36"
+          placeholder="截止时间"
         />
         <button
           className="btn btn-ghost text-xs"
@@ -357,18 +354,28 @@ function InboxCard({
   const update = useMutation({
     mutationFn: (patch: Parameters<typeof api.captures.update>[1]) =>
       api.captures.update(item.id, patch),
-    onSuccess: () => { setError(null); onChanged(); },
+    onSuccess: () => {
+      setError(null);
+      onChanged();
+    },
     onError: onMutError,
   });
   const remove = useMutation({
     mutationFn: () => api.captures.remove(item.id),
-    onSuccess: () => { setError(null); onChanged(); },
+    onSuccess: () => {
+      setError(null);
+      onChanged();
+    },
     onError: onMutError,
   });
   const promote = useMutation({
     mutationFn: (body: { text?: string; due_date?: string | null } = {}) =>
       api.captures.promoteToTodo(item.id, body),
-    onSuccess: () => { setError(null); setPromoted(true); onChanged(); },
+    onSuccess: () => {
+      setError(null);
+      setPromoted(true);
+      onChanged();
+    },
     onError: onMutError,
   });
   const revealSource = useMutation({
@@ -379,7 +386,10 @@ function InboxCard({
   const createThread = useMutation({
     mutationFn: ({ title, projectId }: { title: string; projectId?: string }) =>
       api.threads.create({ title, project_id: projectId || null, adopt_evidence_id: item.id }),
-    onSuccess: () => { setError(null); onChanged(); },
+    onSuccess: () => {
+      setError(null);
+      onChanged();
+    },
     onError: onMutError,
   });
 
@@ -403,12 +413,8 @@ function InboxCard({
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <CategoryChip category={item.category} />
-            <span className="mono-meta">
-              {item.event_date ?? "未定日期"}
-            </span>
-            {item.source_title && (
-              <span className="chip">{item.source_title}</span>
-            )}
+            <span className="mono-meta">{item.event_date ?? "未定日期"}</span>
+            {item.source_title && <span className="chip">{item.source_title}</span>}
             {item.source_file_path && (
               <button
                 className="chip hover:border-accent/50 hover:text-accent"
@@ -450,17 +456,11 @@ function InboxCard({
         </div>
 
         <div className="relative flex flex-col items-end gap-1.5">
-          <button
-            className="btn btn-ghost text-xs"
-            onClick={() => setPickerOpen((v) => !v)}
-          >
+          <button className="btn btn-ghost text-xs" onClick={() => setPickerOpen((v) => !v)}>
             归入线程 ▾
           </button>
           <button
-            className={clsx(
-              "btn text-xs",
-              promoted ? "btn-accent" : "btn-ghost"
-            )}
+            className={clsx("btn text-xs", promoted ? "btn-accent" : "btn-ghost")}
             onClick={() => !promoted && setPromoteOpen(true)}
             disabled={promote.isPending || promoted}
           >
@@ -521,7 +521,9 @@ function PromoteDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[12vh] backdrop-blur-sm"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="panel w-full max-w-md p-5">
         <div className="mb-3 flex items-center gap-2">
@@ -538,17 +540,20 @@ function PromoteDialog({
             if (e.key === "Escape") onClose();
           }}
         />
-        <label className="chip mb-4 inline-flex cursor-pointer items-center gap-2">
+        <div className="chip mb-4 inline-flex items-center gap-2">
           <span className="mono-meta">截止时间</span>
-          <input
-            type="datetime-local"
+          <DateTimeField
             value={due}
-            onChange={(e) => setDue(e.target.value)}
-            className="bg-transparent font-mono text-[11px] text-ink outline-none"
+            onChange={(next) => setDue(next ?? "")}
+            className="min-w-[8.5rem]"
+            buttonClassName="border-0 bg-transparent px-0 py-0 font-mono text-[11px] shadow-none hover:border-transparent"
+            popoverClassName="-left-20"
           />
-        </label>
+        </div>
         <div className="flex items-center justify-end gap-2">
-          <button className="btn btn-ghost" onClick={onClose}>取消</button>
+          <button className="btn btn-ghost" onClick={onClose}>
+            取消
+          </button>
           <button
             className="btn btn-accent"
             disabled={!text.trim()}
@@ -581,9 +586,7 @@ function ThreadPicker({
     ? threads.filter((thread) => thread.project_id === projectId)
     : threads;
   const filtered = q
-    ? scopedThreads.filter((t) =>
-        t.title.toLowerCase().includes(q.toLowerCase())
-      )
+    ? scopedThreads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()))
     : scopedThreads;
   return (
     <div className="panel absolute right-0 top-9 z-30 w-72 p-2">

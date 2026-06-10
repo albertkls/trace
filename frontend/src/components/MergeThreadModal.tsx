@@ -36,11 +36,7 @@ export default function MergeThreadModal({
   const merge = useMutation({
     mutationFn: async () => {
       if (!targetId) throw new Error("请选择目标线程");
-      await Promise.all(
-        evidence.map((ev) =>
-          api.captures.update(ev.id, { thread_id: targetId })
-        )
-      );
+      await Promise.all(evidence.map((ev) => api.captures.update(ev.id, { thread_id: targetId })));
       await api.threads.patch(sourceThreadId, { status: "archived" });
     },
     onSuccess: () => {
@@ -77,19 +73,14 @@ export default function MergeThreadModal({
 
         <div className="px-5 pb-5 pt-4">
           <p className="mb-1 text-sm text-ink">
-            将{" "}
-            <span className="font-medium text-accent">「{sourceTitle}」</span>{" "}
-            的 <span className="font-medium">{evidence.length} 条证据</span>
+            将 <span className="font-medium text-accent">「{sourceTitle}」</span> 的{" "}
+            <span className="font-medium">{evidence.length} 条证据</span>
             合并到另一线程，并归档当前线程。
           </p>
-          <p className="mb-4 text-xs text-ink-mute">
-            此操作不可撤销，请确认后执行。
-          </p>
+          <p className="mb-4 text-xs text-ink-mute">此操作不可撤销，请确认后执行。</p>
 
           {otherThreads.length === 0 ? (
-            <div className="py-6 text-center text-sm text-ink-mute">
-              暂无其他线程可合并。
-            </div>
+            <div className="py-6 text-center text-sm text-ink-mute">暂无其他线程可合并。</div>
           ) : (
             <ul className="max-h-64 space-y-1 overflow-y-auto">
               {otherThreads.map((t) => (
@@ -105,11 +96,7 @@ export default function MergeThreadModal({
                     )}
                   >
                     <div className="font-medium">{t.title}</div>
-                    {t.project && (
-                      <div className="mt-0.5 text-xs text-ink-mute">
-                        {t.project}
-                      </div>
-                    )}
+                    {t.project && <div className="mt-0.5 text-xs text-ink-mute">{t.project}</div>}
                   </button>
                 </li>
               ))}
@@ -123,18 +110,10 @@ export default function MergeThreadModal({
           )}
 
           <div className="mt-4 flex items-center justify-end gap-2">
-            <button
-              className="btn btn-ghost"
-              onClick={onClose}
-              disabled={merge.isPending}
-            >
+            <button className="btn btn-ghost" onClick={onClose} disabled={merge.isPending}>
               取消
             </button>
-            <button
-              className="btn btn-accent"
-              onClick={() => merge.mutate()}
-              disabled={!canSubmit}
-            >
+            <button className="btn btn-accent" onClick={() => merge.mutate()} disabled={!canSubmit}>
               {merge.isPending ? "合并中…" : "确认合并"}
             </button>
           </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
@@ -15,11 +15,18 @@ import {
   CATEGORY_OPTIONS,
   CATEGORY_TIMELINE_MARKER_STYLE,
 } from "@/lib/categories";
+import { parseDateTime } from "@/lib/periods";
 import { todoPreview } from "@/lib/richText";
 import type { Category, Evidence } from "@/lib/types";
 
 const TIMELINE_MARKER_SHADOW =
   "inset 0 0 8px rgba(255,255,255,0.04), 0 0 10px rgba(94,230,197,0.08)";
+
+type TimelineSort = "latest" | "earliest";
+
+function evidenceTime(evidence: Evidence): number {
+  return parseDateTime(evidence.event_date)?.getTime() ?? Number.NEGATIVE_INFINITY;
+}
 
 export default function ThreadDetail() {
   const { id = "" } = useParams();
@@ -31,12 +38,30 @@ export default function ThreadDetail() {
   const [reportOpen, setReportOpen] = useState(false);
   const [editingEvidence, setEditingEvidence] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [timelineSort, setTimelineSort] = useState<TimelineSort>("latest");
 
   const { data: thread, isLoading } = useQuery({
     queryKey: ["thread", id],
     queryFn: () => api.threads.get(id),
     enabled: !!id,
   });
+
+  const sortedEvidence = useMemo(
+    () =>
+      thread
+        ? [...thread.evidence].sort((a, b) => {
+            const byTime =
+              timelineSort === "latest"
+                ? evidenceTime(b) - evidenceTime(a)
+                : evidenceTime(a) - evidenceTime(b);
+            if (byTime !== 0) return byTime;
+            return timelineSort === "latest"
+              ? b.id.localeCompare(a.id)
+              : a.id.localeCompare(b.id);
+          })
+        : [],
+    [thread, timelineSort]
+  );
 
   const summarize = useMutation({
     mutationFn: () => api.threads.summarize(id),
@@ -155,8 +180,36 @@ export default function ThreadDetail() {
 
       <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-8">
         <section>
-          <div className="mb-4 flex items-baseline justify-between">
-            <span className="eyebrow">TIMELINE</span>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="eyebrow">TIMELINE</span>
+              <div className="inline-flex rounded-lg border border-line bg-canvas-sunken/60 p-0.5">
+                <button
+                  type="button"
+                  className={clsx(
+                    "rounded-md px-2.5 py-1 text-xs transition",
+                    timelineSort === "latest"
+                      ? "bg-accent text-accent-ink"
+                      : "text-ink-mute hover:text-ink"
+                  )}
+                  onClick={() => setTimelineSort("latest")}
+                >
+                  最新在上
+                </button>
+                <button
+                  type="button"
+                  className={clsx(
+                    "rounded-md px-2.5 py-1 text-xs transition",
+                    timelineSort === "earliest"
+                      ? "bg-accent text-accent-ink"
+                      : "text-ink-mute hover:text-ink"
+                  )}
+                  onClick={() => setTimelineSort("earliest")}
+                >
+                  最早在上
+                </button>
+              </div>
+            </div>
             <button
               className="text-xs text-accent transition hover:brightness-125"
               onClick={() => setAddRecordOpen(true)}
@@ -166,7 +219,7 @@ export default function ThreadDetail() {
           </div>
 
           <ol className="relative space-y-5 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-accent/40 before:via-line-strong before:to-transparent">
-            {thread.evidence.map((ev, idx) => (
+            {sortedEvidence.map((ev, idx) => (
               <EvidenceTimelineItem
                 key={ev.id}
                 evidence={ev}

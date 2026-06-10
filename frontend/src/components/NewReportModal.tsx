@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import DateTimeField from "@/components/DateTimeField";
 import ProjectSelect from "@/components/ProjectSelect";
 import ThreadMultiSelectChips from "@/components/ThreadMultiSelectChips";
 import { api } from "@/lib/api";
@@ -10,7 +11,6 @@ import {
   PRESETS,
   REPORT_TEMPLATES,
   toISODateTimeMinute,
-  toDateTimeInputValue,
 } from "@/lib/periods";
 
 type Props = {
@@ -20,12 +20,7 @@ type Props = {
   onCreated?: (r: Report) => void;
 };
 
-export default function NewReportModal({
-  open,
-  onClose,
-  defaultProjectId,
-  onCreated,
-}: Props) {
+export default function NewReportModal({ open, onClose, defaultProjectId, onCreated }: Props) {
   const qc = useQueryClient();
   const [presetKey, setPresetKey] = useState<string>("this_week");
   const [start, setStart] = useState("");
@@ -49,10 +44,7 @@ export default function NewReportModal({
     enabled: open,
   });
 
-  const preset = useMemo(
-    () => PRESETS.find((p) => p.key === presetKey) ?? PRESETS[0],
-    [presetKey]
-  );
+  const preset = useMemo(() => PRESETS.find((p) => p.key === presetKey) ?? PRESETS[0], [presetKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,14 +114,14 @@ export default function NewReportModal({
   }, [open, selectedProjectId, selectedTemplate]);
 
   const toggleThread = (id: string) => {
-    setSelectedThreads(prev =>
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    setSelectedThreads((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
   };
 
   const create = useMutation({
     mutationFn: () => {
-      const template = REPORT_TEMPLATES.find(t => t.key === selectedTemplate);
+      const template = REPORT_TEMPLATES.find((t) => t.key === selectedTemplate);
       return api.reports.create({
         period_start: start,
         period_end: end,
@@ -184,15 +176,11 @@ export default function NewReportModal({
         <div className="flex items-center gap-3 border-b border-line bg-canvas-sunken/70 px-5 py-2.5">
           <span className="dot-pulse" />
           <span className="eyebrow">NEW REPORT</span>
-          <span className="mono-meta ml-1 text-ink-faint">
-            /reports → draft
-          </span>
+          <span className="mono-meta ml-1 text-ink-faint">/reports → draft</span>
         </div>
 
         <div className="px-5 pb-5 pt-4">
-          <p className="mb-4 text-xs text-ink-mute">
-            先选周期与视角，正文可稍后由 AI 生成。
-          </p>
+          <p className="mb-4 text-xs text-ink-mute">先选周期与视角，正文可稍后由 AI 生成。</p>
 
           <div className="mb-4">
             <div className="mb-1.5 eyebrow">周期</div>
@@ -202,10 +190,7 @@ export default function NewReportModal({
                   key={p.key}
                   type="button"
                   onClick={() => setPresetKey(p.key)}
-                  className={clsx(
-                    "chip cursor-pointer",
-                    presetKey === p.key && "chip-accent"
-                  )}
+                  className={clsx("chip cursor-pointer", presetKey === p.key && "chip-accent")}
                 >
                   {p.label}
                 </button>
@@ -214,33 +199,32 @@ export default function NewReportModal({
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="mono-meta">开始</span>
-                <input
-                  type="datetime-local"
-                  value={toDateTimeInputValue(start)}
-                  onChange={(e) => {
-                    setStart(e.target.value);
+                <DateTimeField
+                  value={start}
+                  onChange={(next) => {
+                    setStart(next ?? "");
                     setPresetKey("custom");
                   }}
-                  className="input mt-1 !py-1.5 font-mono"
+                  className="mt-1 w-full"
+                  buttonClassName="font-mono"
                 />
               </label>
               <label className="block">
                 <span className="mono-meta">结束</span>
-                <input
-                  type="datetime-local"
-                  value={toDateTimeInputValue(end)}
-                  onChange={(e) => {
-                    setEnd(e.target.value);
+                <DateTimeField
+                  value={end}
+                  onChange={(next) => {
+                    setEnd(next ?? "");
                     setPresetKey("custom");
                   }}
-                  className="input mt-1 !py-1.5 font-mono"
+                  className="mt-1 w-full"
+                  buttonClassName="font-mono"
+                  popoverClassName="right-0 left-auto"
                 />
               </label>
             </div>
             {start && end && start > end && (
-              <div className="mt-2 text-xs text-signal-stop">
-                开始日期不能晚于结束日期
-              </div>
+              <div className="mt-2 text-xs text-signal-stop">开始日期不能晚于结束日期</div>
             )}
           </div>
 
@@ -252,10 +236,7 @@ export default function NewReportModal({
                   key={o.value}
                   type="button"
                   onClick={() => setAudience(o.value)}
-                  className={clsx(
-                    "chip cursor-pointer",
-                    audience === o.value && "chip-accent"
-                  )}
+                  className={clsx("chip cursor-pointer", audience === o.value && "chip-accent")}
                   title={o.hint}
                 >
                   {o.label}
@@ -339,11 +320,7 @@ export default function NewReportModal({
           )}
 
           <div className="flex items-center justify-end gap-2">
-            <button
-              className="btn btn-ghost"
-              onClick={onClose}
-              disabled={create.isPending}
-            >
+            <button className="btn btn-ghost" onClick={onClose} disabled={create.isPending}>
               取消（Esc）
             </button>
             <button

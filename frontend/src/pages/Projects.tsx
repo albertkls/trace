@@ -30,10 +30,7 @@ export default function Projects() {
   });
 
   const visibleProjects = useMemo(
-    () =>
-      filter === "all"
-        ? projects
-        : projects.filter((project) => project.status === filter),
+    () => (filter === "all" ? projects : projects.filter((project) => project.status === filter)),
     [filter, projects]
   );
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import CategoryChoiceChips from "@/components/CategoryChoiceChips";
+import DateTimeField from "@/components/DateTimeField";
 import ProjectSelect from "@/components/ProjectSelect";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
 import { api } from "@/lib/api";
@@ -9,10 +10,7 @@ import { recommendProjects } from "@/lib/projectRecommendations";
 import type { Category, CaptureInput, Project, Thread } from "@/lib/types";
 import { toISODateTimeMinute } from "@/lib/periods";
 
-type ThreadChoice =
-  | { kind: "inbox" }
-  | { kind: "existing"; id: string }
-  | { kind: "new" };
+type ThreadChoice = { kind: "inbox" } | { kind: "existing"; id: string } | { kind: "new" };
 
 /**
  * Parse inline tags from capture text.
@@ -305,7 +303,7 @@ export default function QuickCapture({
       }}
     >
       <div
-        className="panel w-full max-w-xl overflow-hidden"
+        className="panel w-full max-w-xl"
         style={{
           boxShadow:
             "0 1px 0 rgba(255,255,255,0.05) inset, 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(94,230,197,0.08)",
@@ -316,9 +314,7 @@ export default function QuickCapture({
           <span className="dot-pulse" />
           <span className="eyebrow">QUICK CAPTURE</span>
           {saveCount > 0 && (
-            <span className="chip chip-accent animate-pulse">
-              已保存 {saveCount} 条
-            </span>
+            <span className="chip chip-accent animate-pulse">已保存 {saveCount} 条</span>
           )}
           <span className="mono-meta ml-1 text-ink-faint">
             {expanded ? "⌘↵ 保存 · ⇧↵ 收起" : "↵ 保存 · ⇧↵ 换行"}
@@ -397,11 +393,12 @@ export default function QuickCapture({
             </div>
             <div>
               <div className="mb-1.5 eyebrow">时间</div>
-              <input
-                type="datetime-local"
+              <DateTimeField
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-lg border border-line bg-canvas-sunken/70 px-3 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent/60 focus:bg-canvas-raised"
+                onChange={(next) => setDate(next ?? "")}
+                className="w-60"
+                buttonClassName="font-mono text-xs"
+                popoverClassName="-right-1 left-auto"
               />
             </div>
           </div>
@@ -440,20 +437,14 @@ export default function QuickCapture({
                   setChoice({ kind: "inbox" });
                   setInlineThreadId(null);
                 }}
-                className={clsx(
-                  "chip cursor-pointer",
-                  choice.kind === "inbox" && "chip-accent"
-                )}
+                className={clsx("chip cursor-pointer", choice.kind === "inbox" && "chip-accent")}
               >
                 收件箱（稍后整理）
               </button>
               <button
                 type="button"
                 onClick={() => setChoice({ kind: "new" })}
-                className={clsx(
-                  "chip cursor-pointer",
-                  choice.kind === "new" && "chip-accent"
-                )}
+                className={clsx("chip cursor-pointer", choice.kind === "new" && "chip-accent")}
               >
                 ＋新建线程
               </button>
@@ -467,9 +458,7 @@ export default function QuickCapture({
                   }}
                   className={clsx(
                     "chip max-w-[220px] cursor-pointer truncate",
-                    choice.kind === "existing" &&
-                      choice.id === t.id &&
-                      "chip-accent"
+                    choice.kind === "existing" && choice.id === t.id && "chip-accent"
                   )}
                   title={t.title}
                 >
@@ -508,11 +497,7 @@ export default function QuickCapture({
                   : "用 #线程 @项目 快速归类"}
             </span>
             <div className="flex items-center gap-2">
-              <button
-                className="btn btn-ghost"
-                onClick={onClose}
-                disabled={save.isPending}
-              >
+              <button className="btn btn-ghost" onClick={onClose} disabled={save.isPending}>
                 {saveCount > 0 ? "完成" : "取消"}
               </button>
               <button

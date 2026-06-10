@@ -18,11 +18,11 @@ import type {
 import {
   AUDIENCE_LABEL,
   AUDIENCE_OPTIONS,
-  toDateTimeInputValue,
 } from "@/lib/periods";
 import { mdToHtmlDoc } from "@/lib/markdown";
 import { copyPlain, copyRich, downloadFile, safeFilename } from "@/lib/clipboard";
 import { CategoryChip } from "@/components/EvidenceChip";
+import DateTimeField from "@/components/DateTimeField";
 
 const REWRITE_LABEL: Record<RewriteOp, string> = {
   continue: "续写下周计划",
@@ -1467,23 +1467,24 @@ function PeriodEditor({
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="text-[11px] text-ink-mute">开始</span>
-          <input
-            type="datetime-local"
-            value={toDateTimeInputValue(start)}
-            onChange={(e) => {
-              setStart(e.target.value);
+          <DateTimeField
+            value={start}
+            onChange={(next) => {
+              setStart(next ?? "");
               if (labelAuto) setLabel(report.period_label);
             }}
-            className="mt-1 w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-1.5 text-sm outline-none focus:border-accent/60"
+            className="mt-1 w-full"
+            buttonClassName="text-sm"
           />
         </label>
         <label className="block">
           <span className="text-[11px] text-ink-mute">结束</span>
-          <input
-            type="datetime-local"
-            value={toDateTimeInputValue(end)}
-            onChange={(e) => setEnd(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-1.5 text-sm outline-none focus:border-accent/60"
+          <DateTimeField
+            value={end}
+            onChange={(next) => setEnd(next ?? "")}
+            className="mt-1 w-full"
+            buttonClassName="text-sm"
+            popoverClassName="right-0 left-auto"
           />
         </label>
       </div>

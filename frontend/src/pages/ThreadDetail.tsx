@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 import StatusDot from "@/components/StatusDot";
 import { CategoryChip } from "@/components/EvidenceChip";
+import DateTimeField from "@/components/DateTimeField";
 import QuickCapture from "@/components/QuickCapture";
 import EditThreadModal from "@/components/EditThreadModal";
 import MergeThreadModal from "@/components/MergeThreadModal";
@@ -342,11 +343,11 @@ function EvidenceEditor({
             </option>
           ))}
         </select>
-        <input
-          type="datetime-local"
+        <DateTimeField
           value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="flex-1 rounded-md border border-line bg-canvas-sunken/70 px-2 py-1 font-mono text-xs outline-none focus:border-accent/60"
+          onChange={(next) => setDate(next ?? "")}
+          className="flex-1"
+          buttonClassName="font-mono text-xs"
         />
       </div>
       <textarea

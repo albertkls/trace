@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useSearchParams } from "react-router-dom";
 import CategoryChoiceChips from "@/components/CategoryChoiceChips";
+import DateTimeField from "@/components/DateTimeField";
 import ProjectModal from "@/components/ProjectModal";
 import ProjectSelect from "@/components/ProjectSelect";
 import ProjectRecommendationBar from "@/components/ProjectRecommendationBar";
@@ -11,7 +12,7 @@ import { api } from "@/lib/api";
 import Skeleton from "@/components/Skeleton";
 import { recommendProjects } from "@/lib/projectRecommendations";
 import type { Note, NotePatch, Thread, Category, Project } from "@/lib/types";
-import { dateKey, formatDateTime, toDateTimeInputValue } from "@/lib/periods";
+import { dateKey, formatDateTime } from "@/lib/periods";
 
 export default function Notes() {
   const qc = useQueryClient();
@@ -107,9 +108,7 @@ export default function Notes() {
           <h1 className="mt-2 font-display text-[32px] font-semibold leading-none tracking-tight">
             记事
           </h1>
-          <p className="mt-2 text-sm text-ink-soft">
-            轻量速记，可随时晋升为证据或挂到线程。
-          </p>
+          <p className="mt-2 text-sm text-ink-soft">轻量速记，可随时晋升为证据或挂到线程。</p>
         </div>
         <button
           className="btn btn-accent"
@@ -163,9 +162,7 @@ export default function Notes() {
                     {formatDateTime(day, { includeTime: false, withYear: false })}
                   </span>
                   <span className="h-px flex-1 bg-line" />
-                  <span className="mono-meta text-[10px]">
-                    {dayNotes.length}
-                  </span>
+                  <span className="mono-meta text-[10px]">{dayNotes.length}</span>
                 </div>
                 <ul>
                   {dayNotes.map((n) => (
@@ -185,7 +182,9 @@ export default function Notes() {
                             : "text-ink-soft hover:bg-canvas-contrast hover:text-ink"
                         )}
                       >
-                        <div className="truncate">{n.title.trim() || preview(n.body_md) || "未命名"}</div>
+                        <div className="truncate">
+                          {n.title.trim() || preview(n.body_md) || "未命名"}
+                        </div>
                         <div className="truncate text-[10px] text-ink-faint">
                           {n.day.slice(0, 10)}
                           {n.project_name ? ` · ${n.project_name}` : ""}
@@ -224,7 +223,11 @@ export default function Notes() {
 }
 
 function preview(md: string): string {
-  return md.replace(/[#*_`>-]/g, "").trim().split("\n")[0].slice(0, 40);
+  return md
+    .replace(/[#*_`>-]/g, "")
+    .trim()
+    .split("\n")[0]
+    .slice(0, 40);
 }
 
 function NoteEditor({
@@ -264,7 +267,15 @@ function NoteEditor({
     setPromoting(false);
     setPromoteCategory("progress");
     setPromoteThreadId(note.thread_ids?.[0] ?? "");
-  }, [note.id, note.title, note.body_md, note.day, note.project_id, note.thread_ids, projectFilter]);
+  }, [
+    note.id,
+    note.title,
+    note.body_md,
+    note.day,
+    note.project_id,
+    note.thread_ids,
+    projectFilter,
+  ]);
 
   const patch = useMutation({
     mutationFn: (p: NotePatch) => api.notes.patch(note.id, p),
@@ -328,9 +339,7 @@ function NoteEditor({
   }, [title, body, day, projectId, threadIds, dirty]);
 
   const toggleThread = (id: string) => {
-    setThreadIds(prev =>
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-    );
+    setThreadIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   };
 
   const selectedThreadObjects = useMemo(
@@ -381,11 +390,11 @@ function NoteEditor({
           placeholder="标题（可留空）"
           className="flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-display text-lg font-semibold text-ink outline-none hover:border-line focus:border-accent/60"
         />
-        <input
-          type="datetime-local"
-          value={toDateTimeInputValue(day)}
-          onChange={(e) => setDay(e.target.value)}
-          className="rounded-md border border-line bg-canvas-sunken/70 px-2 py-1 font-mono text-[11px] text-ink outline-none focus:border-accent/60"
+        <DateTimeField
+          value={day}
+          onChange={(next) => setDay(next ?? "")}
+          className="w-60"
+          buttonClassName="font-mono text-[11px]"
         />
         <button
           className="btn btn-ghost text-xs"
@@ -431,11 +440,7 @@ function NoteEditor({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-ink-mute">挂靠线程：</span>
-        <ThreadMultiSelectChips
-          threads={threads}
-          selectedIds={threadIds}
-          onToggle={toggleThread}
-        />
+        <ThreadMultiSelectChips threads={threads} selectedIds={threadIds} onToggle={toggleThread} />
       </div>
 
       {conflictingThreads.length > 0 && (
@@ -477,9 +482,7 @@ function NoteEditor({
           ) : (
             <>
               <span className="dot dot-mute" />
-              <span>
-                上次更新 {note.updated_at.slice(0, 16).replace("T", " ")}
-              </span>
+              <span>上次更新 {note.updated_at.slice(0, 16).replace("T", " ")}</span>
             </>
           )}
         </span>
@@ -502,12 +505,14 @@ function NoteEditor({
               <div className="mb-2 text-xs text-ink-mute">目标线程</div>
               <select
                 value={promoteThreadId}
-                onChange={e => setPromoteThreadId(e.target.value)}
+                onChange={(e) => setPromoteThreadId(e.target.value)}
                 className="w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm outline-none focus:border-accent/60"
               >
                 <option value="">收件箱（稍后整理）</option>
-                {threads.map(t => (
-                  <option key={t.id} value={t.id}>{t.title}</option>
+                {threads.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
                 ))}
               </select>
             </div>

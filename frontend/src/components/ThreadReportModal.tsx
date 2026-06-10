@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
+import DateTimeField from "@/components/DateTimeField";
 import { api } from "@/lib/api";
 import type { Report, ReportAudience, ThreadDetail } from "@/lib/types";
 import {
   AUDIENCE_OPTIONS,
   parseDateTime,
-  toDateTimeInputValue,
   toISODateTimeMinute,
 } from "@/lib/periods";
 
@@ -172,26 +172,27 @@ export default function ThreadReportModal({
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="mono-meta">开始</span>
-                <input
-                  type="datetime-local"
-                  value={toDateTimeInputValue(start)}
-                  onChange={(e) => {
+                <DateTimeField
+                  value={start}
+                  onChange={(next) => {
                     setPreset("custom");
-                    setStart(e.target.value);
+                    setStart(next ?? "");
                   }}
-                  className="input mt-1 !py-1.5 font-mono"
+                  className="mt-1 w-full"
+                  buttonClassName="font-mono"
                 />
               </label>
               <label className="block">
                 <span className="mono-meta">结束</span>
-                <input
-                  type="datetime-local"
-                  value={toDateTimeInputValue(end)}
-                  onChange={(e) => {
+                <DateTimeField
+                  value={end}
+                  onChange={(next) => {
                     setPreset("custom");
-                    setEnd(e.target.value);
+                    setEnd(next ?? "");
                   }}
-                  className="input mt-1 !py-1.5 font-mono"
+                  className="mt-1 w-full"
+                  buttonClassName="font-mono"
+                  popoverClassName="right-0 left-auto"
                 />
               </label>
             </div>

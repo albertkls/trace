@@ -482,3 +482,7 @@ export interface UpdateInfo {
 export interface ThemePreferenceResponse {
   preference: "dark" | "light" | "system";
 }
+
+export interface WindowClosePreferenceResponse {
+  action: "minimize" | "quit";
+}

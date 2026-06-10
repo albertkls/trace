@@ -40,6 +40,7 @@ import type {
   TodoInput,
   TodoPatch,
   UpdateInfo,
+  WindowClosePreferenceResponse,
   Workspace,
   WorkspaceInput,
 } from "./types";
@@ -114,6 +115,12 @@ export const api = {
       req<ThemePreferenceResponse>("/preferences/theme", {
         method: "PUT",
         body: JSON.stringify({ preference }),
+      }),
+    getWindowClose: () => req<WindowClosePreferenceResponse>("/preferences/window-close"),
+    setWindowClose: (action: WindowClosePreferenceResponse["action"]) =>
+      req<WindowClosePreferenceResponse>("/preferences/window-close", {
+        method: "PUT",
+        body: JSON.stringify({ action }),
       }),
   },
   projects: {

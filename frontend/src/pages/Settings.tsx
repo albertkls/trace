@@ -4,7 +4,15 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 import { APP_VERSION, isPywebviewDesktop } from "@/lib/appInfo";
 import { type ThemePreference, useThemePreference } from "@/lib/theme";
-import type { BackupInfo, LibraryScanResult, LLMProfile, LLMProtocol, ProfileInput, UpdateInfo } from "@/lib/types";
+import type {
+  BackupInfo,
+  LibraryScanResult,
+  LLMProfile,
+  LLMProtocol,
+  ProfileInput,
+  UpdateInfo,
+  WindowClosePreferenceResponse,
+} from "@/lib/types";
 import { useWorkspace } from "@/lib/workspace";
 
 const PROTOCOLS = [
@@ -81,6 +89,23 @@ const THEME_OPTIONS: Array<{
   },
 ];
 
+const WINDOW_CLOSE_OPTIONS: Array<{
+  value: WindowClosePreferenceResponse["action"];
+  label: string;
+  detail: string;
+}> = [
+  {
+    value: "minimize",
+    label: "最小化到程序坞",
+    detail: "点击左上角关闭按钮后保留 Trace 运行，适合随时回来继续记录。",
+  },
+  {
+    value: "quit",
+    label: "退出程序",
+    detail: "点击关闭按钮后结束 Trace 和本地后端，保持原来的退出行为。",
+  },
+];
+
 export default function Settings() {
   const qc = useQueryClient();
   const isDesktop = isPywebviewDesktop();
@@ -95,6 +120,9 @@ export default function Settings() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [windowCloseAction, setWindowCloseAction] =
+    useState<WindowClosePreferenceResponse["action"]>("minimize");
+  const [windowCloseError, setWindowCloseError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -107,6 +135,17 @@ export default function Settings() {
       })
       .catch((e: Error) => setUpdateError(e.message))
       .finally(() => setCheckingUpdate(false));
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    api.preferences
+      .getWindowClose()
+      .then((pref) => {
+        setWindowCloseAction(pref.action);
+        setWindowCloseError(null);
+      })
+      .catch((e: Error) => setWindowCloseError(e.message));
   }, [isDesktop]);
 
   const handleCheckUpdate = () => {
@@ -141,6 +180,21 @@ export default function Settings() {
       setDownloading(false);
       setInstalling(false);
     }
+  };
+
+  const handleWindowCloseAction = (action: WindowClosePreferenceResponse["action"]) => {
+    setWindowCloseAction(action);
+    setWindowCloseError(null);
+    api.preferences
+      .setWindowClose(action)
+      .then((pref) => setWindowCloseAction(pref.action))
+      .catch((e: Error) => {
+        setWindowCloseError(e.message);
+        api.preferences
+          .getWindowClose()
+          .then((pref) => setWindowCloseAction(pref.action))
+          .catch(() => undefined);
+      });
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -395,8 +449,55 @@ export default function Settings() {
       {isDesktop && (
         <section className="mb-10">
           <h2 className="mb-4 flex items-center gap-2">
-            <span className="eyebrow">APP · UPDATE</span>
+            <span className="eyebrow">DESKTOP · APP</span>
           </h2>
+
+          <div className="panel mb-4 p-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-ink">关闭按钮行为</div>
+                <div className="mt-1 text-xs leading-relaxed text-ink-mute">
+                  控制 macOS 左上角关闭按钮是隐藏窗口还是结束应用。
+                </div>
+              </div>
+              <div className="rounded-xl border border-line bg-canvas-sunken/70 px-3 py-2 text-right">
+                <div className="mono-meta text-[10px]">CURRENT</div>
+                <div className="mt-0.5 text-sm font-medium text-ink">
+                  {windowCloseAction === "minimize" ? "最小化" : "退出"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {WINDOW_CLOSE_OPTIONS.map((option) => {
+                const active = windowCloseAction === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleWindowCloseAction(option.value)}
+                    className={clsx(
+                      "rounded-xl border px-4 py-4 text-left transition",
+                      active
+                        ? "border-accent/60 bg-accent/10 shadow-glow"
+                        : "border-line bg-canvas-sunken/45 hover:border-accent/40 hover:bg-canvas-contrast/60"
+                    )}
+                  >
+                    <div className="text-sm font-medium text-ink">{option.label}</div>
+                    <div className="mt-2 text-xs leading-relaxed text-ink-mute">
+                      {option.detail}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {windowCloseError && (
+              <div className="mt-4 rounded-xl border border-signal-stop/40 bg-signal-stop/10 px-4 py-2 text-xs text-signal-stop">
+                {windowCloseError}
+              </div>
+            )}
+          </div>
 
           <div className="panel p-6">
             <div className="flex items-center justify-between">

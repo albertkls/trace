@@ -15,12 +15,14 @@ import urllib.request
 import uvicorn
 import webview
 
+from trace_api.db import connect
 from trace_api.main import create_app
 
 APP_TITLE = "Trace"
 WINDOW_MIN_SIZE = (1180, 760)
 WINDOW_SIZE = (1440, 920)
 STARTUP_TIMEOUT_SECONDS = 20.0
+WINDOW_CLOSE_KEY = "desktop.window_close_action"
 
 
 class DesktopApi:
@@ -35,6 +37,28 @@ class DesktopApi:
         if not paths:
             return None
         return str(paths[0])
+
+
+def _window_close_action() -> str:
+    conn = connect()
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (WINDOW_CLOSE_KEY,)).fetchone()
+    except Exception:
+        return "minimize"
+    finally:
+        conn.close()
+    value = row["value"] if row else None
+    return value if value in {"minimize", "quit"} else "minimize"
+
+
+def _handle_window_closing(window: webview.Window) -> bool:
+    if _window_close_action() != "minimize":
+        return True
+    try:
+        window.minimize()
+    except Exception:
+        return True
+    return False
 
 
 def _customize_macos_window(*_args: object, **_kwargs: object) -> None:
@@ -197,6 +221,7 @@ def run_desktop() -> None:
         ev = getattr(window.events, ev_name, None)
         if ev is not None:
             ev += _customize_macos_window
+    window.events.closing += _handle_window_closing
     webview.start(debug=False)
 
     # Keep a reference alive until the window exits.

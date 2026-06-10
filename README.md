@@ -18,7 +18,7 @@ Trace 把这个过程变成一条连续的链路：
 
 ## 当前状态
 
-- 版本：`2.0.2`
+- 版本：`2.0.3`
 - 技术栈：FastAPI + SQLite + React + TypeScript + pywebview
 - 发行形态：macOS 桌面应用，使用 PyInstaller 打包 `.app` 和 DMG
 - 数据目录：`~/Library/Application Support/Trace`
@@ -134,6 +134,10 @@ Trace 适合这些人：
 - 下载 DMG 后进行 SHA256 校验
 - 安装更新前自动备份数据库
 
+### 桌面体验
+
+- macOS 关闭按钮可选择最小化到程序坞或直接退出程序
+
 ---
 
 ## 快速开始
@@ -184,7 +188,7 @@ make package-mac
 
 ```text
 output/macos/Trace.app
-output/macos/Trace-2.0.2-macOS.dmg
+output/macos/Trace-2.0.3-macOS.dmg
 output/macos/SHA256SUMS.txt
 ```
 

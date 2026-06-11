@@ -1,0 +1,26 @@
+{
+  "name": "trace-intro-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "narration": "node scripts/generate-narration.mjs",
+    "still": "remotion still TraceIntro out/trace-intro-frame.png --frame=210 --scale=0.5",
+    "render": "remotion render TraceIntro out/trace-intro.mp4",
+    "render:quick": "remotion render TraceIntro out/trace-intro-preview.mp4 --scale=0.5 --crf=28"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.377",
+    "@remotion/media": "^4.0.475",
+    "@remotion/renderer": "^4.0.377",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.377",
+    "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1"
+  }
+}

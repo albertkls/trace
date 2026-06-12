@@ -5,62 +5,62 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --color-canvas: 10 12 18;
-    --color-canvas-raised: 16 19 27;
-    --color-canvas-sunken: 6 8 13;
-    --color-canvas-contrast: 22 26 37;
-    --color-ink: 232 236 244;
-    --color-ink-soft: 178 186 201;
-    --color-ink-mute: 108 118 138;
-    --color-ink-faint: 62 71 88;
-    --color-accent: 94 230 197;
-    --color-accent-soft: 31 139 120;
-    --color-accent-ink: 4 22 18;
-    --color-iris: 139 149 255;
-    --color-iris-soft: 49 56 102;
-    --color-iris-ink: 10 10 30;
+    --color-canvas: 17 19 23;
+    --color-canvas-raised: 27 30 36;
+    --color-canvas-sunken: 12 14 18;
+    --color-canvas-contrast: 39 43 51;
+    --color-ink: 241 239 232;
+    --color-ink-soft: 197 199 199;
+    --color-ink-mute: 135 142 150;
+    --color-ink-faint: 72 78 88;
+    --color-accent: 98 164 255;
+    --color-accent-soft: 36 79 138;
+    --color-accent-ink: 7 18 34;
+    --color-iris: 240 151 92;
+    --color-iris-soft: 102 56 34;
+    --color-iris-ink: 35 15 7;
     --color-signal-go: 74 222 128;
     --color-signal-hold: 245 196 81;
     --color-signal-stop: 255 107 107;
     --color-signal-mute: 108 118 138;
     --color-signal-info: 96 165 250;
-    --color-line: 200 210 230;
-    --color-line-strong: 200 210 230;
-    --ambient-accent: 94 230 197;
-    --ambient-iris: 139 149 255;
-    --panel-sheen: rgba(255, 255, 255, 0.025);
-    --grid-dot: rgba(200, 210, 230, 0.06);
-    --scanline: rgba(255, 255, 255, 0.02);
-    --shadow-soft: 0 1px 0 rgba(255,255,255,0.04) inset, 0 14px 40px rgba(0,0,0,0.45);
-    --shadow-chip: inset 0 0 0 1px rgba(200,210,230,0.10);
-    --shadow-glow: 0 0 0 1px rgba(94,230,197,0.45), 0 0 20px rgba(94,230,197,0.25);
-    --shadow-ring: 0 0 0 2px rgba(139,149,255,0.45);
-    --focus-ring: rgba(139, 149, 255, 0.55);
-    --selection-bg: rgba(94, 230, 197, 0.32);
-    --accent-glow-soft: rgba(94, 230, 197, 0.25);
-    --accent-glow: rgba(94, 230, 197, 0.45);
-    --accent-glow-strong: rgba(94, 230, 197, 0.55);
-    --scrollbar-thumb: rgba(200, 210, 230, 0.08);
-    --scrollbar-thumb-hover: rgba(94, 230, 197, 0.28);
+    --color-line: 224 228 232;
+    --color-line-strong: 224 228 232;
+    --ambient-accent: 98 164 255;
+    --ambient-iris: 240 151 92;
+    --panel-sheen: rgba(255, 255, 255, 0.035);
+    --grid-dot: rgba(224, 228, 232, 0.05);
+    --scanline: rgba(255, 255, 255, 0.015);
+    --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 16px 36px rgba(0, 0, 0, 0.34);
+    --shadow-chip: inset 0 0 0 1px rgba(224, 228, 232, 0.09);
+    --shadow-glow: 0 0 0 1px rgba(98, 164, 255, 0.28), 0 12px 26px rgba(98, 164, 255, 0.12);
+    --shadow-ring: 0 0 0 2px rgba(98, 164, 255, 0.36);
+    --focus-ring: rgba(98, 164, 255, 0.42);
+    --selection-bg: rgba(98, 164, 255, 0.28);
+    --accent-glow-soft: rgba(98, 164, 255, 0.14);
+    --accent-glow: rgba(98, 164, 255, 0.24);
+    --accent-glow-strong: rgba(240, 151, 92, 0.26);
+    --scrollbar-thumb: rgba(224, 228, 232, 0.1);
+    --scrollbar-thumb-hover: rgba(98, 164, 255, 0.34);
     --calendar-filter: invert(0.7) brightness(1.2);
     --traffic-border: rgba(0, 0, 0, 0.2);
   }
   :root[data-theme="light"] {
     color-scheme: light;
-    --color-canvas: 247 246 242;
+    --color-canvas: 244 242 237;
     --color-canvas-raised: 255 255 252;
-    --color-canvas-sunken: 238 237 231;
-    --color-canvas-contrast: 228 231 226;
-    --color-ink: 31 37 48;
-    --color-ink-soft: 82 91 106;
-    --color-ink-mute: 126 136 151;
-    --color-ink-faint: 194 199 207;
-    --color-accent: 24 132 113;
-    --color-accent-soft: 199 233 224;
-    --color-accent-ink: 246 255 252;
-    --color-iris: 101 92 176;
-    --color-iris-soft: 225 224 246;
-    --color-iris-ink: 252 251 255;
+    --color-canvas-sunken: 235 233 226;
+    --color-canvas-contrast: 226 231 234;
+    --color-ink: 29 33 39;
+    --color-ink-soft: 82 91 101;
+    --color-ink-mute: 124 133 143;
+    --color-ink-faint: 190 195 201;
+    --color-accent: 42 102 186;
+    --color-accent-soft: 209 226 248;
+    --color-accent-ink: 248 251 255;
+    --color-iris: 187 91 47;
+    --color-iris-soft: 247 221 207;
+    --color-iris-ink: 255 250 246;
     --color-signal-go: 24 150 88;
     --color-signal-hold: 181 125 29;
     --color-signal-stop: 205 72 80;
@@ -68,20 +68,22 @@
     --color-signal-info: 45 106 191;
     --color-line: 31 37 48;
     --color-line-strong: 31 37 48;
-    --ambient-accent: 24 132 113;
-    --ambient-iris: 101 92 176;
+    --ambient-accent: 42 102 186;
+    --ambient-iris: 187 91 47;
     --panel-sheen: rgba(255, 255, 255, 0.72);
     --grid-dot: rgba(31, 37, 48, 0.06);
     --scanline: rgba(31, 37, 48, 0.025);
-    --shadow-soft: 0 1px 0 rgba(255,255,255,0.9) inset, 0 18px 44px rgba(31,37,48,0.10), 0 1px 3px rgba(31,37,48,0.08);
-    --shadow-chip: inset 0 0 0 1px rgba(31,37,48,0.08);
-    --shadow-glow: 0 0 0 1px rgba(24,132,113,0.24), 0 14px 32px rgba(24,132,113,0.16);
-    --shadow-ring: 0 0 0 2px rgba(101,92,176,0.26);
-    --focus-ring: rgba(101, 92, 176, 0.36);
-    --selection-bg: rgba(24, 132, 113, 0.20);
-    --accent-glow-soft: rgba(24, 132, 113, 0.18);
-    --accent-glow: rgba(24, 132, 113, 0.24);
-    --accent-glow-strong: rgba(24, 132, 113, 0.34);
+    --shadow-soft:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 14px 32px rgba(29, 33, 39, 0.1),
+      0 1px 2px rgba(29, 33, 39, 0.08);
+    --shadow-chip: inset 0 0 0 1px rgba(31, 37, 48, 0.08);
+    --shadow-glow: 0 0 0 1px rgba(42, 102, 186, 0.24), 0 12px 28px rgba(42, 102, 186, 0.12);
+    --shadow-ring: 0 0 0 2px rgba(42, 102, 186, 0.26);
+    --focus-ring: rgba(42, 102, 186, 0.32);
+    --selection-bg: rgba(42, 102, 186, 0.2);
+    --accent-glow-soft: rgba(42, 102, 186, 0.14);
+    --accent-glow: rgba(42, 102, 186, 0.22);
+    --accent-glow-strong: rgba(187, 91, 47, 0.2);
     --scrollbar-thumb: rgba(31, 37, 48, 0.14);
     --scrollbar-thumb-hover: rgba(24, 132, 113, 0.34);
     --calendar-filter: none;
@@ -97,16 +99,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background:
-      radial-gradient(
-        1200px 600px at 85% -10%,
-        rgb(var(--ambient-accent) / 0.08),
-        transparent 60%
-      ),
-      radial-gradient(
-        900px 520px at -10% 110%,
-        rgb(var(--ambient-iris) / 0.07),
-        transparent 60%
-      ),
+      linear-gradient(180deg, rgb(var(--color-canvas-raised) / 0.22), transparent 280px),
       rgb(var(--color-canvas));
     background-attachment: fixed;
   }
@@ -158,22 +151,21 @@
 @layer components {
   /* ───── Surfaces ───── */
   .panel {
-    @apply relative rounded-2xl border border-line shadow-soft;
+    @apply relative rounded-lg border border-line shadow-soft;
     background:
-      linear-gradient(180deg, var(--panel-sheen), transparent 42%),
-      rgb(var(--color-canvas-raised));
+      linear-gradient(180deg, var(--panel-sheen), transparent 52%), rgb(var(--color-canvas-raised));
   }
   .panel-flat {
-    @apply relative rounded-xl border border-line;
+    @apply relative rounded-lg border border-line;
     background: rgb(var(--color-canvas-raised));
   }
   .panel-sunken {
-    @apply relative rounded-xl border border-line bg-canvas-sunken/70;
+    @apply relative rounded-lg border border-line bg-canvas-sunken/70;
   }
 
   /* ───── Chips ───── */
   .chip {
-    @apply inline-flex items-center gap-1 rounded-pill border border-line bg-canvas-raised/60 px-2.5 py-0.5 text-[11px] font-medium text-ink-soft;
+    @apply inline-flex items-center gap-1 rounded-md border border-line bg-canvas-raised/70 px-2 py-0.5 text-[11px] font-medium text-ink-soft;
   }
   .chip-accent {
     @apply border-accent/40 bg-accent/10 text-accent;
@@ -193,7 +185,7 @@
 
   /* ───── Buttons ───── */
   .btn {
-    @apply relative inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas-raised/80 px-3.5 py-1.5 text-sm font-medium text-ink transition-all duration-150 hover:border-line-strong hover:bg-canvas-contrast active:scale-[0.98];
+    @apply relative inline-flex items-center gap-1.5 rounded-md border border-line bg-canvas-raised/90 px-3.5 py-1.5 text-sm font-medium text-ink transition-all duration-150 hover:border-line-strong hover:bg-canvas-contrast active:scale-[0.98];
   }
   .btn-accent {
     @apply border-accent/60 bg-accent text-accent-ink hover:border-accent hover:bg-accent/90 hover:text-accent-ink;
@@ -213,7 +205,7 @@
     @apply border-signal-stop/30 bg-signal-stop/10 text-signal-stop hover:border-signal-stop/60 hover:bg-signal-stop/20 hover:text-signal-stop;
   }
   .btn-icon {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-canvas-raised/60 text-ink-soft transition hover:border-accent/50 hover:text-accent;
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-md border border-line bg-canvas-raised/70 text-ink-soft transition hover:border-accent/50 hover:text-accent;
   }
   .btn:disabled,
   .btn-accent:disabled {
@@ -223,7 +215,7 @@
 
   /* ───── Form ───── */
   .input {
-    @apply w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent/60 focus:bg-canvas-raised;
+    @apply w-full rounded-md border border-line bg-canvas-sunken/70 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent/60 focus:bg-canvas-raised;
   }
 
   .rich-text {
@@ -243,7 +235,7 @@
     @apply pl-0.5;
   }
   .rich-text-editor {
-    @apply min-h-[96px] w-full rounded-lg border border-line bg-canvas-sunken/70 px-3 py-2 text-sm leading-relaxed text-ink outline-none transition focus:border-accent/60 focus:bg-canvas-raised;
+    @apply min-h-[96px] w-full rounded-md border border-line bg-canvas-sunken/70 px-3 py-2 text-sm leading-relaxed text-ink outline-none transition focus:border-accent/60 focus:bg-canvas-raised;
   }
   .rich-text-editor:empty::before {
     content: attr(data-placeholder);
@@ -252,12 +244,12 @@
 
   /* ───── Keyboard ───── */
   .kbd {
-    @apply inline-flex items-center rounded-md border border-line bg-canvas-sunken px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-tight text-ink-mute;
+    @apply inline-flex items-center rounded border border-line bg-canvas-sunken px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-tight text-ink-mute;
   }
 
   /* ───── Labels / metadata ───── */
   .eyebrow {
-    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-ink-mute;
+    @apply text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-mute;
   }
   .mono-meta {
     @apply font-mono text-[11px] tracking-tight text-ink-mute;
@@ -299,11 +291,7 @@
     @apply h-px w-full bg-gradient-to-r from-transparent via-line-strong to-transparent;
   }
   .gridbg {
-    background-image: radial-gradient(
-      circle at 1px 1px,
-      var(--grid-dot) 1px,
-      transparent 0
-    );
+    background-image: radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
     background-size: 24px 24px;
   }
   .scanline {
@@ -318,8 +306,7 @@
 
   .desktop-titlebar {
     background:
-      linear-gradient(180deg, var(--panel-sheen), transparent 65%),
-      rgb(var(--color-canvas-sunken));
+      linear-gradient(180deg, var(--panel-sheen), transparent 65%), rgb(var(--color-canvas-sunken));
   }
 
   .desktop-traffic {
@@ -338,7 +325,7 @@
 
   /* ───── Tabs ───── */
   .tab {
-    @apply rounded-lg px-3 py-1.5 text-sm text-ink-soft transition hover:text-ink;
+    @apply rounded-md px-3 py-1.5 text-sm text-ink-soft transition hover:text-ink;
   }
   .tab-active {
     @apply bg-canvas-contrast text-ink shadow-chip;
@@ -376,9 +363,6 @@
   }
   .app-sidebar .date-meta {
     display: none;
-  }
-  .app-main {
-    margin-left: 60px !important;
   }
 }
 

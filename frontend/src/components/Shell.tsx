@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
@@ -15,15 +15,15 @@ import { DEFAULT_WORKSPACE_ID, WORKSPACE_STORAGE_KEY, WorkspaceContext } from "@
 import { useThemePreference } from "@/lib/theme";
 
 const NAV: { to: string; label: string; key: string; glyph: string }[] = [
-  { to: "/", label: "今日", key: "1", glyph: "◐" },
-  { to: "/inbox", label: "收件箱", key: "2", glyph: "◲" },
-  { to: "/projects", label: "项目", key: "3", glyph: "▣" },
-  { to: "/threads", label: "工作线", key: "4", glyph: "≋" },
-  { to: "/timeline", label: "时间线", key: "5", glyph: "↻" },
-  { to: "/notes", label: "记事", key: "6", glyph: "✎" },
-  { to: "/todos", label: "待办", key: "7", glyph: "☐" },
-  { to: "/reports", label: "汇报", key: "8", glyph: "❡" },
-  { to: "/settings", label: "设置", key: "0", glyph: "⚙" },
+  { to: "/", label: "今日", key: "1", glyph: "T" },
+  { to: "/inbox", label: "收件箱", key: "2", glyph: "I" },
+  { to: "/projects", label: "项目", key: "3", glyph: "P" },
+  { to: "/threads", label: "工作线", key: "4", glyph: "W" },
+  { to: "/timeline", label: "时间线", key: "5", glyph: "L" },
+  { to: "/notes", label: "记事", key: "6", glyph: "N" },
+  { to: "/todos", label: "待办", key: "7", glyph: "D" },
+  { to: "/reports", label: "汇报", key: "8", glyph: "R" },
+  { to: "/settings", label: "设置", key: "0", glyph: "S" },
 ];
 
 export default function Shell() {
@@ -56,6 +56,14 @@ export default function Shell() {
   });
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
+  const setActiveWorkspaceId = useCallback(
+    (id: string) => {
+      setActiveWorkspaceIdState(id);
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
+      queryClient.invalidateQueries();
+    },
+    [queryClient]
+  );
   const createWorkspace = useMutation({
     mutationFn: () => api.workspaces.create({ name: newWorkspaceName.trim() }),
     onSuccess: (workspace) => {
@@ -66,11 +74,6 @@ export default function Shell() {
     },
   });
 
-  const setActiveWorkspaceId = (id: string) => {
-    setActiveWorkspaceIdState(id);
-    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
-    queryClient.invalidateQueries();
-  };
   const toggleTheme = () => {
     setPreference(resolvedTheme === "dark" ? "light" : "dark");
   };
@@ -84,14 +87,14 @@ export default function Shell() {
         queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       },
     }),
-    [activeWorkspaceId, queryClient, workspaces]
+    [activeWorkspaceId, queryClient, setActiveWorkspaceId, workspaces]
   );
 
   useEffect(() => {
     if (workspaces.length === 0) return;
     if (workspaces.some((workspace) => workspace.id === activeWorkspaceId)) return;
     setActiveWorkspaceId(workspaces[0].id);
-  }, [activeWorkspaceId, workspaces]);
+  }, [activeWorkspaceId, setActiveWorkspaceId, workspaces]);
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -129,7 +132,7 @@ export default function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [workspaces]);
+  }, [setActiveWorkspaceId, workspaces]);
 
   return (
     <QuickCaptureContext.Provider value={ctx}>
@@ -138,59 +141,70 @@ export default function Shell() {
           {showCustomTitlebar ? (
             <DesktopTitlebar />
           ) : (
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-line-strong/70" />
           )}
 
           <div className="relative flex min-h-0 flex-1">
             <aside
               className={clsx(
-                "relative flex w-56 shrink-0 flex-col border-r border-line bg-canvas-sunken/80 px-3 pb-5 gridbg",
+                "app-sidebar relative flex w-64 shrink-0 flex-col border-r border-line bg-canvas-sunken/95 px-3 pb-5",
                 // Reserve room at the top of the sidebar for the macOS traffic
                 // light buttons (top-left ~80x28). In all other modes use the
                 // original 20px breathing room.
                 isPywebview ? "pt-12" : "pt-5"
               )}
             >
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-accent/30 to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-line-strong/40" />
 
-              <div className="px-2 pb-5">
-                <div className="flex items-center gap-2">
+              <div className="rounded-lg border border-line bg-canvas-raised/55 px-3 py-3">
+                <div className="flex items-center gap-2.5">
                   <img
                     src="/trace-icon.svg"
                     alt="Trace"
-                    className="h-6 w-6 rounded-md border border-white/10 shadow-soft"
+                    className="h-7 w-7 rounded-md border border-line bg-canvas-sunken shadow-chip"
                   />
-                  <div className="sidebar-logo-text font-display text-[15px] font-semibold tracking-tight text-ink">
-                    Trace
+                  <div className="min-w-0 flex-1">
+                    <div className="sidebar-logo-text font-display text-[15px] font-semibold text-ink">
+                      Trace
+                    </div>
+                    <div className="mt-0.5 truncate text-[11px] text-ink-mute">
+                      Personal work memory
+                    </div>
                   </div>
-                  <span className="ml-auto mono-meta text-[10px]">v{APP_VERSION}</span>
+                  <span className="mono-meta text-[10px]">v{APP_VERSION}</span>
                 </div>
-                <div className="mt-1.5 eyebrow text-[9px]">
-                  WORK · SIGNAL · {runtimeLabel.toUpperCase()}
+                <div className="mt-3 flex items-center justify-between border-t border-line pt-2">
+                  <span className="mono-meta">{runtimeLabel.toUpperCase()}</span>
+                  <span className="mono-meta date-meta">W{week}</span>
                 </div>
               </div>
 
               <button
                 onClick={() => setCaptureOpen(true)}
-                className="sidebar-capture-btn group relative mb-5 flex items-center justify-between overflow-hidden rounded-xl border border-line bg-canvas-raised/70 px-3 py-2 text-sm text-ink-soft transition hover:border-accent/50 hover:text-ink"
+                className="sidebar-capture-btn group relative mb-5 mt-4 flex items-center justify-between overflow-hidden rounded-lg border border-accent/45 bg-accent px-3 py-2.5 text-sm font-medium text-accent-ink shadow-glow transition hover:border-accent hover:brightness-105"
               >
-                <span className="absolute inset-y-0 left-0 w-px bg-accent/60 transition-all group-hover:w-[3px]" />
                 <span className="flex items-center gap-2">
-                  <span className="text-accent">＋</span>
+                  <span className="text-base leading-none">＋</span>
                   <span>写一笔</span>
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="kbd">⌘</span>
-                  <span className="kbd">⇧</span>
-                  <span className="kbd">N</span>
+                  <span className="kbd !border-accent-ink/20 !bg-accent-ink/10 !text-accent-ink">
+                    ⌘
+                  </span>
+                  <span className="kbd !border-accent-ink/20 !bg-accent-ink/10 !text-accent-ink">
+                    ⇧
+                  </span>
+                  <span className="kbd !border-accent-ink/20 !bg-accent-ink/10 !text-accent-ink">
+                    N
+                  </span>
                 </span>
               </button>
 
-              <div className="mb-5 rounded-xl border border-line bg-canvas-raised/45 p-2">
+              <div className="mb-5 rounded-lg border border-line bg-canvas-raised/45 p-2">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <span className="workspace-label eyebrow text-[9px]">WORKSPACE</span>
                   <button
-                    className="workspace-add-btn rounded-md px-1.5 py-0.5 text-xs text-accent transition hover:bg-canvas-contrast"
+                    className="workspace-add-btn rounded px-1.5 py-0.5 text-xs text-accent transition hover:bg-canvas-contrast"
                     onClick={() => setNewWorkspaceOpen((value) => !value)}
                     title="新建工作区"
                   >
@@ -203,13 +217,13 @@ export default function Shell() {
                       key={workspace.id}
                       onClick={() => setActiveWorkspaceId(workspace.id)}
                       className={clsx(
-                        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition",
+                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition",
                         workspace.id === activeWorkspace?.id
-                          ? "bg-canvas-contrast text-ink"
+                          ? "bg-canvas-contrast text-ink shadow-chip"
                           : "text-ink-soft hover:bg-canvas-contrast/60 hover:text-ink"
                       )}
                     >
-                      <span className="h-2 w-2 rounded-full bg-accent/80" />
+                      <span className="h-2 w-2 rounded-full bg-iris/85" />
                       <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
                       <span className="mono-meta">⌃{idx + 1}</span>
                     </button>
@@ -226,7 +240,7 @@ export default function Shell() {
                         }
                       }}
                       placeholder="新工作区名称"
-                      className="w-full rounded-lg border border-line bg-canvas-sunken px-2 py-1.5 text-xs text-ink outline-none focus:border-accent/60"
+                      className="w-full rounded-md border border-line bg-canvas-sunken px-2 py-1.5 text-xs text-ink outline-none focus:border-accent/60"
                     />
                     <button
                       className="btn btn-accent w-full justify-center text-xs"
@@ -248,10 +262,10 @@ export default function Shell() {
                     end={item.to === "/"}
                     className={({ isActive }) =>
                       clsx(
-                        "group relative flex items-center gap-3 rounded-lg px-2.5 py-1.5 text-sm transition",
+                        "group relative flex items-center gap-3 rounded-md px-2 py-1.5 text-sm transition",
                         isActive
-                          ? "bg-canvas-contrast text-ink"
-                          : "text-ink-soft hover:bg-canvas-contrast/60 hover:text-ink"
+                          ? "bg-canvas-raised text-ink shadow-chip"
+                          : "text-ink-soft hover:bg-canvas-raised/70 hover:text-ink"
                       )
                     }
                   >
@@ -259,7 +273,7 @@ export default function Shell() {
                       <>
                         <span
                           className={clsx(
-                            "absolute left-0 top-1/2 h-4 -translate-y-1/2 rounded-r-full bg-accent transition-all",
+                            "absolute left-0 top-1/2 h-4 -translate-y-1/2 rounded-r bg-accent transition-all",
                             isActive
                               ? "w-[3px] opacity-100"
                               : "w-0 opacity-0 group-hover:w-[2px] group-hover:opacity-60"
@@ -267,13 +281,16 @@ export default function Shell() {
                         />
                         <span
                           className={clsx(
-                            "w-4 text-center text-[13px] transition",
-                            isActive ? "text-accent" : "text-ink-mute group-hover:text-accent"
+                            "flex h-6 w-6 items-center justify-center rounded border text-[10px] font-semibold transition",
+                            isActive
+                              ? "border-accent/35 bg-accent/10 text-accent"
+                              : "border-line bg-canvas-sunken text-ink-mute group-hover:text-accent"
                           )}
                         >
                           {item.glyph}
                         </span>
                         <span className="nav-label flex-1">{item.label}</span>
+                        <span className="nav-label mono-meta text-[10px]">{item.key}</span>
                       </>
                     )}
                   </NavLink>
@@ -283,7 +300,7 @@ export default function Shell() {
               <div className="mt-auto space-y-3 border-t border-line px-2 pt-4">
                 <button
                   onClick={toggleTheme}
-                  className="theme-section flex w-full items-center justify-between rounded-lg border border-line bg-canvas-raised/55 px-2.5 py-2 text-xs text-ink-soft transition hover:border-accent/40 hover:bg-canvas-contrast hover:text-ink"
+                  className="theme-section flex w-full items-center justify-between rounded-md border border-line bg-canvas-raised/55 px-2.5 py-2 text-xs text-ink-soft transition hover:border-accent/40 hover:bg-canvas-contrast hover:text-ink"
                   title="切换深浅主题"
                 >
                   <span className="flex items-center gap-2">

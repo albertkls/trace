@@ -5,41 +5,41 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --color-canvas: 17 19 23;
-    --color-canvas-raised: 27 30 36;
-    --color-canvas-sunken: 12 14 18;
-    --color-canvas-contrast: 39 43 51;
-    --color-ink: 241 239 232;
-    --color-ink-soft: 197 199 199;
-    --color-ink-mute: 135 142 150;
-    --color-ink-faint: 72 78 88;
-    --color-accent: 98 164 255;
-    --color-accent-soft: 36 79 138;
-    --color-accent-ink: 7 18 34;
-    --color-iris: 240 151 92;
-    --color-iris-soft: 102 56 34;
-    --color-iris-ink: 35 15 7;
-    --color-signal-go: 74 222 128;
-    --color-signal-hold: 245 196 81;
-    --color-signal-stop: 255 107 107;
+    --color-canvas: 5 8 14;
+    --color-canvas-raised: 13 19 30;
+    --color-canvas-sunken: 3 6 11;
+    --color-canvas-contrast: 20 31 48;
+    --color-ink: 238 246 255;
+    --color-ink-soft: 177 192 211;
+    --color-ink-mute: 102 122 148;
+    --color-ink-faint: 48 63 84;
+    --color-accent: 72 211 255;
+    --color-accent-soft: 17 93 132;
+    --color-accent-ink: 2 19 31;
+    --color-iris: 158 124 255;
+    --color-iris-soft: 61 46 126;
+    --color-iris-ink: 18 12 38;
+    --color-signal-go: 73 226 168;
+    --color-signal-hold: 249 198 93;
+    --color-signal-stop: 255 92 122;
     --color-signal-mute: 108 118 138;
     --color-signal-info: 96 165 250;
     --color-line: 224 228 232;
     --color-line-strong: 224 228 232;
-    --ambient-accent: 98 164 255;
-    --ambient-iris: 240 151 92;
-    --panel-sheen: rgba(255, 255, 255, 0.035);
-    --grid-dot: rgba(224, 228, 232, 0.05);
-    --scanline: rgba(255, 255, 255, 0.015);
-    --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 16px 36px rgba(0, 0, 0, 0.34);
-    --shadow-chip: inset 0 0 0 1px rgba(224, 228, 232, 0.09);
-    --shadow-glow: 0 0 0 1px rgba(98, 164, 255, 0.28), 0 12px 26px rgba(98, 164, 255, 0.12);
-    --shadow-ring: 0 0 0 2px rgba(98, 164, 255, 0.36);
-    --focus-ring: rgba(98, 164, 255, 0.42);
-    --selection-bg: rgba(98, 164, 255, 0.28);
-    --accent-glow-soft: rgba(98, 164, 255, 0.14);
-    --accent-glow: rgba(98, 164, 255, 0.24);
-    --accent-glow-strong: rgba(240, 151, 92, 0.26);
+    --ambient-accent: 72 211 255;
+    --ambient-iris: 158 124 255;
+    --panel-sheen: rgba(255, 255, 255, 0.055);
+    --grid-dot: rgba(148, 214, 255, 0.055);
+    --scanline: rgba(72, 211, 255, 0.018);
+    --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 18px 42px rgba(0, 0, 0, 0.42);
+    --shadow-chip: inset 0 0 0 1px rgba(224, 238, 255, 0.08);
+    --shadow-glow: 0 0 0 1px rgba(72, 211, 255, 0.32), 0 0 26px rgba(72, 211, 255, 0.16);
+    --shadow-ring: 0 0 0 2px rgba(72, 211, 255, 0.34);
+    --focus-ring: rgba(72, 211, 255, 0.4);
+    --selection-bg: rgba(72, 211, 255, 0.28);
+    --accent-glow-soft: rgba(72, 211, 255, 0.14);
+    --accent-glow: rgba(72, 211, 255, 0.28);
+    --accent-glow-strong: rgba(158, 124, 255, 0.3);
     --scrollbar-thumb: rgba(224, 228, 232, 0.1);
     --scrollbar-thumb-hover: rgba(98, 164, 255, 0.34);
     --calendar-filter: invert(0.7) brightness(1.2);
@@ -99,7 +99,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background:
-      linear-gradient(180deg, rgb(var(--color-canvas-raised) / 0.22), transparent 280px),
+      radial-gradient(900px 420px at 46% -12%, rgb(var(--ambient-accent) / 0.11), transparent 62%),
+      radial-gradient(760px 460px at 100% 8%, rgb(var(--ambient-iris) / 0.1), transparent 64%),
+      linear-gradient(180deg, rgb(var(--color-canvas-raised) / 0.32), transparent 340px),
       rgb(var(--color-canvas));
     background-attachment: fixed;
   }
@@ -151,16 +153,18 @@
 @layer components {
   /* ───── Surfaces ───── */
   .panel {
-    @apply relative rounded-lg border border-line shadow-soft;
+    @apply relative rounded-lg border border-line shadow-soft backdrop-blur-xl;
     background:
-      linear-gradient(180deg, var(--panel-sheen), transparent 52%), rgb(var(--color-canvas-raised));
+      linear-gradient(180deg, var(--panel-sheen), transparent 50%),
+      linear-gradient(135deg, rgb(var(--color-accent) / 0.035), transparent 34%),
+      rgb(var(--color-canvas-raised) / 0.84);
   }
   .panel-flat {
-    @apply relative rounded-lg border border-line;
-    background: rgb(var(--color-canvas-raised));
+    @apply relative rounded-lg border border-line backdrop-blur-xl;
+    background: rgb(var(--color-canvas-raised) / 0.82);
   }
   .panel-sunken {
-    @apply relative rounded-lg border border-line bg-canvas-sunken/70;
+    @apply relative rounded-lg border border-line bg-canvas-sunken/80;
   }
 
   /* ───── Chips ───── */
@@ -185,13 +189,14 @@
 
   /* ───── Buttons ───── */
   .btn {
-    @apply relative inline-flex items-center gap-1.5 rounded-md border border-line bg-canvas-raised/90 px-3.5 py-1.5 text-sm font-medium text-ink transition-all duration-150 hover:border-line-strong hover:bg-canvas-contrast active:scale-[0.98];
+    @apply relative inline-flex items-center gap-1.5 rounded-md border border-line bg-canvas-raised/80 px-3.5 py-1.5 text-sm font-medium text-ink transition-all duration-150 hover:border-accent/45 hover:bg-canvas-contrast active:scale-[0.98];
   }
   .btn-accent {
     @apply border-accent/60 bg-accent text-accent-ink hover:border-accent hover:bg-accent/90 hover:text-accent-ink;
     box-shadow:
       0 0 0 1px var(--accent-glow-soft),
-      0 8px 22px -8px var(--accent-glow);
+      0 0 24px -8px var(--accent-glow),
+      0 10px 28px -12px rgba(0, 0, 0, 0.8);
   }
   .btn-accent:hover {
     box-shadow:
@@ -215,7 +220,7 @@
 
   /* ───── Form ───── */
   .input {
-    @apply w-full rounded-md border border-line bg-canvas-sunken/70 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent/60 focus:bg-canvas-raised;
+    @apply w-full rounded-md border border-line bg-canvas-sunken/75 px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-accent/60 focus:bg-canvas-raised;
   }
 
   .rich-text {
@@ -329,6 +334,60 @@
   }
   .tab-active {
     @apply bg-canvas-contrast text-ink shadow-chip;
+  }
+
+  .trace-shell::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgb(var(--color-accent) / 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--color-accent) / 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 78%);
+  }
+
+  .app-topbar {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset;
+  }
+
+  .workbench-page {
+    min-height: 100%;
+    background:
+      radial-gradient(780px 360px at 58% 0%, rgb(var(--color-accent) / 0.095), transparent 64%),
+      radial-gradient(620px 420px at 96% 20%, rgb(var(--color-iris) / 0.08), transparent 68%);
+  }
+
+  .workbench-panel {
+    @apply relative rounded-lg border border-line shadow-soft backdrop-blur-xl;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.012) 42%),
+      linear-gradient(135deg, rgb(var(--color-accent) / 0.045), transparent 36%),
+      rgb(var(--color-canvas-raised) / 0.76);
+  }
+
+  .workbench-panel::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(72, 211, 255, 0.035);
+  }
+
+  .density-compact .workbench-panel {
+    font-size: 0.93rem;
+  }
+
+  .density-compact .workbench-panel [class*="py-3"] {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .density-roomy .workbench-panel [class*="py-3"] {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
 }
 

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
@@ -32,6 +32,7 @@ import type { LucideIcon } from "lucide-react";
 import { CategoryChip } from "@/components/EvidenceChip";
 import Skeleton from "@/components/Skeleton";
 import StatusDot from "@/components/StatusDot";
+import NewThreadModal from "@/components/NewThreadModal";
 import { api } from "@/lib/api";
 import { isoWeekLabel, toISODate } from "@/lib/periods";
 import { useQuickCapture } from "@/lib/quickCapture";
@@ -235,6 +236,10 @@ const DEFAULT_SETTINGS: WorkbenchSettings = {
   customLayout: DEFAULT_LAYOUT,
 };
 
+const VIEW_PRESETS: ViewPreset[] = ["minimal", "balanced", "complete", "custom"];
+const DENSITIES: Density[] = ["compact", "standard", "roomy"];
+const MODULE_IDS = MODULES.map((module) => module.id);
+
 function yesterdayISO(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
@@ -248,14 +253,18 @@ function loadSettings(): WorkbenchSettings {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<WorkbenchSettings>;
+    const view = isViewPreset(parsed.view) ? parsed.view : DEFAULT_SETTINGS.view;
+    const density = isDensity(parsed.density) ? parsed.density : DEFAULT_SETTINGS.density;
+    const customModules = sanitizeModules(parsed.customModules);
     return {
-      view: parsed.view ?? DEFAULT_SETTINGS.view,
-      density: parsed.density ?? DEFAULT_SETTINGS.density,
-      customName: parsed.customName ?? DEFAULT_SETTINGS.customName,
-      customModules: parsed.customModules?.length
-        ? parsed.customModules
-        : DEFAULT_SETTINGS.customModules,
-      customLayout: normalizeLayout(parsed.customLayout, parsed.customModules ?? undefined),
+      view,
+      density,
+      customName:
+        typeof parsed.customName === "string" && parsed.customName.trim()
+          ? parsed.customName
+          : DEFAULT_SETTINGS.customName,
+      customModules,
+      customLayout: normalizeLayout(parsed.customLayout, customModules),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -281,6 +290,29 @@ function sizeFromDimensions(w: number, h: number): LayoutSize {
   if (w >= 5 || h >= 4) return "lg";
   if (h >= 3) return "md";
   return "sm";
+}
+
+function isViewPreset(value: unknown): value is ViewPreset {
+  return typeof value === "string" && VIEW_PRESETS.includes(value as ViewPreset);
+}
+
+function isDensity(value: unknown): value is Density {
+  return typeof value === "string" && DENSITIES.includes(value as Density);
+}
+
+function isModuleId(value: unknown): value is ModuleId {
+  return typeof value === "string" && MODULE_IDS.includes(value as ModuleId);
+}
+
+function sanitizeModules(value: unknown): ModuleId[] {
+  if (!Array.isArray(value)) return DEFAULT_SETTINGS.customModules;
+  const seen = new Set<ModuleId>();
+  for (const id of value) {
+    if (isModuleId(id)) seen.add(id);
+  }
+  return seen.size > 0
+    ? MODULES.filter((module) => seen.has(module.id)).map((module) => module.id)
+    : DEFAULT_SETTINGS.customModules;
 }
 
 function normalizeLayout(layout?: WorkbenchLayout, modules?: ModuleId[]): WorkbenchLayout {
@@ -310,9 +342,11 @@ function layoutForModules(modules: ModuleId[], layout = DEFAULT_LAYOUT): Workben
 
 export default function Home() {
   const { open: openCapture } = useQuickCapture();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<WorkbenchSettings>(() => loadSettings());
   const [configOpen, setConfigOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [newThreadOpen, setNewThreadOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<ModuleId | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
 
@@ -350,6 +384,15 @@ export default function Home() {
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (!configOpen) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfigOpen(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [configOpen]);
 
   const activeModules =
     settings.view === "custom" ? settings.customModules : PRESET_MODULES[settings.view];
@@ -439,16 +482,19 @@ export default function Home() {
       title: primaryThread?.title ?? "产品设计迭代",
       meta: primaryThread?.project ?? "进行中",
       tone: "moss" as const,
+      href: primaryThread ? `/threads/${primaryThread.id}` : "/threads",
     },
     {
       title: projectAlerts[0]?.name ?? "内容创作线",
       meta: projectAlerts[0]?.health?.next_action ?? "处理中",
       tone: "amber" as const,
+      href: projectAlerts[0] ? `/projects/${projectAlerts[0].id}` : "/threads",
     },
     {
       title: primaryProject?.name ?? "个人知识管理",
       meta: primaryProject?.health?.next_action ?? "进行中",
       tone: "slate" as const,
+      href: primaryProject ? `/projects/${primaryProject.id}` : "/projects",
     },
   ];
   const timelineItems = [
@@ -782,6 +828,14 @@ export default function Home() {
 
   return (
     <div className={clsx("workbench-page spatial-workbench-page", `density-${settings.density}`)}>
+      <NewThreadModal
+        open={newThreadOpen}
+        onClose={() => setNewThreadOpen(false)}
+        onCreated={(thread: Thread) => {
+          setNewThreadOpen(false);
+          navigate(`/threads/${thread.id}`);
+        }}
+      />
       <div className="mx-auto w-full max-w-[1480px] px-4 py-4 lg:px-5">
         <header className="spatial-hero mb-4">
           <div className="min-w-0">
@@ -798,8 +852,9 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <div className="view-switch">
-              {(["minimal", "balanced", "complete", "custom"] as ViewPreset[]).map((view) => (
+              {VIEW_PRESETS.map((view) => (
                 <button
+                  type="button"
                   key={view}
                   className={clsx("view-switch-item", settings.view === view && "view-switch-active")}
                   onClick={() => updateSettings({ view })}
@@ -809,17 +864,24 @@ export default function Home() {
               ))}
             </div>
             <button
+              type="button"
               className={clsx("btn", editMode && "border-accent/60 bg-accent/10 text-accent")}
               onClick={() => (editMode ? setEditMode(false) : activateCustomLayout())}
             >
               <Maximize2 size={15} />
               {editMode ? "完成布局" : "编辑布局"}
             </button>
-            <button className="btn" onClick={() => setConfigOpen((value) => !value)}>
+            <button
+              type="button"
+              className={clsx("btn", configOpen && "border-accent/60 bg-accent/10 text-accent")}
+              aria-expanded={configOpen}
+              aria-controls="workbench-config"
+              onClick={() => setConfigOpen((value) => !value)}
+            >
               <PanelRight size={15} />
               配置
             </button>
-            <button className="btn btn-accent" onClick={openCapture}>
+            <button type="button" className="btn btn-accent" aria-label="在工作台写一笔" onClick={openCapture}>
               <Plus size={15} />
               写一笔
             </button>
@@ -835,7 +897,12 @@ export default function Home() {
 
         <section className="spatial-app-frame">
           <div className="spatial-canvas">
-            <SpatialTimeline rows={worklineRows} items={timelineItems} iso={iso} />
+            <SpatialTimeline
+              rows={worklineRows}
+              items={timelineItems}
+              iso={iso}
+              onCreateThread={() => setNewThreadOpen(true)}
+            />
 
             <div className={clsx("workbench-grid spatial-module-grid", editMode && "workbench-grid-editing")}>
               {activeLayout.map((item) => (
@@ -905,15 +972,35 @@ export default function Home() {
                 <div className="mb-2 text-xs font-semibold text-ink">关联项目</div>
                 <div className="flex items-center justify-between text-xs text-ink-soft">
                   <span>{primaryProject?.name ?? "设计系统 v2.1"}</span>
-                  <ChevronRight size={14} />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-line pt-4">
+                <Link
+                  className="btn justify-center"
+                  to={primaryThread ? `/threads/${primaryThread.id}` : "/threads"}
+                >
+                  工作线
+                </Link>
+                <Link
+                  className="btn justify-center"
+                  to={primaryProject ? `/projects/${primaryProject.id}` : "/projects"}
+                >
+                  项目
+                </Link>
               </div>
             </div>
           </aside>
         </section>
 
         {configOpen && (
-          <aside className="workbench-config fixed bottom-4 right-4 top-20 z-30 w-[320px] shrink-0">
+          <>
+          <button
+            type="button"
+            aria-label="关闭配置遮罩"
+            className="workbench-config-backdrop"
+            onClick={() => setConfigOpen(false)}
+          />
+          <aside id="workbench-config" className="workbench-config fixed bottom-4 right-4 top-20 z-40 w-[320px] shrink-0">
             <div className="h-full overflow-hidden rounded-lg border border-line bg-canvas-raised/90 shadow-soft backdrop-blur-2xl">
               <div className="border-b border-line px-4 py-3">
                 <div className="flex items-center justify-between">
@@ -921,7 +1008,12 @@ export default function Home() {
                     <Settings2 size={16} className="text-accent" />
                     <span className="font-medium text-ink">工作台配置</span>
                   </div>
-                  <button className="btn-icon !h-7 !w-7" onClick={() => setConfigOpen(false)}>
+                  <button
+                    type="button"
+                    aria-label="关闭工作台配置"
+                    className="btn-icon !h-7 !w-7"
+                    onClick={() => setConfigOpen(false)}
+                  >
                     <PanelRight size={14} />
                   </button>
                 </div>
@@ -951,8 +1043,9 @@ export default function Home() {
                     <span className="mono-meta">{DENSITY_LABEL[settings.density]}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-1 rounded-lg border border-line bg-canvas-sunken p-1">
-                    {(["compact", "standard", "roomy"] as Density[]).map((density) => (
+                    {DENSITIES.map((density) => (
                       <button
+                        type="button"
                         key={density}
                         onClick={() => updateSettings({ density })}
                         className={clsx(
@@ -1010,6 +1103,7 @@ export default function Home() {
                     拖动板块左上角手柄调整位置，拖动右下角手柄调整宽度和高度。
                   </p>
                   <button
+                    type="button"
                     className={clsx("btn mt-3 w-full justify-center", editMode && "btn-accent")}
                     onClick={() => (editMode ? setEditMode(false) : activateCustomLayout())}
                   >
@@ -1019,11 +1113,12 @@ export default function Home() {
                 </div>
 
                 <div className="flex gap-2 border-t border-line pt-4">
-                  <button className="btn flex-1 justify-center" onClick={resetLayout}>
+                  <button type="button" className="btn flex-1 justify-center" onClick={resetLayout}>
                     <RotateCcw size={14} />
                     重置
                   </button>
                   <button
+                    type="button"
                     className="btn btn-accent flex-1 justify-center"
                     onClick={() => {
                       updateSettings({
@@ -1041,6 +1136,7 @@ export default function Home() {
               </div>
             </div>
           </aside>
+          </>
         )}
       </div>
     </div>
@@ -1055,10 +1151,12 @@ function SpatialTimeline({
   rows,
   items,
   iso,
+  onCreateThread,
 }: {
-  rows: { title: string; meta: string; tone: "moss" | "amber" | "slate" }[];
+  rows: { title: string; meta: string; tone: "moss" | "amber" | "slate"; href: string }[];
   items: { label: string; start: number; span: number; tone: "moss" | "amber" | "slate" }[];
   iso: string;
+  onCreateThread: () => void;
 }) {
   const days = ["11\n周三", "12\n周四", "13\n周五", "14\n周六", "15\n周日", "16\n周一", "17\n周二", "18\n周三", "19\n周四", "20\n周五"];
   return (
@@ -1070,16 +1168,25 @@ function SpatialTimeline({
         </div>
         <div className="divide-y divide-line/70">
           {rows.map((row) => (
-            <div key={row.title} className={clsx("spatial-workline-row", `tone-${row.tone}`)}>
+            <Link
+              key={row.title}
+              to={row.href}
+              className={clsx("spatial-workline-row", `tone-${row.tone}`)}
+            >
               <span className="spatial-workline-dot" />
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-ink">{row.title}</div>
                 <div className="mt-1 text-xs text-ink-mute">{row.meta}</div>
               </div>
-            </div>
+              <ChevronRight size={14} className="spatial-workline-chevron" />
+            </Link>
           ))}
         </div>
-        <button className="mx-4 mt-4 flex items-center gap-2 text-xs text-ink-mute transition hover:text-accent">
+        <button
+          type="button"
+          className="mx-4 mt-4 flex items-center gap-2 text-xs text-ink-mute transition hover:text-accent"
+          onClick={onCreateThread}
+        >
           <Plus size={14} />
           新建工作线
         </button>
@@ -1092,8 +1199,8 @@ function SpatialTimeline({
             <div className="mt-1 text-sm font-semibold text-ink">空间时间线</div>
           </div>
           <div className="flex items-center gap-1 rounded-md border border-line bg-canvas-sunken p-1 text-xs">
-            <button className="rounded bg-canvas-raised px-2 py-1 text-ink">周</button>
-            <button className="rounded px-2 py-1 text-ink-mute">月</button>
+            <button type="button" className="rounded bg-canvas-raised px-2 py-1 text-ink">周</button>
+            <button type="button" className="rounded px-2 py-1 text-ink-mute">月</button>
           </div>
         </div>
         <div className="spatial-calendar-days">
@@ -1140,7 +1247,7 @@ function InspectorField({
   tone?: "moss";
 }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1.5 block text-xs text-ink-soft">{label}</span>
       <div
         className={clsx(
@@ -1149,9 +1256,8 @@ function InspectorField({
         )}
       >
         <span>{value}</span>
-        <ChevronRight size={14} className="text-ink-faint" />
       </div>
-    </label>
+    </div>
   );
 }
 
@@ -1196,7 +1302,9 @@ function EditableModuleFrame({
         event.preventDefault();
       }}
       onDrop={(event) => {
+        if (!editing) return;
         event.preventDefault();
+        event.stopPropagation();
         onDrop();
       }}
     >
@@ -1208,7 +1316,9 @@ function EditableModuleFrame({
             draggable
             aria-label={`移动${meta.label}`}
             title="拖动调整位置"
+            onClick={(event) => event.stopPropagation()}
             onDragStart={(event) => {
+              event.stopPropagation();
               event.dataTransfer.effectAllowed = "move";
               onDragStart();
             }}
@@ -1224,6 +1334,7 @@ function EditableModuleFrame({
             className="layout-resize-handle"
             aria-label={`调整${meta.label}大小`}
             title="拖动调整大小"
+            onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => onResizeStart(event, item)}
             onPointerMove={onResizeMove}
             onPointerUp={onResizeEnd}
@@ -1231,7 +1342,9 @@ function EditableModuleFrame({
           />
         </>
       )}
-      {children}
+      <div className={clsx("workbench-module-content", editing && "workbench-module-content-locked")}>
+        {children}
+      </div>
     </div>
   );
 }

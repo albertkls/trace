@@ -61,6 +61,45 @@ def _handle_window_closing(window: webview.Window) -> bool:
     return False
 
 
+def _ensure_window_visible(window: webview.Window) -> None:
+    """Bring the pywebview window back if macOS launches the app without a key window."""
+    try:
+        window.show()
+        window.restore()
+    except Exception:
+        pass
+
+    if sys.platform != "darwin":
+        return
+    try:
+        from AppKit import NSApp  # type: ignore
+        from PyObjCTools import AppHelper  # type: ignore
+    except Exception:
+        return
+
+    def activate() -> None:
+        try:
+            window.show()
+            window.restore()
+        except Exception:
+            pass
+        try:
+            NSApp.activateIgnoringOtherApps_(True)
+            for win in list(NSApp.windows() or []):
+                try:
+                    win.makeKeyAndOrderFront_(None)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    AppHelper.callAfter(activate)
+    try:
+        AppHelper.callLater(0.5, activate)
+    except Exception:
+        pass
+
+
 def _customize_macos_window(*_args: object, **_kwargs: object) -> None:
     """Merge the native title bar into the app — transparent titlebar +
     full-size content view so the app's dark background extends behind the
@@ -222,7 +261,7 @@ def run_desktop() -> None:
         if ev is not None:
             ev += _customize_macos_window
     window.events.closing += _handle_window_closing
-    webview.start(debug=False)
+    webview.start(_ensure_window_visible, window, debug=False)
 
     # Keep a reference alive until the window exits.
     _ = window

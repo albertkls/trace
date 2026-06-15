@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Trace",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "identifier": "com.albertkls.trace.tauri",
   "build": {
     "frontendDist": "../dist",

@@ -376,6 +376,117 @@
     box-shadow: inset 0 0 0 1px rgba(72, 211, 255, 0.035);
   }
 
+  .workbench-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .workbench-grid-editing {
+    border-radius: 12px;
+    background-image:
+      linear-gradient(rgb(var(--color-accent) / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--color-accent) / 0.07) 1px, transparent 1px);
+    background-size: calc((100% - 11rem) / 12 + 1rem) 74px;
+    outline: 1px dashed rgb(var(--color-accent) / 0.26);
+    outline-offset: 10px;
+  }
+
+  .workbench-module {
+    position: relative;
+    min-width: 0;
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease,
+      filter 0.16s ease;
+  }
+
+  .workbench-module-editable {
+    padding-top: 1.25rem;
+  }
+
+  .workbench-module-editable::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 1.25rem 0 0;
+    z-index: 3;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(var(--color-accent) / 0.26);
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-accent) / 0.055),
+      0 0 24px rgb(var(--color-accent) / 0.08);
+  }
+
+  .workbench-module-editable:hover::before {
+    border-color: rgb(var(--color-accent) / 0.58);
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-accent) / 0.11),
+      0 0 30px rgb(var(--color-accent) / 0.14);
+  }
+
+  .workbench-module-dragging {
+    opacity: 0.42;
+    transform: scale(0.985);
+    filter: saturate(0.7);
+  }
+
+  .layout-drag-handle {
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    z-index: 8;
+    display: inline-flex;
+    height: 1.75rem;
+    width: 2.25rem;
+    cursor: grab;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(var(--color-accent) / 0.45);
+    background: rgb(var(--color-canvas-sunken) / 0.92);
+    color: rgb(var(--color-accent));
+    box-shadow: 0 0 18px rgb(var(--color-accent) / 0.16);
+  }
+
+  .layout-drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .layout-size-badge {
+    position: absolute;
+    right: 0.7rem;
+    top: 0;
+    z-index: 8;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(var(--color-iris) / 0.38);
+    background: rgb(var(--color-canvas-sunken) / 0.92);
+    padding: 0.32rem 0.55rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.66rem;
+    line-height: 1;
+    color: rgb(var(--color-iris));
+  }
+
+  .layout-resize-handle {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    z-index: 8;
+    height: 1.25rem;
+    width: 1.25rem;
+    cursor: nwse-resize;
+    border: 0;
+    border-radius: 0.35rem;
+    background:
+      linear-gradient(135deg, transparent 0 42%, rgb(var(--color-accent) / 0.7) 43% 50%, transparent 51%),
+      linear-gradient(135deg, transparent 0 62%, rgb(var(--color-accent) / 0.52) 63% 70%, transparent 71%),
+      rgb(var(--color-canvas-sunken) / 0.9);
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-accent) / 0.38),
+      0 0 16px rgb(var(--color-accent) / 0.14);
+  }
+
   .density-compact .workbench-panel {
     font-size: 0.93rem;
   }
@@ -428,5 +539,11 @@
 @media (max-width: 768px) {
   .panel-grid {
     grid-template-columns: 1fr !important;
+  }
+  .workbench-grid {
+    grid-template-columns: 1fr;
+  }
+  .workbench-module {
+    grid-column: 1 / -1 !important;
   }
 }

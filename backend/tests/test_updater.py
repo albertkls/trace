@@ -40,7 +40,11 @@ def test_check_update_exposes_release_digest(client, monkeypatch):
                 ],
             }
 
-    monkeypatch.setattr(updater.httpx, "get", lambda *args, **kwargs: FakeResponse())
+    def fake_get(*args, **kwargs):
+        assert kwargs["trust_env"] is False
+        return FakeResponse()
+
+    monkeypatch.setattr(updater.httpx, "get", fake_get)
 
     response = client.get("/api/updater/check")
     assert response.status_code == 200
@@ -71,7 +75,11 @@ def test_check_update_does_not_offer_current_release(client, monkeypatch):
                 ],
             }
 
-    monkeypatch.setattr(updater.httpx, "get", lambda *args, **kwargs: FakeResponse())
+    def fake_get(*args, **kwargs):
+        assert kwargs["trust_env"] is False
+        return FakeResponse()
+
+    monkeypatch.setattr(updater.httpx, "get", fake_get)
 
     response = client.get("/api/updater/check")
     assert response.status_code == 200
@@ -108,7 +116,11 @@ def test_download_verifies_sha256(client, monkeypatch):
         def iter_bytes(self, chunk_size=65536):
             yield payload
 
-    monkeypatch.setattr(updater.httpx, "stream", lambda *args, **kwargs: FakeStream())
+    def fake_stream(*args, **kwargs):
+        assert kwargs["trust_env"] is False
+        return FakeStream()
+
+    monkeypatch.setattr(updater.httpx, "stream", fake_stream)
 
     response = client.post(
         "/api/updater/download",

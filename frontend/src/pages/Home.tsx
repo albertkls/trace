@@ -311,7 +311,7 @@ function layoutForModules(modules: ModuleId[], layout = DEFAULT_LAYOUT): Workben
 export default function Home() {
   const { open: openCapture } = useQuickCapture();
   const [settings, setSettings] = useState<WorkbenchSettings>(() => loadSettings());
-  const [configOpen, setConfigOpen] = useState(true);
+  const [configOpen, setConfigOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [draggingId, setDraggingId] = useState<ModuleId | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
@@ -432,6 +432,32 @@ export default function Home() {
       ["active", "healthy"].includes(project.health?.health_status ?? "healthy")
     ).length,
   };
+  const primaryThread = threads[0];
+  const primaryProject = projects[0];
+  const worklineRows = [
+    {
+      title: primaryThread?.title ?? "产品设计迭代",
+      meta: primaryThread?.project ?? "进行中",
+      tone: "moss" as const,
+    },
+    {
+      title: projectAlerts[0]?.name ?? "内容创作线",
+      meta: projectAlerts[0]?.health?.next_action ?? "处理中",
+      tone: "amber" as const,
+    },
+    {
+      title: primaryProject?.name ?? "个人知识管理",
+      meta: primaryProject?.health?.next_action ?? "进行中",
+      tone: "slate" as const,
+    },
+  ];
+  const timelineItems = [
+    { label: "v2.1 设计系统更新", start: 3, span: 5, tone: "moss" as const },
+    { label: "组件库优化", start: 6, span: 4, tone: "slate" as const },
+    { label: "公众号：设计方法论", start: 7, span: 4, tone: "amber" as const },
+    { label: "读书笔记：系统思考", start: 10, span: 4, tone: "slate" as const },
+    { label: draftReport ? `${draftReport.period_label} 周报` : "周报撰写", start: 11, span: 2, tone: "amber" as const },
+  ];
 
   const updateSettings = (patch: Partial<WorkbenchSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -454,18 +480,6 @@ export default function Home() {
         customLayout: layoutForModules(nextModules, current.customLayout),
       };
     });
-  };
-  const createCustomView = () => {
-    const name = window.prompt("给自定义视图命名", settings.customName);
-    if (!name?.trim()) return;
-    setSettings((current) => ({
-      ...current,
-      view: "custom",
-      customName: name.trim(),
-      customModules: activeModules,
-      customLayout: layoutForModules(activeModules, activeLayout),
-    }));
-    setConfigOpen(true);
   };
   const resetLayout = () => setSettings(DEFAULT_SETTINGS);
   const activateCustomLayout = () => {
@@ -767,108 +781,140 @@ export default function Home() {
   };
 
   return (
-    <div className={clsx("workbench-page", `density-${settings.density}`)}>
-      <div className="mx-auto flex w-full max-w-[1500px] gap-5 px-5 py-5">
-        <section className="min-w-0 flex-1">
-          <header className="mb-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className={clsx("workbench-page spatial-workbench-page", `density-${settings.density}`)}>
+      <div className="mx-auto w-full max-w-[1480px] px-4 py-4 lg:px-5">
+        <header className="spatial-hero mb-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="dot-pulse" />
+              <span className="eyebrow">SPATIAL SLATE · {weekLabel}</span>
+            </div>
+            <h1 className="mt-2 font-display text-[30px] font-semibold leading-tight text-ink">
+              捕捉灵感，梳理思路，推进工作。
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft">
+              属于你的空间化工作台：工作线在时间画布上展开，捕捉、待办和周报在底部随时接入。
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="view-switch">
+              {(["minimal", "balanced", "complete", "custom"] as ViewPreset[]).map((view) => (
+                <button
+                  key={view}
+                  className={clsx("view-switch-item", settings.view === view && "view-switch-active")}
+                  onClick={() => updateSettings({ view })}
+                >
+                  {view === "custom" ? settings.customName || VIEW_LABEL[view] : VIEW_LABEL[view]}
+                </button>
+              ))}
+            </div>
+            <button
+              className={clsx("btn", editMode && "border-accent/60 bg-accent/10 text-accent")}
+              onClick={() => (editMode ? setEditMode(false) : activateCustomLayout())}
+            >
+              <Maximize2 size={15} />
+              {editMode ? "完成布局" : "编辑布局"}
+            </button>
+            <button className="btn" onClick={() => setConfigOpen((value) => !value)}>
+              <PanelRight size={15} />
+              配置
+            </button>
+            <button className="btn btn-accent" onClick={openCapture}>
+              <Plus size={15} />
+              写一笔
+            </button>
+          </div>
+        </header>
+
+        <section className="spatial-signal-strip mb-4">
+          <SignalTile icon={Inbox} label="闪记" value={inbox.length} tone="accent" />
+          <SignalTile icon={GitBranch} label="工作线" value={threads.length} tone="neutral" />
+          <SignalTile icon={LayoutDashboard} label="项目" value={projects.length} tone="iris" />
+          <SignalTile icon={ShieldAlert} label="阻塞" value={blockedThreads.length} tone="stop" />
+        </section>
+
+        <section className="spatial-app-frame">
+          <div className="spatial-canvas">
+            <SpatialTimeline rows={worklineRows} items={timelineItems} iso={iso} />
+
+            <div className={clsx("workbench-grid spatial-module-grid", editMode && "workbench-grid-editing")}>
+              {activeLayout.map((item) => (
+                <EditableModuleFrame
+                  key={item.id}
+                  item={item}
+                  editing={editMode}
+                  dragging={draggingId === item.id}
+                  onDragStart={() => setDraggingId(item.id)}
+                  onDragEnd={() => setDraggingId(null)}
+                  onDrop={() => {
+                    if (draggingId) reorderModule(draggingId, item.id);
+                    setDraggingId(null);
+                  }}
+                  onResizeStart={beginResize}
+                  onResizeMove={handleResizeMove}
+                  onResizeEnd={endResize}
+                >
+                  {renderModule(item.id)}
+                </EditableModuleFrame>
+              ))}
+            </div>
+          </div>
+
+          <aside className="spatial-inspector">
+            <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="dot-pulse" />
-                  <span className="eyebrow">COMMAND WORKBENCH · {weekLabel}</span>
+                <div className="text-sm font-semibold text-ink">
+                  工作线：{primaryThread?.title ?? "产品设计迭代"}
                 </div>
-                <h1 className="mt-3 font-display text-[34px] font-semibold leading-tight text-ink">
-                  今日指挥台
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
-                  把闪记、工作线、项目健康、待办和汇报压缩到一个可配置工作台里。
+                <div className="mono-meta mt-1 text-[10px]">inspector · {iso}</div>
+              </div>
+              <button className="btn-icon !h-7 !w-7" onClick={() => setConfigOpen(true)}>
+                <Settings2 size={14} />
+              </button>
+            </div>
+            <div className="space-y-4 px-4 py-4">
+              <InspectorField label="状态" value={primaryThread?.status ?? "进行中"} tone="moss" />
+              <InspectorField label="负责人" value="林墨" />
+              <InspectorField
+                label="时间范围"
+                value={primaryProject?.updated_at?.slice(0, 10) ?? "6月8日 - 6月28日"}
+              />
+              <div>
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="text-ink-soft">进度</span>
+                  <span className="mono-meta">68%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-canvas-sunken">
+                  <div className="h-full w-[68%] rounded-full bg-accent" />
+                </div>
+              </div>
+              <div className="rounded-lg border border-line bg-canvas-raised/55 p-3">
+                <div className="mb-2 text-xs font-semibold text-ink">目标</div>
+                <p className="text-xs leading-5 text-ink-soft">
+                  完成设计系统规划与核心组件建设，提升设计效率。
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className={clsx("btn", editMode && "border-accent/60 bg-accent/10 text-accent")}
-                  onClick={() => (editMode ? setEditMode(false) : activateCustomLayout())}
-                >
-                  <Maximize2 size={15} />
-                  {editMode ? "完成布局" : "编辑布局"}
-                </button>
-                <button className="btn" onClick={() => setConfigOpen((value) => !value)}>
-                  <PanelRight size={15} />
-                  工作台配置
-                </button>
-                <button className="btn btn-accent" onClick={openCapture}>
-                  <Plus size={15} />
-                  写一笔
-                </button>
+              <div>
+                <div className="mb-2 text-xs font-semibold text-ink">标签</div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="chip chip-accent">设计系统</span>
+                  <span className="chip chip-hold">迭代</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-line bg-canvas-sunken/55 p-3">
+                <div className="mb-2 text-xs font-semibold text-ink">关联项目</div>
+                <div className="flex items-center justify-between text-xs text-ink-soft">
+                  <span>{primaryProject?.name ?? "设计系统 v2.1"}</span>
+                  <ChevronRight size={14} />
+                </div>
               </div>
             </div>
-
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-canvas-raised/45 p-2 shadow-chip backdrop-blur-xl">
-              <div className="flex flex-wrap items-center gap-1">
-                {(["minimal", "balanced", "complete", "custom"] as ViewPreset[]).map((view) => (
-                  <button
-                    key={view}
-                    className={clsx(
-                      "rounded-md px-3 py-1.5 text-sm transition",
-                      settings.view === view
-                        ? "bg-accent text-accent-ink shadow-glow"
-                        : "text-ink-soft hover:bg-canvas-contrast hover:text-ink"
-                    )}
-                    onClick={() => updateSettings({ view })}
-                  >
-                    {view === "custom" ? settings.customName || VIEW_LABEL[view] : VIEW_LABEL[view]}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="btn btn-ghost" onClick={createCustomView}>
-                  <Plus size={14} />
-                  新建视图
-                </button>
-                <button className="btn btn-ghost" onClick={() => setConfigOpen(true)}>
-                  <Save size={14} />
-                  布局面板
-                </button>
-                <span className="hidden rounded-md border border-line bg-canvas-sunken px-2.5 py-1.5 text-xs text-ink-mute sm:inline-flex">
-                  {iso}
-                </span>
-              </div>
-            </div>
-          </header>
-
-          <section className="mb-5 grid gap-3 md:grid-cols-4">
-            <SignalTile icon={Inbox} label="闪记" value={inbox.length} tone="accent" />
-            <SignalTile icon={GitBranch} label="工作线" value={threads.length} tone="neutral" />
-            <SignalTile icon={LayoutDashboard} label="项目" value={projects.length} tone="iris" />
-            <SignalTile icon={ShieldAlert} label="阻塞" value={blockedThreads.length} tone="stop" />
-          </section>
-
-          <div className={clsx("workbench-grid", editMode && "workbench-grid-editing")}>
-            {activeLayout.map((item) => (
-              <EditableModuleFrame
-                key={item.id}
-                item={item}
-                editing={editMode}
-                dragging={draggingId === item.id}
-                onDragStart={() => setDraggingId(item.id)}
-                onDragEnd={() => setDraggingId(null)}
-                onDrop={() => {
-                  if (draggingId) reorderModule(draggingId, item.id);
-                  setDraggingId(null);
-                }}
-                onResizeStart={beginResize}
-                onResizeMove={handleResizeMove}
-                onResizeEnd={endResize}
-              >
-                {renderModule(item.id)}
-              </EditableModuleFrame>
-            ))}
-          </div>
+          </aside>
         </section>
 
         {configOpen && (
-          <aside className="workbench-config fixed bottom-4 right-4 top-20 z-30 w-[320px] shrink-0 min-[1400px]:sticky min-[1400px]:bottom-auto min-[1400px]:right-auto min-[1400px]:top-5 min-[1400px]:z-auto">
-            <div className="h-full overflow-hidden rounded-lg border border-line bg-canvas-raised/70 shadow-soft backdrop-blur-2xl min-[1400px]:h-auto">
+          <aside className="workbench-config fixed bottom-4 right-4 top-20 z-30 w-[320px] shrink-0">
+            <div className="h-full overflow-hidden rounded-lg border border-line bg-canvas-raised/90 shadow-soft backdrop-blur-2xl">
               <div className="border-b border-line px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -888,7 +934,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="max-h-[calc(100vh-11rem)] space-y-5 overflow-y-auto px-4 py-4 min-[1400px]:max-h-[calc(100vh-8rem)]">
+              <div className="max-h-[calc(100vh-11rem)] space-y-5 overflow-y-auto px-4 py-4">
                 <label className="block">
                   <span className="eyebrow text-[9px]">VIEW NAME</span>
                   <input
@@ -961,7 +1007,7 @@ export default function Home() {
                     布局编辑
                   </div>
                   <p className="mt-2 text-xs leading-5 text-ink-soft">
-                    开启后拖动板块左上角手柄调整位置，拖动右下角手柄调整宽度和高度。
+                    拖动板块左上角手柄调整位置，拖动右下角手柄调整宽度和高度。
                   </p>
                   <button
                     className={clsx("btn mt-3 w-full justify-center", editMode && "btn-accent")}
@@ -1003,6 +1049,110 @@ export default function Home() {
 
 function moduleMeta(id: ModuleId) {
   return MODULES.find((module) => module.id === id) ?? MODULES[0];
+}
+
+function SpatialTimeline({
+  rows,
+  items,
+  iso,
+}: {
+  rows: { title: string; meta: string; tone: "moss" | "amber" | "slate" }[];
+  items: { label: string; start: number; span: number; tone: "moss" | "amber" | "slate" }[];
+  iso: string;
+}) {
+  const days = ["11\n周三", "12\n周四", "13\n周五", "14\n周六", "15\n周日", "16\n周一", "17\n周二", "18\n周三", "19\n周四", "20\n周五"];
+  return (
+    <section className="spatial-timeline-panel">
+      <div className="spatial-workline-list">
+        <div className="flex items-center justify-between border-b border-line px-4 py-3">
+          <h2 className="text-base font-semibold text-ink">工作线</h2>
+          <span className="mono-meta text-[10px]">{rows.length} lanes</span>
+        </div>
+        <div className="divide-y divide-line/70">
+          {rows.map((row) => (
+            <div key={row.title} className={clsx("spatial-workline-row", `tone-${row.tone}`)}>
+              <span className="spatial-workline-dot" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-ink">{row.title}</div>
+                <div className="mt-1 text-xs text-ink-mute">{row.meta}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button className="mx-4 mt-4 flex items-center gap-2 text-xs text-ink-mute transition hover:text-accent">
+          <Plus size={14} />
+          新建工作线
+        </button>
+      </div>
+
+      <div className="spatial-calendar">
+        <div className="spatial-calendar-toolbar">
+          <div>
+            <div className="mono-meta text-[10px]">2026年6月</div>
+            <div className="mt-1 text-sm font-semibold text-ink">空间时间线</div>
+          </div>
+          <div className="flex items-center gap-1 rounded-md border border-line bg-canvas-sunken p-1 text-xs">
+            <button className="rounded bg-canvas-raised px-2 py-1 text-ink">周</button>
+            <button className="rounded px-2 py-1 text-ink-mute">月</button>
+          </div>
+        </div>
+        <div className="spatial-calendar-days">
+          {days.map((day) => {
+            const [date, weekday] = day.split("\n");
+            return (
+              <div key={day} className="text-center">
+                <div className="text-xs font-medium text-ink">{date}</div>
+                <div className="mono-meta mt-0.5 text-[10px]">{weekday}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="spatial-calendar-grid">
+          <div className="spatial-today-line" />
+          {items.map((item) => (
+            <div
+              key={item.label}
+              className={clsx("spatial-timeline-item", `tone-${item.tone}`)}
+              style={{
+                gridColumn: `${item.start} / span ${item.span}`,
+              }}
+            >
+              {item.label}
+            </div>
+          ))}
+        </div>
+        <div className="spatial-calendar-footer">
+          <span>{iso}</span>
+          <span>拖动工作块可以重排你的工作台模块</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function InspectorField({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "moss";
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs text-ink-soft">{label}</span>
+      <div
+        className={clsx(
+          "flex items-center justify-between rounded-md border border-line bg-canvas-raised/75 px-3 py-2 text-sm text-ink",
+          tone === "moss" && "text-accent"
+        )}
+      >
+        <span>{value}</span>
+        <ChevronRight size={14} className="text-ink-faint" />
+      </div>
+    </label>
+  );
 }
 
 function EditableModuleFrame({

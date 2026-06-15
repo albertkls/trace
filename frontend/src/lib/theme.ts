@@ -12,14 +12,14 @@ function isThemePreference(value: string | null): value is ThemePreference {
 }
 
 export function getStoredThemePreference(): ThemePreference {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const value = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return isThemePreference(value) ? value : "dark";
+  return isThemePreference(value) ? value : "light";
 }
 
 export function resolveTheme(preference: ThemePreference): ResolvedTheme {
   if (preference !== "system") return preference;
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: light)").matches
     ? "light"
     : "dark";

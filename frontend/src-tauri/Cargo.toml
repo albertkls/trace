@@ -1,6 +1,6 @@
 [package]
 name = "trace-tauri"
-version = "2.0.5"
+version = "2.0.6"
 description = "Trace desktop shell powered by Tauri"
 authors = ["Albert"]
 license = ""

@@ -127,7 +127,7 @@ def _quit_app_after_response(delay: float = 0.75) -> None:
 def check_update() -> dict:
     current = _parse_version(__version__)
     try:
-        resp = httpx.get(GITHUB_API, timeout=10, follow_redirects=True)
+        resp = httpx.get(GITHUB_API, timeout=10, follow_redirects=True, trust_env=False)
         resp.raise_for_status()
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"GitHub API 请求失败: {e}")
@@ -163,7 +163,13 @@ def download_update(body: DownloadRequest) -> dict:
     total = 0
 
     try:
-        with httpx.stream("GET", body.dmg_url, timeout=300, follow_redirects=True) as resp:
+        with httpx.stream(
+            "GET",
+            body.dmg_url,
+            timeout=300,
+            follow_redirects=True,
+            trust_env=False,
+        ) as resp:
             resp.raise_for_status()
             with open(dmg_path, "wb") as f:
                 for chunk in resp.iter_bytes(chunk_size=65536):

@@ -172,20 +172,20 @@ export default function Shell() {
                 isPywebview ? "pt-12" : "pt-4"
               )}
             >
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-accent/35 to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-line-strong to-transparent" />
 
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-canvas-raised/55 p-2.5 shadow-chip">
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-canvas-raised/70 p-2.5 shadow-chip">
                 <img
-                  src="/trace-icon.svg"
+                  src="/trace-icon-512.png"
                   alt="Trace"
-                  className="h-8 w-8 rounded-md border border-accent/25 bg-canvas-sunken shadow-glow"
+                  className="h-8 w-8 rounded-md border border-line bg-canvas-sunken shadow-soft"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="sidebar-logo-text font-display text-[15px] font-semibold text-ink">
                     Trace
                   </div>
                   <div className="sidebar-logo-text mt-0.5 truncate text-[11px] text-ink-mute">
-                    Local AI command
+                    Spatial Slate
                   </div>
                 </div>
                 <span className="nav-label mono-meta text-[10px]">v{APP_VERSION}</span>
@@ -257,7 +257,7 @@ export default function Shell() {
                 )}
               </div>
 
-              <div className="mb-2 px-2 nav-eyebrow eyebrow text-[9px]">COMMAND SURFACES</div>
+              <div className="mb-2 px-2 nav-eyebrow eyebrow text-[9px]">NAVIGATION</div>
               <nav className="flex flex-col gap-1">
                 {NAV.map((item) => {
                   const Icon = item.icon;
@@ -325,13 +325,13 @@ export default function Shell() {
             <section className="flex min-w-0 flex-1 flex-col">
               <header
                 className={clsx(
-                  "app-topbar sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-canvas/72 px-5 backdrop-blur-2xl",
+                  "app-topbar sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-canvas/82 px-5 backdrop-blur-2xl",
                   isPywebview && "pl-6"
                 )}
               >
                 <button
                   onClick={() => setSearchOpen(true)}
-                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-line bg-canvas-raised/55 px-3 py-2 text-left text-sm text-ink-mute shadow-chip transition hover:border-accent/40 hover:text-ink"
+                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-line bg-canvas-raised/70 px-3 py-2 text-left text-sm text-ink-mute shadow-chip transition hover:border-accent/40 hover:text-ink"
                 >
                   <Command size={16} className="text-accent" />
                   <span className="truncate">搜索、捕捉、跳转或生成周报</span>

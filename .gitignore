@@ -36,9 +36,11 @@ dist/
 *.spec
 frontend/tsconfig.tsbuildinfo
 assets/icons/*.png
+!assets/icons/spatial-slate-icon-1024.png
 assets/icons/*.icns
 assets/icons/*.iconset/
 frontend/public/trace-icon-512.png
+!frontend/public/trace-icon-512.png
 
 # env
 .env

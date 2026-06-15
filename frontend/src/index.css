@@ -543,15 +543,17 @@
 
   .spatial-calendar-days {
     display: grid;
-    grid-template-columns: repeat(10, minmax(0, 1fr));
     border-bottom: 1px solid rgb(var(--color-line) / 0.07);
     padding: 0.75rem 1rem 0.65rem;
+  }
+
+  .spatial-calendar-day-today {
+    color: rgb(var(--color-accent));
   }
 
   .spatial-calendar-grid {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(13, minmax(0, 1fr));
     grid-auto-rows: 48px;
     gap: 0.75rem 0.45rem;
     min-height: 190px;
@@ -562,7 +564,6 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 51%;
     border-left: 1px dashed rgb(var(--color-line-strong) / 0.36);
   }
 
@@ -576,9 +577,41 @@
     border: 1px solid rgb(var(--color-line) / 0.08);
     border-radius: 0.5rem;
     padding: 0 0.85rem;
+    text-align: left;
     font-size: 0.8125rem;
     color: rgb(var(--color-ink));
     box-shadow: var(--shadow-chip);
+    transition:
+      border-color 0.16s ease,
+      box-shadow 0.16s ease,
+      transform 0.16s ease;
+  }
+
+  .spatial-timeline-item:hover {
+    border-color: rgb(var(--color-accent) / 0.42);
+    transform: translateY(-1px);
+  }
+
+  .spatial-timeline-item:focus-visible {
+    outline: 2px solid rgb(var(--color-accent) / 0.5);
+    outline-offset: 2px;
+  }
+
+  .spatial-timeline-item-active {
+    border-color: rgb(var(--color-accent) / 0.72);
+    box-shadow:
+      var(--shadow-chip),
+      0 0 0 2px rgb(var(--color-accent) / 0.16);
+  }
+
+  .spatial-item-thread {
+    margin-left: auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.6875rem;
+    color: currentColor;
+    opacity: 0.72;
   }
 
   .spatial-timeline-item.tone-moss {
@@ -593,6 +626,44 @@
 
   .spatial-timeline-item.tone-slate {
     background: rgb(var(--color-canvas-contrast) / 0.62);
+  }
+
+  .spatial-empty-timeline {
+    z-index: 1;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    justify-self: center;
+    gap: 0.45rem;
+    border: 1px dashed rgb(var(--color-line-strong) / 0.34);
+    border-radius: 0.65rem;
+    background: rgb(var(--color-canvas-raised) / 0.72);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.8125rem;
+    color: rgb(var(--color-ink-soft));
+    transition:
+      border-color 0.16s ease,
+      color 0.16s ease,
+      background-color 0.16s ease;
+  }
+
+  .spatial-empty-timeline:hover {
+    border-color: rgb(var(--color-accent) / 0.48);
+    background: rgb(var(--color-canvas-contrast) / 0.56);
+    color: rgb(var(--color-accent));
+  }
+
+  .spatial-timeline-editor {
+    margin: 0 1rem 0.9rem;
+    border: 1px solid rgb(var(--color-line) / 0.09);
+    border-radius: 0.75rem;
+    background:
+      linear-gradient(180deg, var(--panel-sheen), transparent 58%),
+      rgb(var(--color-canvas-raised) / 0.88);
+    padding: 0.9rem;
+    box-shadow: var(--shadow-soft);
   }
 
   .spatial-calendar-footer {

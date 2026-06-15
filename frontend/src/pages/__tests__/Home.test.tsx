@@ -1,19 +1,27 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/test-utils";
 import Home from "@/pages/Home";
+import { api } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   api: {
-    threads: { list: vi.fn().mockResolvedValue({ items: [] }) },
+    threads: { list: vi.fn().mockResolvedValue({ items: [], total: 0 }) },
     reports: { list: vi.fn().mockResolvedValue([]) },
     projects: { list: vi.fn().mockResolvedValue({ items: [] }) },
-    todos: { list: vi.fn().mockResolvedValue([]) },
+    todos: {
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({}),
+      patch: vi.fn().mockResolvedValue({}),
+      remove: vi.fn().mockResolvedValue(undefined),
+    },
     captures: { inbox: vi.fn().mockResolvedValue([]) },
     activity: {
       daily: vi.fn().mockResolvedValue({
         date: "2026-06-14",
+        evidence: [],
+        completed_todos: [],
         capture_count: 0,
         todo_done_count: 0,
         active_threads: [],
@@ -29,6 +37,24 @@ vi.mock("@/lib/quickCapture", () => ({
 
 describe("Home", () => {
   beforeEach(() => {
+    vi.mocked(api.threads.list).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.reports.list).mockResolvedValue([]);
+    vi.mocked(api.projects.list).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.todos.list).mockResolvedValue([]);
+    vi.mocked(api.todos.create).mockResolvedValue({} as never);
+    vi.mocked(api.todos.patch).mockResolvedValue({} as never);
+    vi.mocked(api.todos.remove).mockResolvedValue(undefined);
+    vi.mocked(api.captures.inbox).mockResolvedValue([]);
+    vi.mocked(api.activity.daily).mockResolvedValue({
+      date: "2026-06-14",
+      evidence: [],
+      completed_todos: [],
+      capture_count: 0,
+      todo_done_count: 0,
+      active_threads: [],
+    });
+    vi.mocked(api.updater.check).mockResolvedValue({ update_available: false } as never);
+
     const store: Record<string, string> = {};
     Object.defineProperty(window, "localStorage", {
       configurable: true,
@@ -100,5 +126,68 @@ describe("Home", () => {
 
     expect(await screen.findByText("NEW THREAD")).toBeTruthy();
     expect(await screen.findByPlaceholderText("例如：用户权限模块重构")).toBeTruthy();
+  });
+
+  it("edits a spatial timeline work block", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.threads.list).mockResolvedValue({
+      items: [
+        {
+          id: "th_1",
+          title: "设计系统",
+          project: "SRM",
+          owner: null,
+          status: "active",
+          started_at: "2026-06-10",
+          last_active_at: "2026-06-15T08:00:00",
+          summary: "",
+          pinned: 0,
+          evidence_count: 0,
+        },
+      ],
+      total: 1,
+    });
+    vi.mocked(api.todos.list).mockResolvedValue([
+      {
+        id: "td_1",
+        thread_id: "th_1",
+        thread_title: "设计系统",
+        text: "组件库优化",
+        due_date: "2026-06-15",
+        done: 0,
+        done_at: null,
+        created_at: "2026-06-15T08:00:00",
+      },
+    ]);
+
+    renderWithProviders(<Home />);
+
+    await user.click(await screen.findByRole("button", { name: "编辑工作块：组件库优化" }));
+    const title = await screen.findByLabelText("工作块标题");
+    await user.clear(title);
+    await user.type(title, "组件库验收");
+    await user.click(screen.getByRole("button", { name: "保存工作块" }));
+
+    await waitFor(() => {
+      expect(api.todos.patch).toHaveBeenCalledWith(
+        "td_1",
+        expect.objectContaining({ text: "组件库验收", due_date: "2026-06-15", thread_id: "th_1" })
+      );
+    });
+  });
+
+  it("creates a spatial timeline work block", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Home />);
+
+    await user.click(await screen.findByRole("button", { name: "新建工作块" }));
+    await user.type(await screen.findByLabelText("工作块标题"), "整理周会行动项");
+    await user.click(screen.getByRole("button", { name: "保存工作块" }));
+
+    await waitFor(() => {
+      expect(api.todos.create).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "整理周会行动项", thread_id: null })
+      );
+    });
   });
 });

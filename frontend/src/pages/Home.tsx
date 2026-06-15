@@ -1,12 +1,13 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
   Activity,
   Archive,
   Bot,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -27,6 +28,8 @@ import {
   Settings2,
   ShieldAlert,
   Sparkles,
+  Trash2,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CategoryChip } from "@/components/EvidenceChip";
@@ -37,7 +40,7 @@ import { api } from "@/lib/api";
 import { isoWeekLabel, toISODate } from "@/lib/periods";
 import { useQuickCapture } from "@/lib/quickCapture";
 import { todoPreview } from "@/lib/richText";
-import type { Project, ReportSummary, Thread, Todo } from "@/lib/types";
+import type { Project, ReportSummary, Thread, Todo, TodoInput, TodoPatch } from "@/lib/types";
 
 type ViewPreset = "minimal" | "balanced" | "complete" | "custom";
 type Density = "compact" | "standard" | "roomy";
@@ -86,6 +89,16 @@ type ResizeState = {
   startY: number;
   startW: number;
   startH: number;
+};
+
+type TimelineTone = "moss" | "amber" | "slate";
+
+type TimelineItem = {
+  id: string;
+  label: string;
+  dueDate: string | null;
+  tone: TimelineTone;
+  todo: Todo;
 };
 
 const VIEW_LABEL: Record<ViewPreset, string> = {
@@ -246,6 +259,25 @@ function yesterdayISO(): string {
   return toISODate(d);
 }
 
+function parseLocalISODate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date: Date, amount: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function daysBetween(start: Date, end: Date): number {
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+  return Math.round((endDay - startDay) / 86400000);
+}
+
 function loadSettings(): WorkbenchSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
@@ -343,6 +375,7 @@ function layoutForModules(modules: ModuleId[], layout = DEFAULT_LAYOUT): Workben
 export default function Home() {
   const { open: openCapture } = useQuickCapture();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<WorkbenchSettings>(() => loadSettings());
   const [configOpen, setConfigOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -379,6 +412,28 @@ export default function Home() {
     queryFn: api.updater.check,
     retry: 1,
     staleTime: 15 * 60 * 1000,
+  });
+
+  const invalidateWorkbenchData = () => {
+    queryClient.invalidateQueries({ queryKey: ["todos"] });
+    queryClient.invalidateQueries({ queryKey: ["threads"] });
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+    queryClient.invalidateQueries({ queryKey: ["activity"] });
+  };
+
+  const createTimelineTodo = useMutation({
+    mutationFn: (body: TodoInput) => api.todos.create(body),
+    onSuccess: invalidateWorkbenchData,
+  });
+
+  const updateTimelineTodo = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: TodoPatch }) => api.todos.patch(id, patch),
+    onSuccess: invalidateWorkbenchData,
+  });
+
+  const removeTimelineTodo = useMutation({
+    mutationFn: (id: string) => api.todos.remove(id),
+    onSuccess: invalidateWorkbenchData,
   });
 
   useEffect(() => {
@@ -497,13 +552,13 @@ export default function Home() {
       href: primaryProject ? `/projects/${primaryProject.id}` : "/projects",
     },
   ];
-  const timelineItems = [
-    { label: "v2.1 设计系统更新", start: 3, span: 5, tone: "moss" as const },
-    { label: "组件库优化", start: 6, span: 4, tone: "slate" as const },
-    { label: "公众号：设计方法论", start: 7, span: 4, tone: "amber" as const },
-    { label: "读书笔记：系统思考", start: 10, span: 4, tone: "slate" as const },
-    { label: draftReport ? `${draftReport.period_label} 周报` : "周报撰写", start: 11, span: 2, tone: "amber" as const },
-  ];
+  const timelineItems: TimelineItem[] = todos.slice(0, 8).map((todo) => ({
+    id: todo.id,
+    label: todoPreview(todo.text, 34),
+    dueDate: todo.due_date,
+    tone: todo.done ? "slate" : todo.thread_id ? "moss" : "amber",
+    todo,
+  }));
 
   const updateSettings = (patch: Partial<WorkbenchSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -900,8 +955,17 @@ export default function Home() {
             <SpatialTimeline
               rows={worklineRows}
               items={timelineItems}
+              threads={threads}
               iso={iso}
               onCreateThread={() => setNewThreadOpen(true)}
+              onCreateItem={(body) => createTimelineTodo.mutateAsync(body)}
+              onUpdateItem={(id, patch) => updateTimelineTodo.mutateAsync({ id, patch })}
+              onRemoveItem={(id) => removeTimelineTodo.mutateAsync(id)}
+              busy={
+                createTimelineTodo.isPending ||
+                updateTimelineTodo.isPending ||
+                removeTimelineTodo.isPending
+              }
             />
 
             <div className={clsx("workbench-grid spatial-module-grid", editMode && "workbench-grid-editing")}>
@@ -1150,15 +1214,68 @@ function moduleMeta(id: ModuleId) {
 function SpatialTimeline({
   rows,
   items,
+  threads,
   iso,
   onCreateThread,
+  onCreateItem,
+  onUpdateItem,
+  onRemoveItem,
+  busy,
 }: {
-  rows: { title: string; meta: string; tone: "moss" | "amber" | "slate"; href: string }[];
-  items: { label: string; start: number; span: number; tone: "moss" | "amber" | "slate" }[];
+  rows: { title: string; meta: string; tone: TimelineTone; href: string }[];
+  items: TimelineItem[];
+  threads: Thread[];
   iso: string;
   onCreateThread: () => void;
+  onCreateItem: (body: TodoInput) => Promise<unknown>;
+  onUpdateItem: (id: string, patch: TodoPatch) => Promise<unknown>;
+  onRemoveItem: (id: string) => Promise<unknown>;
+  busy: boolean;
 }) {
-  const days = ["11\n周三", "12\n周四", "13\n周五", "14\n周六", "15\n周日", "16\n周一", "17\n周二", "18\n周三", "19\n周四", "20\n周五"];
+  const [mode, setMode] = useState<"week" | "month">("week");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const baseDate = useMemo(() => parseLocalISODate(iso) ?? new Date(), [iso]);
+  const visibleDays = useMemo(() => {
+    const count = mode === "week" ? 10 : 14;
+    const start = addDays(baseDate, mode === "week" ? -4 : -7);
+    return Array.from({ length: count }, (_, index) => {
+      const date = addDays(start, index);
+      return {
+        date,
+        iso: toISODate(date),
+        day: String(date.getDate()),
+        weekday: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()],
+      };
+    });
+  }, [baseDate, mode]);
+  const selectedItem = editingId ? items.find((item) => item.id === editingId) ?? null : null;
+  const todayIndex = visibleDays.findIndex((day) => day.iso === iso);
+  const calendarItems = items.map((item, index) => {
+    const due = parseLocalISODate(item.dueDate);
+    const diff = due ? daysBetween(visibleDays[0].date, due) : index;
+    const start = clamp(diff + 1, 1, visibleDays.length);
+    const span = Math.min(mode === "week" ? 3 : 2, Math.max(1, visibleDays.length - start + 1));
+    return {
+      ...item,
+      start,
+      span,
+      row: (index % 4) + 1,
+    };
+  });
+  const openCreate = () => {
+    setEditingId(null);
+    setCreating(true);
+  };
+  const openEdit = (id: string) => {
+    setCreating(false);
+    setEditingId(id);
+  };
+  const closeEditor = () => {
+    setCreating(false);
+    setEditingId(null);
+  };
+
   return (
     <section className="spatial-timeline-panel">
       <div className="spatial-workline-list">
@@ -1195,45 +1312,289 @@ function SpatialTimeline({
       <div className="spatial-calendar">
         <div className="spatial-calendar-toolbar">
           <div>
-            <div className="mono-meta text-[10px]">2026年6月</div>
-            <div className="mt-1 text-sm font-semibold text-ink">空间时间线</div>
+            <div className="mono-meta text-[10px]">
+              {baseDate.getFullYear()}年{baseDate.getMonth() + 1}月
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-ink">
+              空间时间线
+              <span className="mono-meta text-[10px]">{items.length} blocks</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1 rounded-md border border-line bg-canvas-sunken p-1 text-xs">
-            <button type="button" className="rounded bg-canvas-raised px-2 py-1 text-ink">周</button>
-            <button type="button" className="rounded px-2 py-1 text-ink-mute">月</button>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={openCreate}>
+              <Plus size={13} />
+              新建工作块
+            </button>
+            <div className="flex items-center gap-1 rounded-md border border-line bg-canvas-sunken p-1 text-xs">
+              <button
+                type="button"
+                aria-pressed={mode === "week"}
+                className={clsx("rounded px-2 py-1", mode === "week" ? "bg-canvas-raised text-ink" : "text-ink-mute")}
+                onClick={() => setMode("week")}
+              >
+                周
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === "month"}
+                className={clsx("rounded px-2 py-1", mode === "month" ? "bg-canvas-raised text-ink" : "text-ink-mute")}
+                onClick={() => setMode("month")}
+              >
+                月
+              </button>
+            </div>
           </div>
         </div>
-        <div className="spatial-calendar-days">
-          {days.map((day) => {
-            const [date, weekday] = day.split("\n");
-            return (
-              <div key={day} className="text-center">
-                <div className="text-xs font-medium text-ink">{date}</div>
-                <div className="mono-meta mt-0.5 text-[10px]">{weekday}</div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="spatial-calendar-grid">
-          <div className="spatial-today-line" />
-          {items.map((item) => (
-            <div
-              key={item.label}
-              className={clsx("spatial-timeline-item", `tone-${item.tone}`)}
-              style={{
-                gridColumn: `${item.start} / span ${item.span}`,
-              }}
-            >
-              {item.label}
+        <div
+          className="spatial-calendar-days"
+          style={{ gridTemplateColumns: `repeat(${visibleDays.length}, minmax(0, 1fr))` }}
+        >
+          {visibleDays.map((day) => (
+            <div key={day.iso} className={clsx("text-center", day.iso === iso && "spatial-calendar-day-today")}>
+              <div className="text-xs font-medium text-ink">{day.day}</div>
+              <div className="mono-meta mt-0.5 text-[10px]">{day.weekday}</div>
             </div>
           ))}
         </div>
+        <div
+          className="spatial-calendar-grid"
+          style={{ gridTemplateColumns: `repeat(${visibleDays.length}, minmax(0, 1fr))` }}
+          onDoubleClick={openCreate}
+        >
+          <div
+            className="spatial-today-line"
+            style={{
+              left: todayIndex >= 0 ? `${((todayIndex + 0.5) / visibleDays.length) * 100}%` : "-999px",
+            }}
+          />
+          {calendarItems.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              aria-label={`编辑工作块：${item.label}`}
+              className={clsx(
+                "spatial-timeline-item",
+                `tone-${item.tone}`,
+                editingId === item.id && "spatial-timeline-item-active"
+              )}
+              onClick={() => openEdit(item.id)}
+              style={{
+                gridColumn: `${item.start} / span ${item.span}`,
+                gridRow: item.row,
+              }}
+            >
+              <span className="truncate">{item.label}</span>
+              {item.todo.thread_title && <span className="spatial-item-thread">{item.todo.thread_title}</span>}
+            </button>
+          ))}
+          {items.length === 0 && (
+            <button type="button" className="spatial-empty-timeline" onClick={openCreate}>
+              <Plus size={16} />
+              添加第一块工作
+            </button>
+          )}
+        </div>
+        {(creating || selectedItem) && (
+          <TimelineItemEditor
+            item={selectedItem}
+            threads={threads}
+            iso={iso}
+            busy={busy}
+            onCancel={closeEditor}
+            onCreate={async (body) => {
+              await onCreateItem(body);
+              closeEditor();
+            }}
+            onUpdate={async (id, patch) => {
+              await onUpdateItem(id, patch);
+              closeEditor();
+            }}
+            onRemove={async (id) => {
+              await onRemoveItem(id);
+              closeEditor();
+            }}
+          />
+        )}
         <div className="spatial-calendar-footer">
           <span>{iso}</span>
-          <span>拖动工作块可以重排你的工作台模块</span>
+          <span>点击工作块编辑内容；双击空白处新增待办工作块</span>
         </div>
       </div>
     </section>
+  );
+}
+
+function TimelineItemEditor({
+  item,
+  threads,
+  iso,
+  busy,
+  onCancel,
+  onCreate,
+  onUpdate,
+  onRemove,
+}: {
+  item: TimelineItem | null;
+  threads: Thread[];
+  iso: string;
+  busy: boolean;
+  onCancel: () => void;
+  onCreate: (body: TodoInput) => Promise<unknown>;
+  onUpdate: (id: string, patch: TodoPatch) => Promise<unknown>;
+  onRemove: (id: string) => Promise<unknown>;
+}) {
+  const [title, setTitle] = useState("");
+  const [dueDate, setDueDate] = useState(iso);
+  const [threadId, setThreadId] = useState("");
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTitle(item ? todoPreview(item.todo.text) : "");
+    setDueDate(item?.todo.due_date ?? iso);
+    setThreadId(item?.todo.thread_id ?? "");
+    setDone(Boolean(item?.todo.done));
+    setError(null);
+  }, [item, iso]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      setError("标题不能为空");
+      return;
+    }
+    setError(null);
+    try {
+      if (item) {
+        await onUpdate(item.id, {
+          text: nextTitle,
+          done,
+          ...(dueDate ? { due_date: dueDate } : { clear_due_date: true }),
+          ...(threadId ? { thread_id: threadId } : { clear_thread: true }),
+        });
+      } else {
+        await onCreate({
+          text: nextTitle,
+          due_date: dueDate || null,
+          thread_id: threadId || null,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!item) return;
+    if (!window.confirm("删除这个工作块？")) return;
+    setError(null);
+    try {
+      await onRemove(item.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    }
+  };
+
+  return (
+    <form className="spatial-timeline-editor" onSubmit={handleSubmit}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-ink">
+            {item ? "编辑工作块" : "新建工作块"}
+          </div>
+          <div className="mono-meta mt-1 text-[10px]">
+            {item ? "同步到待办" : "创建后会出现在待办雷达和时间线"}
+          </div>
+        </div>
+        <button type="button" className="btn-icon !h-7 !w-7" onClick={onCancel} aria-label="关闭工作块编辑">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_9rem_11rem]">
+        <label className="block">
+          <span className="mb-1.5 block text-xs text-ink-soft">工作块标题</span>
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            className="input"
+            placeholder="例如：组件库验收"
+            autoFocus
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs text-ink-soft">日期</span>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(event) => setDueDate(event.target.value)}
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs text-ink-soft">关联工作线</span>
+          <select value={threadId} onChange={(event) => setThreadId(event.target.value)} className="input">
+            <option value="">不关联</option>
+            {threads.map((thread) => (
+              <option key={thread.id} value={thread.id}>
+                {thread.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {item && (
+          <label className="chip cursor-pointer gap-2">
+            <input
+              type="checkbox"
+              checked={done}
+              onChange={(event) => setDone(event.target.checked)}
+              className="accent-[rgb(var(--color-accent))]"
+            />
+            标记完成
+          </label>
+        )}
+        {item?.todo.thread_id && (
+          <Link className="btn btn-ghost !px-2 !py-1 text-xs" to={`/threads/${item.todo.thread_id}`}>
+            <GitBranch size={13} />
+            打开工作线
+          </Link>
+        )}
+        <Link className="btn btn-ghost !px-2 !py-1 text-xs" to="/todos">
+          <ListChecks size={13} />
+          待办列表
+        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          {item && (
+            <button
+              type="button"
+              className="btn btn-ghost !px-2 !py-1 text-xs text-signal-stop hover:!bg-signal-stop/10"
+              onClick={handleRemove}
+              disabled={busy}
+            >
+              <Trash2 size={13} />
+              删除
+            </button>
+          )}
+          <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={onCancel} disabled={busy}>
+            取消
+          </button>
+          <button type="submit" className="btn btn-accent !px-2 !py-1 text-xs" disabled={busy || !title.trim()}>
+            {item ? <Check size={13} /> : <Plus size={13} />}
+            保存工作块
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-lg border border-signal-stop/40 bg-signal-stop/10 px-3 py-2 text-xs text-signal-stop">
+          {error}
+        </div>
+      )}
+    </form>
   );
 }
 

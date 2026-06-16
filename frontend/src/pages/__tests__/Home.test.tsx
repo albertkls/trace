@@ -4,11 +4,122 @@ import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/test-utils";
 import Home from "@/pages/Home";
 import { api } from "@/lib/api";
+import type { WorkbenchOverview } from "@/lib/types";
+
+function overview(overrides: Partial<WorkbenchOverview> = {}): WorkbenchOverview {
+  return {
+    date: "2026-06-16",
+    generated_at: "2026-06-16T11:40:00+08:00",
+    week_label: "2026-W25",
+    metrics: [
+      { id: "pending", label: "待处理", value: 3, detail: "2 待办 · 1 闪记", tone: "accent" },
+      { id: "active_threads", label: "进行中", value: 1, detail: "2 条工作线", tone: "neutral" },
+      { id: "projects", label: "项目", value: 1, detail: "1 个需要关注", tone: "iris" },
+      { id: "blocked", label: "阻塞", value: 1, detail: "需要解除依赖", tone: "stop" },
+    ],
+    focus_items: [
+      {
+        id: "inbox",
+        label: "收件箱待归档",
+        detail: "1 条闪记需要归入工作线",
+        to: "/inbox",
+        tone: "accent",
+      },
+      {
+        id: "blocked-threads",
+        label: "工作线阻塞",
+        detail: "1 条工作线等待下一步",
+        to: "/threads",
+        tone: "stop",
+      },
+    ],
+    workline_columns: [
+      {
+        id: "active",
+        title: "进行中",
+        count: 1,
+        items: [
+          {
+            id: "th_1",
+            title: "设计系统",
+            project: "SRM",
+            project_id: "prj_1",
+            owner: null,
+            status: "active",
+            started_at: "2026-06-10",
+            last_active_at: "2026-06-15T08:00:00",
+            summary: "",
+            pinned: 1,
+            evidence_count: 2,
+          },
+        ],
+      },
+      {
+        id: "blocked",
+        title: "已阻塞",
+        count: 1,
+        items: [
+          {
+            id: "th_2",
+            title: "研发物料功耗确认",
+            project: "SRM",
+            project_id: "prj_1",
+            owner: null,
+            status: "blocked",
+            started_at: "2026-06-11",
+            last_active_at: "2026-06-15T09:00:00",
+            summary: "",
+            pinned: 0,
+            evidence_count: 1,
+          },
+        ],
+      },
+      { id: "done", title: "已完成", count: 0, items: [] },
+    ],
+    summary: [
+      { id: "inputs", label: "输入", text: "1 条闪记、2 条工作线、2 个待办正在等待处理。", tone: "accent" },
+      { id: "risk", label: "风险", text: "1 条工作线阻塞，建议先拆出下一步。", tone: "stop" },
+      { id: "report", label: "汇报", text: "本周尚未生成周报，可先积累今日证据。", tone: "accent" },
+    ],
+    week_plan: {
+      days: [
+        { date: "2026-06-16", day: "16", weekday: "周二", count: 1, is_today: true },
+        { date: "2026-06-17", day: "17", weekday: "周三", count: 0, is_today: false },
+        { date: "2026-06-18", day: "18", weekday: "周四", count: 0, is_today: false },
+        { date: "2026-06-19", day: "19", weekday: "周五", count: 0, is_today: false },
+        { date: "2026-06-20", day: "20", weekday: "周六", count: 0, is_today: false },
+        { date: "2026-06-21", day: "21", weekday: "周日", count: 0, is_today: false },
+        { date: "2026-06-22", day: "22", weekday: "周一", count: 0, is_today: false },
+      ],
+      items: [
+        {
+          id: "td_1",
+          text: "组件库优化",
+          label: "组件库优化",
+          due_date: "2026-06-16",
+          thread_id: "th_1",
+          thread_title: "设计系统",
+          project: "SRM",
+          tone: "moss",
+        },
+      ],
+      due_today_count: 1,
+      unplanned_count: 0,
+    },
+    threads_for_picker: [
+      { id: "th_1", title: "设计系统", status: "active", project: "SRM" },
+      { id: "th_2", title: "研发物料功耗确认", status: "blocked", project: "SRM" },
+    ],
+    ...overrides,
+  };
+}
 
 vi.mock("@/lib/api", () => ({
   api: {
+    workbench: { overview: vi.fn() },
     threads: {
       list: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+      create: vi.fn().mockResolvedValue({ id: "th_new" }),
     },
     reports: { list: vi.fn().mockResolvedValue([]) },
     projects: { list: vi.fn().mockResolvedValue({ items: [] }) },
@@ -39,95 +150,35 @@ vi.mock("@/lib/quickCapture", () => ({
 
 describe("Home", () => {
   beforeEach(() => {
+    vi.mocked(api.workbench.overview).mockResolvedValue(overview());
     vi.mocked(api.threads.list).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(api.reports.list).mockResolvedValue([]);
     vi.mocked(api.projects.list).mockResolvedValue({ items: [], total: 0 });
-    vi.mocked(api.todos.list).mockResolvedValue([]);
     vi.mocked(api.todos.create).mockResolvedValue({} as never);
     vi.mocked(api.todos.patch).mockResolvedValue({} as never);
     vi.mocked(api.todos.remove).mockResolvedValue(undefined);
-    vi.mocked(api.captures.inbox).mockResolvedValue([]);
-    vi.mocked(api.activity.daily).mockResolvedValue({
-      date: "2026-06-14",
-      evidence: [],
-      completed_todos: [],
-      capture_count: 0,
-      todo_done_count: 0,
-      active_threads: [],
-    });
-    vi.mocked(api.updater.check).mockResolvedValue({ update_available: false } as never);
-
-    const store: Record<string, string> = {};
-    Object.defineProperty(window, "localStorage", {
-      configurable: true,
-      value: {
-        getItem: vi.fn((key: string) => store[key] ?? null),
-        setItem: vi.fn((key: string, value: string) => {
-          store[key] = value;
-        }),
-        removeItem: vi.fn((key: string) => {
-          delete store[key];
-        }),
-        clear: vi.fn(() => {
-          for (const key of Object.keys(store)) delete store[key];
-        }),
-      },
-    });
   });
 
-  it("renders without crashing", () => {
-    renderWithProviders(<Home />);
-    expect(document.body).toBeTruthy();
-  });
-
-  it("renders the redesigned project-management workbench", async () => {
+  it("renders the fixed action workbench", async () => {
     renderWithProviders(<Home />);
 
     expect(await screen.findByText("今天要推进什么？")).toBeTruthy();
     expect((await screen.findAllByText("工作线看板")).length).toBeGreaterThan(0);
     expect(screen.getByText("本周计划")).toBeTruthy();
-    expect(screen.queryByText(/SPATIAL SLATE/i)).toBeNull();
-    expect(screen.queryByText("空间时间线")).toBeNull();
+    expect(screen.getByText("收件箱待归档")).toBeTruthy();
+    expect(screen.getAllByText("研发物料功耗确认").length).toBeGreaterThan(0);
   });
 
-  it("recovers from invalid persisted workbench settings", async () => {
-    window.localStorage.setItem(
-      "trace.workbench.settings.v2",
-      JSON.stringify({
-        view: "broken-view",
-        density: "giant",
-        customModules: ["focus", "unknown-module"],
-        customLayout: [{ id: "focus", w: 99, h: -4 }],
-      })
-    );
-
+  it("does not render removed view selection or configuration controls", async () => {
     renderWithProviders(<Home />);
 
-    expect(await screen.findByRole("button", { name: "完整" })).toBeTruthy();
-    expect(document.querySelectorAll(".workbench-module").length).toBeGreaterThan(0);
-  });
-
-  it("enters layout edit mode", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Home />);
-
-    await user.click(await screen.findByRole("button", { name: "编辑布局" }));
-
-    expect(await screen.findByRole("button", { name: "完成布局" })).toBeTruthy();
-    expect(document.querySelectorAll(".layout-drag-handle").length).toBeGreaterThan(0);
-    expect(document.querySelectorAll(".workbench-module-content-locked").length).toBeGreaterThan(0);
-  });
-
-  it("opens and closes workbench configuration predictably", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Home />);
-
-    await user.click(await screen.findByRole("button", { name: "配置" }));
-
-    expect(await screen.findByText("工作台配置")).toBeTruthy();
-    await user.click(await screen.findByRole("button", { name: "关闭工作台配置" }));
-
+    expect(await screen.findByText("今天要推进什么？")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "完整" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "编辑布局" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "配置" })).toBeNull();
     expect(screen.queryByText("工作台配置")).toBeNull();
+    expect(screen.queryByText("CUSTOM WORKSPACE")).toBeNull();
+    expect(document.querySelector(".layout-drag-handle")).toBeNull();
   });
 
   it("opens new workline creation from the planner", async () => {
@@ -142,36 +193,6 @@ describe("Home", () => {
 
   it("edits a planner task", async () => {
     const user = userEvent.setup();
-    vi.mocked(api.threads.list).mockResolvedValue({
-      items: [
-        {
-          id: "th_1",
-          title: "设计系统",
-          project: "SRM",
-          owner: null,
-          status: "active",
-          started_at: "2026-06-10",
-          last_active_at: "2026-06-15T08:00:00",
-          summary: "",
-          pinned: 0,
-          evidence_count: 0,
-        },
-      ],
-      total: 1,
-    });
-    vi.mocked(api.todos.list).mockResolvedValue([
-      {
-        id: "td_1",
-        thread_id: "th_1",
-        thread_title: "设计系统",
-        text: "组件库优化",
-        due_date: "2026-06-15",
-        done: 0,
-        done_at: null,
-        created_at: "2026-06-15T08:00:00",
-      },
-    ]);
-
     renderWithProviders(<Home />);
 
     await user.click(await screen.findByRole("button", { name: "编辑任务：组件库优化" }));
@@ -183,7 +204,7 @@ describe("Home", () => {
     await waitFor(() => {
       expect(api.todos.patch).toHaveBeenCalledWith(
         "td_1",
-        expect.objectContaining({ text: "组件库验收", due_date: "2026-06-15", thread_id: "th_1" })
+        expect.objectContaining({ text: "组件库验收", due_date: "2026-06-16", thread_id: "th_1" })
       );
     });
   });
@@ -201,37 +222,5 @@ describe("Home", () => {
         expect.objectContaining({ text: "整理周会行动项", thread_id: null })
       );
     });
-  });
-
-  it("does not render the removed workline inspector panel", async () => {
-    vi.mocked(api.threads.list).mockResolvedValue({
-      items: [
-        {
-          id: "th_real",
-          title: "真实工作线",
-          project: "真实项目",
-          project_id: "prj_real",
-          owner: "王五",
-          status: "blocked",
-          started_at: "2026-06-01",
-          last_active_at: "2026-06-16T09:30:00",
-          summary: "真实目标来自工作线摘要",
-          pinned: 1,
-          evidence_count: 4,
-        },
-      ],
-      total: 1,
-    });
-
-    renderWithProviders(<Home />);
-
-    expect((await screen.findAllByRole("link", { name: /真实工作线/ })).length).toBeGreaterThan(0);
-    expect(document.querySelector(".spatial-inspector")).toBeNull();
-    expect(screen.queryByText(/inspector/i)).toBeNull();
-    expect(screen.queryByLabelText("负责人")).toBeNull();
-    expect(screen.queryByLabelText("摘要 / 目标")).toBeNull();
-    expect(screen.queryByText("林墨")).toBeNull();
-    expect(screen.queryByText("68%")).toBeNull();
-    expect(screen.queryByText("完成设计系统规划与核心组件建设，提升设计效率。")).toBeNull();
   });
 });

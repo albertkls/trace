@@ -86,13 +86,8 @@ def test_attachment_supports_thread_and_evidence_owners(client, tmp_path: Path):
     ).json()[0]["file_path"] == str(evidence_file.resolve())
 
 
-def test_attachment_rejects_missing_file_and_cross_workspace_owner(client, tmp_path: Path):
-    side_id = client.post("/api/workspaces", json={"name": "Other"}).json()["id"]
-    side_project = client.post(
-        "/api/projects",
-        headers={"X-Trace-Workspace": side_id},
-        json={"name": "Side Project"},
-    ).json()
+def test_attachment_rejects_missing_file_and_unknown_owner(client, tmp_path: Path):
+    project = client.post("/api/projects", json={"name": "Attachment Project"}).json()
     file_path = tmp_path / "side.txt"
     file_path.write_text("side", encoding="utf-8")
 
@@ -100,21 +95,21 @@ def test_attachment_rejects_missing_file_and_cross_workspace_owner(client, tmp_p
         "/api/attachments",
         json={
             "owner_type": "project",
-            "owner_id": side_project["id"],
+            "owner_id": project["id"],
             "file_path": str(tmp_path / "missing.txt"),
         },
     )
     assert missing.status_code == 400
 
-    cross_workspace = client.post(
+    unknown_owner = client.post(
         "/api/attachments",
         json={
             "owner_type": "project",
-            "owner_id": side_project["id"],
+            "owner_id": "prj_missing",
             "file_path": str(file_path),
         },
     )
-    assert cross_workspace.status_code == 404
+    assert unknown_owner.status_code == 404
 
 
 def test_attachment_reports_missing_existing_record(client, tmp_path: Path):

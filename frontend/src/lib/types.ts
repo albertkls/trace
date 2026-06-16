@@ -3,23 +3,6 @@ export type Category = "progress" | "decision" | "risk" | "plan" | "support";
 export type ItemStatus = "done" | "ongoing" | "blocked" | "planned";
 export type ProjectStatus = "active" | "paused" | "done" | "archived";
 
-export interface Workspace {
-  id: string;
-  name: string;
-  theme_color: string | null;
-  default_llm_profile_id: string | null;
-  created_at: string;
-  updated_at: string;
-  project_count?: number;
-  thread_count?: number;
-}
-
-export interface WorkspaceInput {
-  name: string;
-  theme_color?: string | null;
-  default_llm_profile_id?: string | null;
-}
-
 export interface Project {
   id: string;
   workspace_id?: string;
@@ -104,6 +87,95 @@ export interface TodoPatch {
   thread_id?: string | null;
   clear_thread?: boolean;
   clear_due_date?: boolean;
+}
+
+export type WorkbenchTone = "neutral" | "accent" | "iris" | "warn" | "stop";
+
+export interface WorkbenchMetric {
+  id: "pending" | "active_threads" | "projects" | "blocked";
+  label: string;
+  value: number;
+  detail: string;
+  tone: WorkbenchTone;
+}
+
+export interface WorkbenchFocusItem {
+  id: string;
+  label: string;
+  detail: string;
+  to: string | null;
+  tone: "accent" | "warn" | "stop";
+}
+
+export interface WorkbenchThreadItem {
+  id: string;
+  title: string;
+  project_id?: string | null;
+  project: string | null;
+  owner: string | null;
+  status: ThreadStatus;
+  started_at: string;
+  last_active_at: string;
+  summary: string;
+  pinned: number;
+  evidence_count: number;
+}
+
+export interface WorkbenchWorklineColumn {
+  id: "active" | "blocked" | "done";
+  title: string;
+  count: number;
+  items: WorkbenchThreadItem[];
+}
+
+export interface WorkbenchSummaryLine {
+  id: string;
+  label: string;
+  text: string;
+  tone: "accent" | "warn" | "stop";
+}
+
+export interface WorkbenchPlanDay {
+  date: string;
+  day: string;
+  weekday: string;
+  count: number;
+  is_today: boolean;
+}
+
+export interface WorkbenchPlanItem {
+  id: string;
+  text: string;
+  label: string;
+  due_date: string | null;
+  thread_id: string | null;
+  thread_title: string | null;
+  project: string | null;
+  tone: "moss" | "amber" | "slate";
+}
+
+export interface WorkbenchThreadPickerItem {
+  id: string;
+  title: string;
+  status: ThreadStatus;
+  project: string | null;
+}
+
+export interface WorkbenchOverview {
+  date: string;
+  generated_at: string;
+  week_label: string;
+  metrics: WorkbenchMetric[];
+  focus_items: WorkbenchFocusItem[];
+  workline_columns: WorkbenchWorklineColumn[];
+  summary: WorkbenchSummaryLine[];
+  week_plan: {
+    days: WorkbenchPlanDay[];
+    items: WorkbenchPlanItem[];
+    due_today_count: number;
+    unplanned_count: number;
+  };
+  threads_for_picker: WorkbenchThreadPickerItem[];
 }
 
 export interface Note {

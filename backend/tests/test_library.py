@@ -48,35 +48,31 @@ def test_markdown_library_scan_creates_and_updates_inbox_items(client: TestClien
     assert inbox[0]["text"] == "今天完成了同步入口和回归测试。"
 
 
-def test_markdown_library_is_scoped_by_workspace(client: TestClient, tmp_path: Path) -> None:
+def test_markdown_library_ignores_workspace_header(client: TestClient, tmp_path: Path) -> None:
     library = tmp_path / "vault"
     library.mkdir()
     (library / "Plan.md").write_text("默认工作区计划", encoding="utf-8")
-
-    workspace_response = client.post("/api/workspaces", json={"name": "副工作区"})
-    assert workspace_response.status_code == 201, workspace_response.text
-    workspace_id = workspace_response.json()["id"]
 
     response = client.post("/api/library/scan", json={"path": str(library)})
     assert response.status_code == 200, response.text
     assert response.json()["created"] == 1
 
-    (library / "Plan.md").write_text("副工作区计划", encoding="utf-8")
-    side_response = client.post(
+    (library / "Plan.md").write_text("固定默认工作台计划", encoding="utf-8")
+    ignored_header_response = client.post(
         "/api/library/scan",
-        headers={"X-Trace-Workspace": workspace_id},
+        headers={"X-Trace-Workspace": "ws_ignored"},
         json={"path": str(library)},
     )
-    assert side_response.status_code == 200, side_response.text
-    assert side_response.json()["created"] == 1
+    assert ignored_header_response.status_code == 200, ignored_header_response.text
+    assert ignored_header_response.json()["updated"] == 1
 
     default_inbox = client.get("/api/captures/inbox").json()
-    side_inbox = client.get(
+    ignored_header_inbox = client.get(
         "/api/captures/inbox",
-        headers={"X-Trace-Workspace": workspace_id},
+        headers={"X-Trace-Workspace": "ws_ignored"},
     ).json()
-    assert [item["text"] for item in default_inbox] == ["默认工作区计划"]
-    assert [item["text"] for item in side_inbox] == ["副工作区计划"]
+    assert [item["text"] for item in default_inbox] == ["固定默认工作台计划"]
+    assert ignored_header_inbox == default_inbox
 
     conn = sqlite3.connect(db_path())
     try:
@@ -86,7 +82,7 @@ def test_markdown_library_is_scoped_by_workspace(client: TestClient, tmp_path: P
         ).fetchone()[0]
     finally:
         conn.close()
-    assert source_count == 2
+    assert source_count == 1
 
 
 def test_markdown_library_scan_removes_deleted_inbox_sources(

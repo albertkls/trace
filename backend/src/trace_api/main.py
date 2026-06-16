@@ -4,13 +4,30 @@ import argparse
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .config import get_settings, reset_settings_cache
 from .db import ensure_schema
-from .routers import activity, attachments, backups, captures, health, library, llm, notes, preferences, projects, reports, search, threads, todos, updater, workspaces
+from .routers import (
+    activity,
+    attachments,
+    backups,
+    captures,
+    health,
+    library,
+    llm,
+    notes,
+    preferences,
+    projects,
+    reports,
+    search,
+    threads,
+    todos,
+    updater,
+    workbench,
+)
 from .web import mount_frontend
 
 
@@ -28,7 +45,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=list(settings.allowed_origins),
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type", "X-Trace-Workspace"],
+        allow_headers=["Content-Type"],
     )
 
     @app.get("/api/health")
@@ -40,10 +57,22 @@ def create_app() -> FastAPI:
             "mode": settings.mode,
         }
 
+    @app.api_route(
+        "/api/workspaces",
+        methods=["GET", "POST", "PATCH", "DELETE"],
+        include_in_schema=False,
+    )
+    @app.api_route(
+        "/api/workspaces/{_:path}",
+        methods=["GET", "POST", "PATCH", "DELETE"],
+        include_in_schema=False,
+    )
+    def removed_workspaces_api(_: str = "") -> None:
+        raise HTTPException(404, "workspace management has been removed")
+
     app.include_router(threads.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
     app.include_router(attachments.router, prefix="/api")
-    app.include_router(workspaces.router, prefix="/api")
     app.include_router(backups.router, prefix="/api")
     app.include_router(preferences.router, prefix="/api")
     app.include_router(projects.router, prefix="/api")
@@ -55,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(llm.router, prefix="/api")
     app.include_router(search.router, prefix="/api")
     app.include_router(activity.router, prefix="/api")
+    app.include_router(workbench.router, prefix="/api")
     app.include_router(updater.router, prefix="/api")
     mount_frontend(app)
     return app

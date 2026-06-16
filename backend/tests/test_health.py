@@ -10,8 +10,7 @@ def test_healthz_returns_ok(client):
     assert body["status"] == "ok"
     assert body["db"] is True
     assert "version" in body
-    assert "workspace_count" in body
-    assert body["workspace_count"] >= 1
+    assert body["workspace_mode"] == "single"
     assert "timestamp" in body
 
 

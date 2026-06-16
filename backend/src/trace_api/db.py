@@ -345,6 +345,28 @@ def _ensure_default_workspace(conn: sqlite3.Connection) -> None:
     )
 
 
+def _purge_non_default_workspaces(conn: sqlite3.Connection) -> None:
+    tables = {
+        row["name"]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    }
+    if "workspace" not in tables:
+        return
+    conn.execute("DELETE FROM workspace WHERE id != ?", (DEFAULT_WORKSPACE_ID,))
+    if "settings" in tables:
+        prefixes = (
+            "library.path:",
+            "library.last_scan:",
+            "library.last_result:",
+            "library.auto_scan:",
+        )
+        for prefix in prefixes:
+            conn.execute(
+                "DELETE FROM settings WHERE key LIKE ? AND key != ?",
+                (f"{prefix}%", f"{prefix}{DEFAULT_WORKSPACE_ID}"),
+            )
+
+
 def ensure_schema(db_path: Path | None = None) -> None:
     conn = connect(db_path)
     try:
@@ -357,6 +379,7 @@ def ensure_schema(db_path: Path | None = None) -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
         _ensure_default_workspace(conn)
         _backfill_projects(conn)
+        _purge_non_default_workspaces(conn)
         for statement in skipped_indexes:
             conn.execute(statement)
         ensure_search_index(conn, rebuild=True)

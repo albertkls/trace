@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   CheckSquare,
@@ -30,7 +30,6 @@ import { api } from "@/lib/api";
 import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
 import { QuickCaptureContext } from "@/lib/quickCapture";
 import { useThemePreference } from "@/lib/theme";
-import { DEFAULT_WORKSPACE_ID, WORKSPACE_STORAGE_KEY, WorkspaceContext } from "@/lib/workspace";
 
 const NAV: { to: string; label: string; key: string; icon: LucideIcon }[] = [
   { to: "/", label: "今日", key: "1", icon: Home },
@@ -50,69 +49,18 @@ export default function Shell() {
   const { preference, resolvedTheme, setPreference } = useThemePreference();
   const [captureOpen, setCaptureOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState("");
-  const [activeWorkspaceId, setActiveWorkspaceIdState] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_WORKSPACE_ID;
-    return window.localStorage.getItem(WORKSPACE_STORAGE_KEY) || DEFAULT_WORKSPACE_ID;
-  });
-  const queryClient = useQueryClient();
   const showCustomTitlebar = isTauriDesktop();
   const isPywebview = isPywebviewDesktop();
   const week = isoWeekLabel(now).split("-W")[1];
   const dateLabel = toISODateTimeMinute(now).replace("T", " ");
   const quickCaptureContext = useMemo(() => ({ open: () => setCaptureOpen(true) }), []);
 
-  const { data: workspaces = [] } = useQuery({
-    queryKey: ["workspaces"],
-    queryFn: api.workspaces.list,
-  });
   const { data: updateInfo } = useQuery({
     queryKey: ["updater", "check"],
     queryFn: api.updater.check,
     retry: 1,
     staleTime: 15 * 60 * 1000,
   });
-  const activeWorkspace =
-    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
-
-  const setActiveWorkspaceId = useCallback(
-    (id: string) => {
-      setActiveWorkspaceIdState(id);
-      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
-      queryClient.invalidateQueries();
-    },
-    [queryClient]
-  );
-
-  const createWorkspace = useMutation({
-    mutationFn: () => api.workspaces.create({ name: newWorkspaceName.trim() }),
-    onSuccess: (workspace) => {
-      setActiveWorkspaceId(workspace.id);
-      setNewWorkspaceName("");
-      setNewWorkspaceOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-    },
-  });
-
-  const workspaceContext = useMemo(
-    () => ({
-      activeWorkspaceId,
-      setActiveWorkspaceId,
-      workspaces,
-      refreshWorkspaces: () => {
-        queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      },
-    }),
-    [activeWorkspaceId, queryClient, setActiveWorkspaceId, workspaces]
-  );
-
-  useEffect(() => {
-    if (workspaces.length === 0) return;
-    if (workspaces.some((workspace) => workspace.id === activeWorkspaceId)) return;
-    setActiveWorkspaceId(workspaces[0].id);
-  }, [activeWorkspaceId, setActiveWorkspaceId, workspaces]);
-
   useEffect(() => {
     const tick = () => setNow(new Date());
     const ms = 60_000 - (Date.now() % 60_000);
@@ -138,18 +86,10 @@ export default function Shell() {
         e.preventDefault();
         setSearchOpen(true);
       }
-      if (e.ctrlKey && !e.metaKey && !e.shiftKey && /^[1-9]$/.test(e.key)) {
-        const idx = Number(e.key) - 1;
-        const workspace = workspaces[idx];
-        if (workspace) {
-          e.preventDefault();
-          setActiveWorkspaceId(workspace.id);
-        }
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setActiveWorkspaceId, workspaces]);
+  }, []);
 
   const toggleTheme = () => {
     setPreference(resolvedTheme === "dark" ? "light" : "dark");
@@ -157,8 +97,7 @@ export default function Shell() {
 
   return (
     <QuickCaptureContext.Provider value={quickCaptureContext}>
-      <WorkspaceContext.Provider value={workspaceContext}>
-        <div className="trace-shell relative flex h-full w-full flex-col bg-canvas text-ink">
+      <div className="trace-shell relative flex h-full w-full flex-col bg-canvas text-ink">
           {showCustomTitlebar ? (
             <DesktopTitlebar />
           ) : (
@@ -203,59 +142,6 @@ export default function Shell() {
                   ⌘⇧N
                 </span>
               </button>
-
-              <div className="mb-3 rounded-lg border border-line bg-canvas-raised/35 p-2">
-                <div className="mb-2 flex items-center justify-between px-1">
-                  <span className="workspace-label eyebrow text-[9px]">WORKSPACE</span>
-                  <button
-                    className="workspace-add-btn btn-icon !h-6 !w-6 !rounded"
-                    onClick={() => setNewWorkspaceOpen((value) => !value)}
-                    title="新建工作区"
-                  >
-                    <Plus size={13} />
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  {workspaces.slice(0, 9).map((workspace, idx) => (
-                    <button
-                      key={workspace.id}
-                      onClick={() => setActiveWorkspaceId(workspace.id)}
-                      className={clsx(
-                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition",
-                        workspace.id === activeWorkspace?.id
-                          ? "border border-accent/25 bg-accent/12 text-ink shadow-glow"
-                          : "border border-transparent text-ink-soft hover:bg-canvas-contrast/70 hover:text-ink"
-                      )}
-                    >
-                      <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_12px_rgba(72,211,255,0.65)]" />
-                      <span className="nav-label min-w-0 flex-1 truncate">{workspace.name}</span>
-                      <span className="nav-label mono-meta">⌃{idx + 1}</span>
-                    </button>
-                  ))}
-                </div>
-                {newWorkspaceOpen && (
-                  <div className="mt-2 space-y-2">
-                    <input
-                      value={newWorkspaceName}
-                      onChange={(e) => setNewWorkspaceName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && newWorkspaceName.trim()) {
-                          createWorkspace.mutate();
-                        }
-                      }}
-                      placeholder="新工作区名称"
-                      className="input !px-2 !py-1.5 !text-xs"
-                    />
-                    <button
-                      className="btn btn-accent w-full justify-center text-xs"
-                      onClick={() => createWorkspace.mutate()}
-                      disabled={!newWorkspaceName.trim() || createWorkspace.isPending}
-                    >
-                      {createWorkspace.isPending ? "创建中…" : "创建"}
-                    </button>
-                  </div>
-                )}
-              </div>
 
               <div className="mb-2 px-2 nav-eyebrow eyebrow text-[9px]">NAVIGATION</div>
               <nav className="flex flex-col gap-1">
@@ -337,13 +223,13 @@ export default function Shell() {
                   <span className="truncate">搜索、捕捉、跳转或生成周报</span>
                   <span className="ml-auto kbd">⌘K</span>
                 </button>
-                <button className="btn btn-accent shrink-0" onClick={() => setCaptureOpen(true)}>
+                <button className="btn btn-accent topbar-capture-btn shrink-0" onClick={() => setCaptureOpen(true)}>
                   <Plus size={15} />
-                  写一笔
+                  <span className="topbar-capture-label">写一笔</span>
                 </button>
                 <div className="hidden items-center gap-2 rounded-lg border border-line bg-canvas-raised/45 px-3 py-2 text-xs text-ink-soft lg:flex">
                   <Sparkles size={14} className="text-iris" />
-                  <span>{activeWorkspace?.name ?? "默认工作区"}</span>
+                  <span>默认工作台</span>
                 </div>
                 <div
                   className={clsx(
@@ -373,7 +259,6 @@ export default function Shell() {
         <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
         <ShortcutsHelp />
         <UpdatePrompt />
-      </WorkspaceContext.Provider>
     </QuickCaptureContext.Provider>
   );
 }

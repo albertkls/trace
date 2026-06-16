@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from ..db import connect
 from ..utils import TZ, new_id, now_iso
-from ..workspace import request_workspace_id
+from ..workspace import DEFAULT_WORKSPACE_ID, request_workspace_id
 
 router = APIRouter(prefix="/library", tags=["library"])
 MAX_MARKDOWN_BYTES = 5 * 1024 * 1024
@@ -304,6 +304,8 @@ def scan_configured_libraries() -> list[dict]:
         results: list[dict] = []
         for row in rows:
             workspace_id = row["key"].split(":", 1)[1]
+            if workspace_id != DEFAULT_WORKSPACE_ID:
+                continue
             if not _get_bool_setting(conn, _auto_scan_key(workspace_id), True):
                 continue
             root = Path(row["value"]).expanduser().resolve()

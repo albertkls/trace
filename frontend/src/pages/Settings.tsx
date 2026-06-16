@@ -13,7 +13,6 @@ import type {
   UpdateInfo,
   WindowClosePreferenceResponse,
 } from "@/lib/types";
-import { useWorkspace } from "@/lib/workspace";
 
 const PROTOCOLS = [
   { value: "openai-compat", label: "OpenAI 兼容协议" },
@@ -109,8 +108,6 @@ const WINDOW_CLOSE_OPTIONS: Array<{
 export default function Settings() {
   const qc = useQueryClient();
   const isDesktop = isPywebviewDesktop();
-  const { activeWorkspaceId, workspaces } = useWorkspace();
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const { preference: themePreference, resolvedTheme, setPreference: setThemePreference } =
     useThemePreference();
 
@@ -246,7 +243,7 @@ export default function Settings() {
   };
 
   const { data: libraryStatus } = useQuery({
-    queryKey: ["library", activeWorkspaceId],
+    queryKey: ["library"],
     queryFn: api.library.status,
   });
   const [libraryPath, setLibraryPath] = useState("");
@@ -269,7 +266,7 @@ export default function Settings() {
     onSuccess: (result) => {
       setLibraryError(null);
       setLibraryResult(result);
-      qc.invalidateQueries({ queryKey: ["library", activeWorkspaceId] });
+      qc.invalidateQueries({ queryKey: ["library"] });
       qc.invalidateQueries({ queryKey: ["inbox"] });
     },
     onError: (e: Error) => setLibraryError(e.message),
@@ -642,7 +639,7 @@ export default function Settings() {
       <section className="mb-10">
         <h2 className="mb-4 flex items-center gap-2">
           <span className="eyebrow">LOCAL · LIBRARY</span>
-          {activeWorkspace && <span className="chip">{activeWorkspace.name}</span>}
+          <span className="chip">默认工作台</span>
         </h2>
 
         <div className="panel p-6">

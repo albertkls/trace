@@ -41,10 +41,8 @@ import type {
   TodoPatch,
   UpdateInfo,
   WindowClosePreferenceResponse,
-  Workspace,
-  WorkspaceInput,
+  WorkbenchOverview,
 } from "./types";
-import { currentWorkspaceId } from "./workspace";
 
 const BASE = "/api";
 
@@ -53,7 +51,6 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      "X-Trace-Workspace": currentWorkspaceId(),
       ...(init?.headers || {}),
     },
   });
@@ -86,19 +83,9 @@ export const api = {
     reveal: (id: string) =>
       req<{ ok: boolean }>(`/attachments/${id}/reveal`, { method: "POST" }),
   },
-  workspaces: {
-    list: () => req<Workspace[]>("/workspaces"),
-    create: (body: WorkspaceInput) =>
-      req<Workspace>("/workspaces", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
-    patch: (id: string, body: Partial<WorkspaceInput>) =>
-      req<Workspace>(`/workspaces/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      }),
-    remove: (id: string) => req<void>(`/workspaces/${id}`, { method: "DELETE" }),
+  workbench: {
+    overview: (date?: string) =>
+      req<WorkbenchOverview>(`/workbench/overview${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   },
   backups: {
     list: () => req<BackupInfo[]>("/backups"),
@@ -127,9 +114,7 @@ export const api = {
     list: () => req<{ items: Project[]; total: number }>("/projects"),
     get: (id: string) => req<ProjectDetail>(`/projects/${id}`),
     exportZip: async (id: string) => {
-      const res = await fetch(`${BASE}/projects/${id}/export`, {
-        headers: { "X-Trace-Workspace": currentWorkspaceId() },
-      });
+      const res = await fetch(`${BASE}/projects/${id}/export`);
       if (!res.ok) {
         throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
       }

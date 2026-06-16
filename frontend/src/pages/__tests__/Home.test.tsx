@@ -7,7 +7,10 @@ import { api } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   api: {
-    threads: { list: vi.fn().mockResolvedValue({ items: [], total: 0 }) },
+    threads: {
+      list: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+      patch: vi.fn().mockResolvedValue({}),
+    },
     reports: { list: vi.fn().mockResolvedValue([]) },
     projects: { list: vi.fn().mockResolvedValue({ items: [] }) },
     todos: {
@@ -38,6 +41,7 @@ vi.mock("@/lib/quickCapture", () => ({
 describe("Home", () => {
   beforeEach(() => {
     vi.mocked(api.threads.list).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.threads.patch).mockResolvedValue({} as never);
     vi.mocked(api.reports.list).mockResolvedValue([]);
     vi.mocked(api.projects.list).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(api.todos.list).mockResolvedValue([]);
@@ -189,5 +193,125 @@ describe("Home", () => {
         expect.objectContaining({ text: "整理周会行动项", thread_id: null })
       );
     });
+  });
+
+  it("shows real thread data in the inspector instead of hardcoded placeholders", async () => {
+    vi.mocked(api.threads.list).mockResolvedValue({
+      items: [
+        {
+          id: "th_real",
+          title: "真实工作线",
+          project: "真实项目",
+          project_id: "prj_real",
+          owner: "王五",
+          status: "blocked",
+          started_at: "2026-06-01",
+          last_active_at: "2026-06-16T09:30:00",
+          summary: "真实目标来自工作线摘要",
+          pinned: 1,
+          evidence_count: 4,
+        },
+      ],
+      total: 1,
+    });
+    vi.mocked(api.projects.list).mockResolvedValue({
+      items: [
+        {
+          id: "prj_real",
+          name: "真实项目",
+          status: "active",
+          owner: null,
+          summary: "",
+          color: null,
+          created_at: "2026-06-01T00:00:00",
+          updated_at: "2026-06-16T09:30:00",
+        },
+      ],
+      total: 1,
+    });
+
+    renderWithProviders(<Home />);
+
+    expect(await screen.findByDisplayValue("真实工作线")).toBeTruthy();
+    expect(await screen.findByDisplayValue("王五")).toBeTruthy();
+    expect(await screen.findByDisplayValue("真实目标来自工作线摘要")).toBeTruthy();
+    expect(screen.queryByText("林墨")).toBeNull();
+    expect(screen.queryByText("68%")).toBeNull();
+    expect(screen.queryByText("完成设计系统规划与核心组件建设，提升设计效率。")).toBeNull();
+  });
+
+  it("saves inspector edits to the thread API", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.threads.list).mockResolvedValue({
+      items: [
+        {
+          id: "th_save",
+          title: "原工作线",
+          project: null,
+          owner: null,
+          status: "active",
+          started_at: "2026-06-10",
+          last_active_at: "2026-06-16T09:30:00",
+          summary: "",
+          pinned: 0,
+          evidence_count: 0,
+        },
+      ],
+      total: 1,
+    });
+
+    renderWithProviders(<Home />);
+
+    const title = await screen.findByLabelText("标题");
+    expect(await screen.findByText("未关联项目")).toBeTruthy();
+    await user.clear(title);
+    await user.type(title, "已编辑工作线");
+    await user.type(screen.getByLabelText("负责人"), "赵六");
+    await user.type(screen.getByLabelText("摘要 / 目标"), "这是真实保存的目标");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      expect(api.threads.patch).toHaveBeenCalledWith(
+        "th_save",
+        expect.objectContaining({
+          title: "已编辑工作线",
+          owner: "赵六",
+          summary: "这是真实保存的目标",
+          status: "active",
+          started_at: "2026-06-10",
+          pinned: false,
+        })
+      );
+    });
+  });
+
+  it("keeps inspector edits client-side when the start date is empty", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.threads.list).mockResolvedValue({
+      items: [
+        {
+          id: "th_date",
+          title: "日期校验工作线",
+          project: null,
+          owner: null,
+          status: "active",
+          started_at: "2026-06-10",
+          last_active_at: "2026-06-16T09:30:00",
+          summary: "",
+          pinned: 0,
+          evidence_count: 0,
+        },
+      ],
+      total: 1,
+    });
+
+    renderWithProviders(<Home />);
+
+    vi.mocked(api.threads.patch).mockClear();
+    await user.clear(await screen.findByLabelText("开始日期"));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(await screen.findByText("开始日期不能为空")).toBeTruthy();
+    expect(api.threads.patch).not.toHaveBeenCalled();
   });
 });

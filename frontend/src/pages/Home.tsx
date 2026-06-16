@@ -44,8 +44,6 @@ import type {
   Project,
   ReportSummary,
   Thread,
-  ThreadPatchInput,
-  ThreadStatus,
   Todo,
   TodoInput,
   TodoPatch,
@@ -445,12 +443,6 @@ export default function Home() {
     onSuccess: invalidateWorkbenchData,
   });
 
-  const updateInspectorThread = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: ThreadPatchInput }) =>
-      api.threads.patch(id, patch),
-    onSuccess: invalidateWorkbenchData,
-  });
-
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
@@ -547,12 +539,6 @@ export default function Home() {
   };
   const primaryThread = threads[0];
   const primaryProject = projects[0];
-  const inspectorProject =
-    projects.find((project) => project.id === primaryThread?.project_id) ??
-    projects.find((project) => project.name === primaryThread?.project);
-  const inspectorTodos = primaryThread
-    ? todos.filter((todo) => todo.thread_id === primaryThread.id && !todo.done)
-    : [];
   const worklineRows = [
     {
       title: primaryThread?.title ?? "产品设计迭代",
@@ -1012,16 +998,6 @@ export default function Home() {
             </div>
           </div>
 
-          <ThreadInspector
-            thread={primaryThread}
-            project={inspectorProject}
-            openTodos={inspectorTodos}
-            iso={iso}
-            busy={updateInspectorThread.isPending}
-            onOpenConfig={() => setConfigOpen(true)}
-            onCreateThread={() => setNewThreadOpen(true)}
-            onSave={(id, patch) => updateInspectorThread.mutateAsync({ id, patch })}
-          />
         </section>
 
         {configOpen && (
@@ -1563,262 +1539,6 @@ function TimelineItemEditor({
         </div>
       )}
     </form>
-  );
-}
-
-const THREAD_STATUS_LABEL: Record<ThreadStatus, string> = {
-  active: "进行中",
-  blocked: "阻塞",
-  done: "已完成",
-  archived: "已归档",
-};
-
-function ThreadInspector({
-  thread,
-  project,
-  openTodos,
-  iso,
-  busy,
-  onOpenConfig,
-  onCreateThread,
-  onSave,
-}: {
-  thread: Thread | undefined;
-  project: Project | undefined;
-  openTodos: Todo[];
-  iso: string;
-  busy: boolean;
-  onOpenConfig: () => void;
-  onCreateThread: () => void;
-  onSave: (id: string, patch: ThreadPatchInput) => Promise<unknown>;
-}) {
-  const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<ThreadStatus>("active");
-  const [owner, setOwner] = useState("");
-  const [startedAt, setStartedAt] = useState(iso);
-  const [summary, setSummary] = useState("");
-  const [pinned, setPinned] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const evidenceCount = thread?.evidence_count ?? 0;
-  const lastActive = thread?.last_active_at
-    ? thread.last_active_at.slice(0, 16).replace("T", " ")
-    : "暂无";
-  const projectName = project?.name ?? thread?.project ?? "未关联项目";
-
-  useEffect(() => {
-    if (!thread) {
-      setTitle("");
-      setStatus("active");
-      setOwner("");
-      setStartedAt(iso);
-      setSummary("");
-      setPinned(false);
-      setError(null);
-      return;
-    }
-    setTitle(thread.title);
-    setStatus(thread.status);
-    setOwner(thread.owner ?? "");
-    setStartedAt(thread.started_at?.slice(0, 10) || iso);
-    setSummary(thread.summary ?? "");
-    setPinned(Boolean(thread.pinned));
-    setError(null);
-  }, [iso, thread]);
-
-  const resetDraft = () => {
-    if (!thread) return;
-    setTitle(thread.title);
-    setStatus(thread.status);
-    setOwner(thread.owner ?? "");
-    setStartedAt(thread.started_at?.slice(0, 10) || iso);
-    setSummary(thread.summary ?? "");
-    setPinned(Boolean(thread.pinned));
-    setError(null);
-  };
-
-  const saveDraft = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!thread) return;
-    const nextTitle = title.trim();
-    if (!nextTitle) {
-      setError("标题不能为空");
-      return;
-    }
-    if (!startedAt) {
-      setError("开始日期不能为空");
-      return;
-    }
-    setError(null);
-    try {
-      await onSave(thread.id, {
-        title: nextTitle,
-        status,
-        owner: owner.trim() || null,
-        started_at: startedAt,
-        summary,
-        pinned,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "保存失败");
-    }
-  };
-
-  if (!thread) {
-    return (
-      <aside className="spatial-inspector">
-        <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div>
-            <div className="text-sm font-semibold text-ink">工作线 Inspector</div>
-            <div className="mono-meta mt-1 text-[10px]">real data · {iso}</div>
-          </div>
-          <button type="button" className="btn-icon !h-7 !w-7" onClick={onOpenConfig} aria-label="打开工作台配置">
-            <Settings2 size={14} />
-          </button>
-        </div>
-        <div className="space-y-3 px-4 py-4">
-          <div className="rounded-lg border border-line bg-canvas-raised/55 p-4 text-sm leading-6 text-ink-soft">
-            这里会显示当前工作线的真实详情。现在还没有工作线，创建一条后可以在这里编辑状态、负责人、日期和摘要。
-          </div>
-          <button
-            type="button"
-            className="btn btn-accent w-full justify-center"
-            onClick={onCreateThread}
-            aria-label="从 Inspector 新建工作线"
-          >
-            <Plus size={14} />
-            新建工作线
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="spatial-inspector">
-      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-ink">工作线：{thread.title}</div>
-          <div className="mono-meta mt-1 text-[10px]">inspector · {iso}</div>
-        </div>
-        <button type="button" className="btn-icon !h-7 !w-7" onClick={onOpenConfig} aria-label="打开工作台配置">
-          <Settings2 size={14} />
-        </button>
-      </div>
-
-      <form className="space-y-4 px-4 py-4" onSubmit={saveDraft}>
-        <label className="block">
-          <span className="mb-1.5 block text-xs text-ink-soft">标题</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} className="input" />
-        </label>
-
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-ink-soft">状态</span>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as ThreadStatus)}
-              className="input"
-            >
-              {(Object.keys(THREAD_STATUS_LABEL) as ThreadStatus[]).map((value) => (
-                <option key={value} value={value}>
-                  {THREAD_STATUS_LABEL[value]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-ink-soft">开始日期</span>
-            <input
-              type="date"
-              value={startedAt}
-              onChange={(event) => setStartedAt(event.target.value)}
-              className="input"
-            />
-          </label>
-        </div>
-
-        <label className="block">
-          <span className="mb-1.5 block text-xs text-ink-soft">负责人</span>
-          <input
-            value={owner}
-            onChange={(event) => setOwner(event.target.value)}
-            className="input"
-            placeholder="未指定"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-xs text-ink-soft">摘要 / 目标</span>
-          <textarea
-            value={summary}
-            onChange={(event) => setSummary(event.target.value)}
-            className="input min-h-[6rem] resize-none leading-5"
-            placeholder="写下这条工作线的目标、当前进展或下一步。"
-          />
-        </label>
-
-        <label className="chip cursor-pointer gap-2">
-          <input
-            type="checkbox"
-            checked={pinned}
-            onChange={(event) => setPinned(event.target.checked)}
-            className="accent-[rgb(var(--color-accent))]"
-          />
-          置顶工作线
-        </label>
-
-        <div className="rounded-lg border border-line bg-canvas-sunken/55 p-3">
-          <div className="mb-2 text-xs font-semibold text-ink">真实数据</div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-ink-soft">
-            <div className="rounded-md bg-canvas-raised/70 p-2">
-              <div className="mono-meta text-[9px]">EVIDENCE</div>
-              <div className="mt-1 text-base font-semibold text-ink">{evidenceCount}</div>
-            </div>
-            <div className="rounded-md bg-canvas-raised/70 p-2">
-              <div className="mono-meta text-[9px]">OPEN TODO</div>
-              <div className="mt-1 text-base font-semibold text-ink">{openTodos.length}</div>
-            </div>
-            <div className="col-span-2 rounded-md bg-canvas-raised/70 p-2">
-              <div className="mono-meta text-[9px]">LAST ACTIVE</div>
-              <div className="mt-1 truncate text-sm text-ink">{lastActive}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-line bg-canvas-raised/55 p-3">
-          <div className="mb-2 text-xs font-semibold text-ink">关联项目</div>
-          {project?.id ? (
-            <Link to={`/projects/${project.id}`} className="text-xs text-accent hover:brightness-125">
-              {projectName}
-            </Link>
-          ) : (
-            <div className="text-xs text-ink-soft">{projectName}</div>
-          )}
-        </div>
-
-        {error && (
-          <div className="rounded-lg border border-signal-stop/40 bg-signal-stop/10 px-3 py-2 text-xs text-signal-stop">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-2 border-t border-line pt-4">
-          <Link className="btn justify-center" to={`/threads/${thread.id}`}>
-            <GitBranch size={14} />
-            打开
-          </Link>
-          <button type="submit" className="btn btn-accent justify-center" disabled={busy || !title.trim()}>
-            <Save size={14} />
-            保存
-          </button>
-          <button type="button" className="btn btn-ghost col-span-2 justify-center" onClick={resetDraft} disabled={busy}>
-            <RotateCcw size={14} />
-            恢复未保存
-          </button>
-        </div>
-      </form>
-    </aside>
   );
 }
 

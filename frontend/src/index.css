@@ -429,7 +429,7 @@
 
   .spatial-app-frame {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 290px;
+    grid-template-columns: minmax(0, 1fr);
     overflow: hidden;
     border: 1px solid rgb(var(--color-line) / 0.09);
     border-radius: 14px;
@@ -439,13 +439,7 @@
 
   .spatial-canvas {
     min-width: 0;
-    border-right: 1px solid rgb(var(--color-line) / 0.08);
     padding: 0.75rem;
-  }
-
-  .spatial-inspector {
-    min-width: 0;
-    background: rgb(var(--color-canvas-raised) / 0.82);
   }
 
   .spatial-timeline-panel {
@@ -863,9 +857,6 @@
   }
   .spatial-canvas {
     border-right: 0;
-  }
-  .spatial-inspector {
-    border-top: 1px solid rgb(var(--color-line) / 0.08);
   }
   .spatial-hero {
     grid-template-columns: 1fr;

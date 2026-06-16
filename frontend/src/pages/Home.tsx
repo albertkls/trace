@@ -151,11 +151,11 @@ const MODULES: {
   h: number;
   size: LayoutSize;
 }[] = [
-  { id: "focus", label: "今日焦点", configLabel: "今日焦点", icon: Radar, w: 5, h: 4, size: "lg" },
+  { id: "focus", label: "今日推进", configLabel: "今日推进", icon: Radar, w: 5, h: 4, size: "lg" },
   {
     id: "threads",
-    label: "工作线动态",
-    configLabel: "工作线动态",
+    label: "工作线看板",
+    configLabel: "工作线看板",
     icon: GitBranch,
     w: 7,
     h: 4,
@@ -172,14 +172,14 @@ const MODULES: {
   },
   {
     id: "synthesis",
-    label: "AI 今日汇总",
-    configLabel: "AI 汇总",
+    label: "今日简报",
+    configLabel: "今日简报",
     icon: Bot,
     w: 6,
     h: 4,
     size: "lg",
   },
-  { id: "todos", label: "待办雷达", configLabel: "待办", icon: ListChecks, w: 4, h: 4, size: "md" },
+  { id: "todos", label: "任务列表", configLabel: "任务列表", icon: ListChecks, w: 4, h: 4, size: "md" },
   {
     id: "captures",
     label: "最近捕捉",
@@ -191,8 +191,8 @@ const MODULES: {
   },
   {
     id: "timeline",
-    label: "时间线脉冲",
-    configLabel: "时间线",
+    label: "工作节奏",
+    configLabel: "工作节奏",
     icon: CalendarClock,
     w: 4,
     h: 4,
@@ -277,12 +277,6 @@ function addDays(date: Date, amount: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
-}
-
-function daysBetween(start: Date, end: Date): number {
-  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
-  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
-  return Math.round((endDay - startDay) / 86400000);
 }
 
 function loadSettings(): WorkbenchSettings {
@@ -537,28 +531,6 @@ export default function Home() {
       ["active", "healthy"].includes(project.health?.health_status ?? "healthy")
     ).length,
   };
-  const primaryThread = threads[0];
-  const primaryProject = projects[0];
-  const worklineRows = [
-    {
-      title: primaryThread?.title ?? "产品设计迭代",
-      meta: primaryThread?.project ?? "进行中",
-      tone: "moss" as const,
-      href: primaryThread ? `/threads/${primaryThread.id}` : "/threads",
-    },
-    {
-      title: projectAlerts[0]?.name ?? "内容创作线",
-      meta: projectAlerts[0]?.health?.next_action ?? "处理中",
-      tone: "amber" as const,
-      href: projectAlerts[0] ? `/projects/${projectAlerts[0].id}` : "/threads",
-    },
-    {
-      title: primaryProject?.name ?? "个人知识管理",
-      meta: primaryProject?.health?.next_action ?? "进行中",
-      tone: "slate" as const,
-      href: primaryProject ? `/projects/${primaryProject.id}` : "/projects",
-    },
-  ];
   const timelineItems: TimelineItem[] = todos.slice(0, 8).map((todo) => ({
     id: todo.id,
     label: todoPreview(todo.text, 34),
@@ -566,6 +538,10 @@ export default function Home() {
     tone: todo.done ? "slate" : todo.thread_id ? "moss" : "amber",
     todo,
   }));
+  const dueTodayTodos = todos.filter((todo) => todo.due_date && todo.due_date <= iso);
+  const unplannedTodos = todos.filter((todo) => !todo.due_date);
+  const activeThreads = threads.filter((thread) => thread.status === "active");
+  const visibleProjects = projectAlerts.length > 0 ? projectAlerts : projects;
 
   const updateSettings = (patch: Partial<WorkbenchSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -675,7 +651,7 @@ export default function Home() {
     switch (id) {
       case "focus":
         return (
-          <WorkbenchPanel icon={Radar} title="今日焦点" meta={`${focusItems.length} actions`}>
+          <WorkbenchPanel icon={Radar} title="今日推进" meta={`${focusItems.length} actions`}>
             <div className="divide-y divide-line/60">
               {focusItems.map((item, index) => (
                 <ActionRow
@@ -692,7 +668,7 @@ export default function Home() {
         );
       case "threads":
         return (
-          <WorkbenchPanel icon={GitBranch} title="工作线动态" meta={`${threads.length} threads`}>
+          <WorkbenchPanel icon={GitBranch} title="工作线看板" meta={`${threads.length} threads`}>
             {threadsLoading ? (
               <div className="p-4">
                 <Skeleton variant="text" count={5} />
@@ -763,7 +739,7 @@ export default function Home() {
         return (
           <WorkbenchPanel
             icon={Bot}
-            title="AI 今日汇总"
+            title="今日简报"
             meta="synthesis"
             action={
               <Link className="text-xs text-accent hover:brightness-125" to="/reports">
@@ -797,7 +773,7 @@ export default function Home() {
         );
       case "todos":
         return (
-          <WorkbenchPanel icon={ListChecks} title="待办雷达" meta={`${todos.length} open`}>
+          <WorkbenchPanel icon={ListChecks} title="任务列表" meta={`${todos.length} open`}>
             <div className="divide-y divide-line/60">
               {todos.slice(0, 5).map((todo) => (
                 <div key={todo.id} className="flex items-start gap-3 px-4 py-3">
@@ -837,7 +813,7 @@ export default function Home() {
         );
       case "timeline":
         return (
-          <WorkbenchPanel icon={CalendarClock} title="时间线脉冲" meta={yesterday?.date ?? "yesterday"}>
+          <WorkbenchPanel icon={CalendarClock} title="工作节奏" meta={yesterday?.date ?? "yesterday"}>
             {yesterday ? (
               <div className="space-y-3 px-4 py-4">
                 <PulseBar label="记录" value={yesterday.capture_count} max={8} tone="accent" />
@@ -889,7 +865,7 @@ export default function Home() {
   };
 
   return (
-    <div className={clsx("workbench-page spatial-workbench-page", `density-${settings.density}`)}>
+    <div className={clsx("workbench-page pm-workbench-page", `density-${settings.density}`)}>
       <NewThreadModal
         open={newThreadOpen}
         onClose={() => setNewThreadOpen(false)}
@@ -898,21 +874,24 @@ export default function Home() {
           navigate(`/threads/${thread.id}`);
         }}
       />
-      <div className="mx-auto w-full max-w-[1480px] px-4 py-4 lg:px-5">
-        <header className="spatial-hero mb-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-4 lg:px-5">
+        <header className="pm-workbench-header mb-4">
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="dot-pulse" />
-              <span className="eyebrow">SPATIAL SLATE · {weekLabel}</span>
+              <span className="eyebrow">工作台 · {weekLabel}</span>
+              <span className="chip chip-go">个人推进系统</span>
             </div>
-            <h1 className="mt-2 font-display text-[30px] font-semibold leading-tight text-ink">
-              捕捉灵感，梳理思路，推进工作。
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft">
-              属于你的空间化工作台：工作线在时间画布上展开，捕捉、待办和周报在底部随时接入。
-            </p>
+            <div>
+              <h1 className="font-display text-[30px] font-semibold leading-tight text-ink">
+                今天要推进什么？
+              </h1>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
+                用一个清晰的工作台统筹待办、工作线、项目状态和周报素材，先处理最重要的下一步。
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="pm-workbench-actions">
             <div className="view-switch">
               {VIEW_PRESETS.map((view) => (
                 <button
@@ -950,54 +929,113 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="spatial-signal-strip mb-4">
-          <SignalTile icon={Inbox} label="闪记" value={inbox.length} tone="accent" />
-          <SignalTile icon={GitBranch} label="工作线" value={threads.length} tone="neutral" />
-          <SignalTile icon={LayoutDashboard} label="项目" value={projects.length} tone="iris" />
-          <SignalTile icon={ShieldAlert} label="阻塞" value={blockedThreads.length} tone="stop" />
+        <section className="pm-metric-grid mb-4" aria-label="工作台概览">
+          <SignalTile
+            icon={Inbox}
+            label="待处理"
+            value={todos.length + inbox.length}
+            detail={`${todos.length} 待办 · ${inbox.length} 闪记`}
+            tone="accent"
+          />
+          <SignalTile
+            icon={GitBranch}
+            label="进行中"
+            value={activeThreads.length}
+            detail={`${threads.length} 条工作线`}
+            tone="neutral"
+          />
+          <SignalTile
+            icon={LayoutDashboard}
+            label="项目"
+            value={projects.length}
+            detail={`${visibleProjects.length} 个需要关注`}
+            tone="iris"
+          />
+          <SignalTile
+            icon={ShieldAlert}
+            label="阻塞"
+            value={blockedThreads.length}
+            detail={blockedThreads.length > 0 ? "需要解除依赖" : "当前顺畅"}
+            tone="stop"
+          />
         </section>
 
-        <section className="spatial-app-frame">
-          <div className="spatial-canvas">
-            <SpatialTimeline
-              rows={worklineRows}
-              items={timelineItems}
-              threads={threads}
-              iso={iso}
-              onCreateThread={() => setNewThreadOpen(true)}
-              onCreateItem={(body) => createTimelineTodo.mutateAsync(body)}
-              onUpdateItem={(id, patch) => updateTimelineTodo.mutateAsync({ id, patch })}
-              onRemoveItem={(id) => removeTimelineTodo.mutateAsync(id)}
-              busy={
-                createTimelineTodo.isPending ||
-                updateTimelineTodo.isPending ||
-                removeTimelineTodo.isPending
-              }
-            />
+        <section className="pm-command-grid mb-4">
+          <TodayFocusPanel focusItems={focusItems} inboxCount={inbox.length} todoCount={todos.length} />
+          <WorklineBoardPanel
+            threads={threads}
+            threadsLoading={threadsLoading}
+            onCreateThread={() => setNewThreadOpen(true)}
+          />
+          <WorkbenchSummaryPanel
+            inboxCount={inbox.length}
+            threadCount={threads.length}
+            todoCount={todos.length}
+            blockedCount={blockedThreads.length}
+            draftReport={draftReport}
+          />
+        </section>
 
-            <div className={clsx("workbench-grid spatial-module-grid", editMode && "workbench-grid-editing")}>
-              {activeLayout.map((item) => (
-                <EditableModuleFrame
-                  key={item.id}
-                  item={item}
-                  editing={editMode}
-                  dragging={draggingId === item.id}
-                  onDragStart={() => setDraggingId(item.id)}
-                  onDragEnd={() => setDraggingId(null)}
-                  onDrop={() => {
-                    if (draggingId) reorderModule(draggingId, item.id);
-                    setDraggingId(null);
-                  }}
-                  onResizeStart={beginResize}
-                  onResizeMove={handleResizeMove}
-                  onResizeEnd={endResize}
-                >
-                  {renderModule(item.id)}
-                </EditableModuleFrame>
-              ))}
+        {settings.view !== "minimal" && (
+          <WorkPlannerPanel
+            items={timelineItems}
+            threads={threads}
+            iso={iso}
+            dueTodayCount={dueTodayTodos.length}
+            unplannedCount={unplannedTodos.length}
+            onCreateThread={() => setNewThreadOpen(true)}
+            onCreateItem={(body) => createTimelineTodo.mutateAsync(body)}
+            onUpdateItem={(id, patch) => updateTimelineTodo.mutateAsync({ id, patch })}
+            onRemoveItem={(id) => removeTimelineTodo.mutateAsync(id)}
+            busy={
+              createTimelineTodo.isPending ||
+              updateTimelineTodo.isPending ||
+              removeTimelineTodo.isPending
+            }
+          />
+        )}
+
+        <section className="pm-custom-workspace mt-4">
+          <div className="pm-section-heading">
+            <div>
+              <div className="eyebrow">CUSTOM WORKSPACE</div>
+              <h2 className="mt-1 text-base font-semibold text-ink">
+                {settings.view === "custom" ? settings.customName : `${VIEW_LABEL[settings.view]}视图`}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mono-meta">{activeModules.length} 个板块</span>
+              <button
+                type="button"
+                className={clsx("btn", editMode && "border-accent/60 bg-accent/10 text-accent")}
+                onClick={() => (editMode ? setEditMode(false) : activateCustomLayout())}
+              >
+                <Maximize2 size={15} />
+                {editMode ? "完成调整" : "调整板块"}
+              </button>
             </div>
           </div>
-
+          <div className={clsx("workbench-grid", editMode && "workbench-grid-editing")}>
+            {activeLayout.map((item) => (
+              <EditableModuleFrame
+                key={item.id}
+                item={item}
+                editing={editMode}
+                dragging={draggingId === item.id}
+                onDragStart={() => setDraggingId(item.id)}
+                onDragEnd={() => setDraggingId(null)}
+                onDrop={() => {
+                  if (draggingId) reorderModule(draggingId, item.id);
+                  setDraggingId(null);
+                }}
+                onResizeStart={beginResize}
+                onResizeMove={handleResizeMove}
+                onResizeEnd={endResize}
+              >
+                {renderModule(item.id)}
+              </EditableModuleFrame>
+            ))}
+          </div>
         </section>
 
         {configOpen && (
@@ -1155,58 +1193,234 @@ function moduleMeta(id: ModuleId) {
   return MODULES.find((module) => module.id === id) ?? MODULES[0];
 }
 
-function SpatialTimeline({
-  rows,
+function TodayFocusPanel({
+  focusItems,
+  inboxCount,
+  todoCount,
+}: {
+  focusItems: {
+    label: string;
+    detail: string;
+    to?: string;
+    tone?: "accent" | "warn" | "stop";
+  }[];
+  inboxCount: number;
+  todoCount: number;
+}) {
+  return (
+    <WorkbenchPanel
+      icon={Radar}
+      title="今日推进"
+      meta={`${focusItems.length} 个动作`}
+      action={
+        <Link to="/todos" className="text-xs text-accent hover:brightness-125">
+          待办
+        </Link>
+      }
+      className="pm-focus-panel"
+    >
+      <div className="px-4 py-4">
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className="pm-mini-stat">
+            <span>待办</span>
+            <strong>{todoCount}</strong>
+          </div>
+          <div className="pm-mini-stat">
+            <span>闪记</span>
+            <strong>{inboxCount}</strong>
+          </div>
+        </div>
+        <div className="divide-y divide-line/60 rounded-lg border border-line/70 bg-canvas-raised/55">
+          {focusItems.map((item, index) => (
+            <ActionRow
+              key={`${item.label}-${index}`}
+              index={index + 1}
+              label={item.label}
+              detail={item.detail}
+              to={item.to}
+              tone={item.tone}
+            />
+          ))}
+        </div>
+      </div>
+    </WorkbenchPanel>
+  );
+}
+
+function WorklineBoardPanel({
+  threads,
+  threadsLoading,
+  onCreateThread,
+}: {
+  threads: Thread[];
+  threadsLoading: boolean;
+  onCreateThread: () => void;
+}) {
+  const columns = [
+    {
+      id: "active",
+      title: "进行中",
+      items: threads.filter((thread) => thread.status === "active"),
+    },
+    {
+      id: "blocked",
+      title: "已阻塞",
+      items: threads.filter((thread) => thread.status === "blocked"),
+    },
+    {
+      id: "done",
+      title: "已完成",
+      items: threads.filter((thread) => ["done", "archived"].includes(thread.status)),
+    },
+  ];
+
+  return (
+    <WorkbenchPanel
+      icon={GitBranch}
+      title="工作线看板"
+      meta={`${threads.length} 条工作线`}
+      action={
+        <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={onCreateThread}>
+          <Plus size={13} />
+          新建
+        </button>
+      }
+      className="pm-board-panel"
+    >
+      {threadsLoading ? (
+        <div className="p-4">
+          <Skeleton variant="text" count={5} />
+        </div>
+      ) : threads.length === 0 ? (
+        <button type="button" className="pm-empty-board" onClick={onCreateThread}>
+          <Plus size={16} />
+          创建第一条工作线
+        </button>
+      ) : (
+        <div className="pm-board-columns">
+          {columns.map((column) => (
+            <div key={column.id} className="pm-board-column">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold text-ink">{column.title}</span>
+                <span className="mono-meta">{column.items.length}</span>
+              </div>
+              <div className="space-y-2">
+                {column.items.slice(0, 4).map((thread) => (
+                  <Link key={thread.id} to={`/threads/${thread.id}`} className="pm-thread-card">
+                    <div className="mb-2 flex items-center gap-2">
+                      <StatusDot status={thread.status} withLabel={false} />
+                      <span className="truncate text-sm font-medium text-ink">{thread.title}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-ink-mute">
+                      <span className="truncate">{thread.project || "未归项目"}</span>
+                      <span>{thread.evidence_count ?? 0} 证据</span>
+                    </div>
+                  </Link>
+                ))}
+                {column.items.length === 0 && (
+                  <div className="pm-board-empty-column">暂无</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </WorkbenchPanel>
+  );
+}
+
+function WorkbenchSummaryPanel({
+  inboxCount,
+  threadCount,
+  todoCount,
+  blockedCount,
+  draftReport,
+}: {
+  inboxCount: number;
+  threadCount: number;
+  todoCount: number;
+  blockedCount: number;
+  draftReport?: ReportSummary;
+}) {
+  return (
+    <WorkbenchPanel
+      icon={Bot}
+      title="今日简报"
+      meta="summary"
+      action={
+        <Link className="text-xs text-accent hover:brightness-125" to="/reports">
+          周报
+        </Link>
+      }
+      className="pm-summary-panel"
+    >
+      <div className="space-y-3 px-4 py-4">
+        <SynthesisLine
+          label="输入"
+          text={`${inboxCount} 条闪记、${threadCount} 条工作线、${todoCount} 个待办正在等待处理。`}
+        />
+        <SynthesisLine
+          label="风险"
+          text={
+            blockedCount > 0
+              ? `${blockedCount} 条工作线阻塞，建议先拆出下一步。`
+              : "当前没有阻塞工作线，可以直接推进今日任务。"
+          }
+        />
+        <SynthesisLine
+          label="汇报"
+          text={
+            draftReport
+              ? `已有「${draftReport.period_label}」草稿，适合收尾整理。`
+              : "本周尚未生成周报，可先积累今日证据。"
+          }
+        />
+      </div>
+    </WorkbenchPanel>
+  );
+}
+
+function WorkPlannerPanel({
   items,
   threads,
   iso,
+  dueTodayCount,
+  unplannedCount,
   onCreateThread,
   onCreateItem,
   onUpdateItem,
   onRemoveItem,
   busy,
 }: {
-  rows: { title: string; meta: string; tone: TimelineTone; href: string }[];
   items: TimelineItem[];
   threads: Thread[];
   iso: string;
+  dueTodayCount: number;
+  unplannedCount: number;
   onCreateThread: () => void;
   onCreateItem: (body: TodoInput) => Promise<unknown>;
   onUpdateItem: (id: string, patch: TodoPatch) => Promise<unknown>;
   onRemoveItem: (id: string) => Promise<unknown>;
   busy: boolean;
 }) {
-  const [mode, setMode] = useState<"week" | "month">("week");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const baseDate = useMemo(() => parseLocalISODate(iso) ?? new Date(), [iso]);
-  const visibleDays = useMemo(() => {
-    const count = mode === "week" ? 10 : 14;
-    const start = addDays(baseDate, mode === "week" ? -4 : -7);
-    return Array.from({ length: count }, (_, index) => {
-      const date = addDays(start, index);
-      return {
-        date,
-        iso: toISODate(date),
-        day: String(date.getDate()),
-        weekday: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()],
-      };
-    });
-  }, [baseDate, mode]);
+  const weekDays = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) => {
+        const date = addDays(baseDate, index);
+        const dateISO = toISODate(date);
+        return {
+          iso: dateISO,
+          day: String(date.getDate()),
+          weekday: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()],
+          count: items.filter((item) => item.dueDate === dateISO).length,
+        };
+      }),
+    [baseDate, items]
+  );
   const selectedItem = editingId ? items.find((item) => item.id === editingId) ?? null : null;
-  const todayIndex = visibleDays.findIndex((day) => day.iso === iso);
-  const calendarItems = items.map((item, index) => {
-    const due = parseLocalISODate(item.dueDate);
-    const diff = due ? daysBetween(visibleDays[0].date, due) : index;
-    const start = clamp(diff + 1, 1, visibleDays.length);
-    const span = Math.min(mode === "week" ? 3 : 2, Math.max(1, visibleDays.length - start + 1));
-    return {
-      ...item,
-      start,
-      span,
-      row: (index % 4) + 1,
-    };
-  });
   const openCreate = () => {
     setEditingId(null);
     setCreating(true);
@@ -1221,149 +1435,112 @@ function SpatialTimeline({
   };
 
   return (
-    <section className="spatial-timeline-panel">
-      <div className="spatial-workline-list">
-        <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <h2 className="text-base font-semibold text-ink">工作线</h2>
-          <span className="mono-meta text-[10px]">{rows.length} lanes</span>
+    <section className="pm-planner-panel mb-4">
+      <div className="pm-panel-header">
+        <div>
+          <div className="eyebrow">WEEK PLAN</div>
+          <h2 className="mt-1 text-base font-semibold text-ink">本周计划</h2>
         </div>
-        <div className="divide-y divide-line/70">
-          {rows.map((row) => (
-            <Link
-              key={row.title}
-              to={row.href}
-              className={clsx("spatial-workline-row", `tone-${row.tone}`)}
-            >
-              <span className="spatial-workline-dot" />
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-ink">{row.title}</div>
-                <div className="mt-1 text-xs text-ink-mute">{row.meta}</div>
-              </div>
-              <ChevronRight size={14} className="spatial-workline-chevron" />
-            </Link>
-          ))}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="chip">{dueTodayCount} 今日到期</span>
+          <span className="chip">{unplannedCount} 未排期</span>
+          <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={onCreateThread}>
+            <Plus size={13} />
+            新建工作线
+          </button>
+          <button type="button" className="btn btn-accent !px-2 !py-1 text-xs" onClick={openCreate}>
+            <Plus size={13} />
+            新建任务
+          </button>
         </div>
-        <button
-          type="button"
-          className="mx-4 mt-4 flex items-center gap-2 text-xs text-ink-mute transition hover:text-accent"
-          onClick={onCreateThread}
-        >
-          <Plus size={14} />
-          新建工作线
-        </button>
       </div>
 
-      <div className="spatial-calendar">
-        <div className="spatial-calendar-toolbar">
-          <div>
-            <div className="mono-meta text-[10px]">
-              {baseDate.getFullYear()}年{baseDate.getMonth() + 1}月
-            </div>
-            <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-ink">
-              空间时间线
-              <span className="mono-meta text-[10px]">{items.length} blocks</span>
-            </div>
+      <div className="pm-week-strip" aria-label="未来七天任务密度">
+        {weekDays.map((day) => (
+          <div key={day.iso} className={clsx("pm-week-day", day.iso === iso && "pm-week-day-today")}>
+            <div className="text-xs font-semibold text-ink">{day.day}</div>
+            <div className="mono-meta mt-1 text-[10px]">{day.weekday}</div>
+            <div className="mt-2 text-[11px] text-ink-mute">{day.count} 项</div>
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={openCreate}>
-              <Plus size={13} />
-              新建工作块
-            </button>
-            <div className="flex items-center gap-1 rounded-md border border-line bg-canvas-sunken p-1 text-xs">
-              <button
-                type="button"
-                aria-pressed={mode === "week"}
-                className={clsx("rounded px-2 py-1", mode === "week" ? "bg-canvas-raised text-ink" : "text-ink-mute")}
-                onClick={() => setMode("week")}
-              >
-                周
-              </button>
-              <button
-                type="button"
-                aria-pressed={mode === "month"}
-                className={clsx("rounded px-2 py-1", mode === "month" ? "bg-canvas-raised text-ink" : "text-ink-mute")}
-                onClick={() => setMode("month")}
-              >
-                月
-              </button>
-            </div>
-          </div>
-        </div>
-        <div
-          className="spatial-calendar-days"
-          style={{ gridTemplateColumns: `repeat(${visibleDays.length}, minmax(0, 1fr))` }}
-        >
-          {visibleDays.map((day) => (
-            <div key={day.iso} className={clsx("text-center", day.iso === iso && "spatial-calendar-day-today")}>
-              <div className="text-xs font-medium text-ink">{day.day}</div>
-              <div className="mono-meta mt-0.5 text-[10px]">{day.weekday}</div>
-            </div>
-          ))}
-        </div>
-        <div
-          className="spatial-calendar-grid"
-          style={{ gridTemplateColumns: `repeat(${visibleDays.length}, minmax(0, 1fr))` }}
-          onDoubleClick={openCreate}
-        >
-          <div
-            className="spatial-today-line"
-            style={{
-              left: todayIndex >= 0 ? `${((todayIndex + 0.5) / visibleDays.length) * 100}%` : "-999px",
-            }}
-          />
-          {calendarItems.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              aria-label={`编辑工作块：${item.label}`}
-              className={clsx(
-                "spatial-timeline-item",
-                `tone-${item.tone}`,
-                editingId === item.id && "spatial-timeline-item-active"
-              )}
-              onClick={() => openEdit(item.id)}
-              style={{
-                gridColumn: `${item.start} / span ${item.span}`,
-                gridRow: item.row,
-              }}
-            >
-              <span className="truncate">{item.label}</span>
-              {item.todo.thread_title && <span className="spatial-item-thread">{item.todo.thread_title}</span>}
-            </button>
-          ))}
-          {items.length === 0 && (
-            <button type="button" className="spatial-empty-timeline" onClick={openCreate}>
+        ))}
+      </div>
+
+      <div className="pm-plan-layout">
+        <div className="pm-task-list">
+          {items.length === 0 ? (
+            <button type="button" className="pm-empty-task" onClick={openCreate}>
               <Plus size={16} />
-              添加第一块工作
+              添加第一条任务
             </button>
+          ) : (
+            items.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                aria-label={`编辑任务：${item.label}`}
+                className={clsx("pm-task-row", `tone-${item.tone}`)}
+                onClick={() => openEdit(item.id)}
+              >
+                <span className="pm-task-status" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-ink">{item.label}</span>
+                  <span className="mt-1 block truncate text-xs text-ink-mute">
+                    {item.dueDate ?? "未排期"}
+                    {item.todo.thread_title ? ` · ${item.todo.thread_title}` : ""}
+                  </span>
+                </span>
+                <ChevronRight size={15} className="text-ink-mute" />
+              </button>
+            ))
           )}
         </div>
-        {(creating || selectedItem) && (
-          <TimelineItemEditor
-            item={selectedItem}
-            threads={threads}
-            iso={iso}
-            busy={busy}
-            onCancel={closeEditor}
-            onCreate={async (body) => {
-              await onCreateItem(body);
-              closeEditor();
-            }}
-            onUpdate={async (id, patch) => {
-              await onUpdateItem(id, patch);
-              closeEditor();
-            }}
-            onRemove={async (id) => {
-              await onRemoveItem(id);
-              closeEditor();
-            }}
-          />
-        )}
-        <div className="spatial-calendar-footer">
-          <span>{iso}</span>
-          <span>点击工作块编辑内容；双击空白处新增待办工作块</span>
-        </div>
+
+        <aside className="pm-thread-rail">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-semibold text-ink">活跃工作线</div>
+            <Link to="/threads" className="text-xs text-accent hover:brightness-125">
+              全部
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {threads.slice(0, 5).map((thread) => (
+              <Link key={thread.id} to={`/threads/${thread.id}`} className="pm-thread-pill">
+                <StatusDot status={thread.status} withLabel={false} />
+                <span className="min-w-0 flex-1 truncate">{thread.title}</span>
+                <span className="mono-meta">{thread.evidence_count ?? 0}</span>
+              </Link>
+            ))}
+            {threads.length === 0 && (
+              <button type="button" className="pm-thread-pill justify-center text-ink-mute" onClick={onCreateThread}>
+                <Plus size={14} />
+                新建第一条工作线
+              </button>
+            )}
+          </div>
+        </aside>
       </div>
+
+      {(creating || selectedItem) && (
+        <TimelineItemEditor
+          item={selectedItem}
+          threads={threads}
+          iso={iso}
+          busy={busy}
+          onCancel={closeEditor}
+          onCreate={async (body) => {
+            await onCreateItem(body);
+            closeEditor();
+          }}
+          onUpdate={async (id, patch) => {
+            await onUpdateItem(id, patch);
+            closeEditor();
+          }}
+          onRemove={async (id) => {
+            await onRemoveItem(id);
+            closeEditor();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -1431,7 +1608,7 @@ function TimelineItemEditor({
 
   const handleRemove = async () => {
     if (!item) return;
-    if (!window.confirm("删除这个工作块？")) return;
+    if (!window.confirm("删除这个任务？")) return;
     setError(null);
     try {
       await onRemove(item.id);
@@ -1441,24 +1618,24 @@ function TimelineItemEditor({
   };
 
   return (
-    <form className="spatial-timeline-editor" onSubmit={handleSubmit}>
+    <form className="pm-task-editor" onSubmit={handleSubmit}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-ink">
-            {item ? "编辑工作块" : "新建工作块"}
+            {item ? "编辑任务" : "新建任务"}
           </div>
           <div className="mono-meta mt-1 text-[10px]">
-            {item ? "同步到待办" : "创建后会出现在待办雷达和时间线"}
+            {item ? "同步到待办列表" : "创建后会出现在今日任务和本周计划"}
           </div>
         </div>
-        <button type="button" className="btn-icon !h-7 !w-7" onClick={onCancel} aria-label="关闭工作块编辑">
+        <button type="button" className="btn-icon !h-7 !w-7" onClick={onCancel} aria-label="关闭任务编辑">
           <X size={14} />
         </button>
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_9rem_11rem]">
         <label className="block">
-          <span className="mb-1.5 block text-xs text-ink-soft">工作块标题</span>
+          <span className="mb-1.5 block text-xs text-ink-soft">任务标题</span>
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -1528,7 +1705,7 @@ function TimelineItemEditor({
           </button>
           <button type="submit" className="btn btn-accent !px-2 !py-1 text-xs" disabled={busy || !title.trim()}>
             {item ? <Check size={13} /> : <Plus size={13} />}
-            保存工作块
+            保存任务
           </button>
         </div>
       </div>
@@ -1712,11 +1889,13 @@ function SignalTile({
   icon: Icon,
   label,
   value,
+  detail,
   tone,
 }: {
   icon: LucideIcon;
   label: string;
   value: number;
+  detail?: string;
   tone: "neutral" | "accent" | "iris" | "stop";
 }) {
   const toneClass = {
@@ -1732,6 +1911,7 @@ function SignalTile({
         <Icon size={15} />
       </div>
       <div className="mt-3 font-display text-[28px] font-semibold leading-none">{value}</div>
+      {detail && <div className="mt-2 truncate text-xs opacity-75">{detail}</div>}
     </div>
   );
 }

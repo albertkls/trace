@@ -80,6 +80,16 @@ describe("Home", () => {
     expect(document.body).toBeTruthy();
   });
 
+  it("renders the redesigned project-management workbench", async () => {
+    renderWithProviders(<Home />);
+
+    expect(await screen.findByText("今天要推进什么？")).toBeTruthy();
+    expect((await screen.findAllByText("工作线看板")).length).toBeGreaterThan(0);
+    expect(screen.getByText("本周计划")).toBeTruthy();
+    expect(screen.queryByText(/SPATIAL SLATE/i)).toBeNull();
+    expect(screen.queryByText("空间时间线")).toBeNull();
+  });
+
   it("recovers from invalid persisted workbench settings", async () => {
     window.localStorage.setItem(
       "trace.workbench.settings.v2",
@@ -120,7 +130,7 @@ describe("Home", () => {
     expect(screen.queryByText("工作台配置")).toBeNull();
   });
 
-  it("opens new workline creation from the timeline", async () => {
+  it("opens new workline creation from the planner", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Home />);
 
@@ -130,7 +140,7 @@ describe("Home", () => {
     expect(await screen.findByPlaceholderText("例如：用户权限模块重构")).toBeTruthy();
   });
 
-  it("edits a spatial timeline work block", async () => {
+  it("edits a planner task", async () => {
     const user = userEvent.setup();
     vi.mocked(api.threads.list).mockResolvedValue({
       items: [
@@ -164,11 +174,11 @@ describe("Home", () => {
 
     renderWithProviders(<Home />);
 
-    await user.click(await screen.findByRole("button", { name: "编辑工作块：组件库优化" }));
-    const title = await screen.findByLabelText("工作块标题");
+    await user.click(await screen.findByRole("button", { name: "编辑任务：组件库优化" }));
+    const title = await screen.findByLabelText("任务标题");
     await user.clear(title);
     await user.type(title, "组件库验收");
-    await user.click(screen.getByRole("button", { name: "保存工作块" }));
+    await user.click(screen.getByRole("button", { name: "保存任务" }));
 
     await waitFor(() => {
       expect(api.todos.patch).toHaveBeenCalledWith(
@@ -178,13 +188,13 @@ describe("Home", () => {
     });
   });
 
-  it("creates a spatial timeline work block", async () => {
+  it("creates a planner task", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Home />);
 
-    await user.click(await screen.findByRole("button", { name: "新建工作块" }));
-    await user.type(await screen.findByLabelText("工作块标题"), "整理周会行动项");
-    await user.click(screen.getByRole("button", { name: "保存工作块" }));
+    await user.click(await screen.findByRole("button", { name: "新建任务" }));
+    await user.type(await screen.findByLabelText("任务标题"), "整理周会行动项");
+    await user.click(screen.getByRole("button", { name: "保存任务" }));
 
     await waitFor(() => {
       expect(api.todos.create).toHaveBeenCalledWith(

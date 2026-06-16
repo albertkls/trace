@@ -185,7 +185,7 @@ export default function Shell() {
                     Trace
                   </div>
                   <div className="sidebar-logo-text mt-0.5 truncate text-[11px] text-ink-mute">
-                    Spatial Slate
+                    Work OS
                   </div>
                 </div>
                 <span className="nav-label mono-meta text-[10px]">v{APP_VERSION}</span>

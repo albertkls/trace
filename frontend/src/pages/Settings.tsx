@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { APP_VERSION, isPywebviewDesktop } from "@/lib/appInfo";
+import { desktopQuitApp } from "@/lib/desktopWindow";
 import { type ThemePreference, useThemePreference } from "@/lib/theme";
 import type {
   BackupInfo,
@@ -120,6 +121,7 @@ export default function Settings() {
   const [windowCloseAction, setWindowCloseAction] =
     useState<WindowClosePreferenceResponse["action"]>("minimize");
   const [windowCloseError, setWindowCloseError] = useState<string | null>(null);
+  const [quitting, setQuitting] = useState(false);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -192,6 +194,17 @@ export default function Settings() {
           .then((pref) => setWindowCloseAction(pref.action))
           .catch(() => undefined);
       });
+  };
+
+  const handleQuitApp = async () => {
+    setQuitting(true);
+    setWindowCloseError(null);
+    try {
+      await desktopQuitApp();
+    } catch (e: unknown) {
+      setQuitting(false);
+      setWindowCloseError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -487,6 +500,23 @@ export default function Settings() {
                   </button>
                 );
               })}
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-medium text-ink">立即退出 Trace</div>
+                <div className="mt-1 text-xs leading-relaxed text-ink-mute">
+                  结束桌面客户端和本地后端，不受关闭按钮行为影响。
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost justify-center border-signal-stop/40 text-signal-stop hover:bg-signal-stop/10 sm:w-auto"
+                onClick={handleQuitApp}
+                disabled={quitting}
+              >
+                {quitting ? "正在退出…" : "退出 Trace"}
+              </button>
             </div>
 
             {windowCloseError && (

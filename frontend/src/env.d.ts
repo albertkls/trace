@@ -8,6 +8,10 @@ interface Window {
   pywebview?: {
     api?: {
       choose_file?: () => Promise<string | null>;
+      close_window?: () => Promise<void>;
+      minimize_window?: () => Promise<void>;
+      toggle_maximize_window?: () => Promise<void>;
+      quit_app?: () => Promise<void>;
     };
   };
 }

@@ -24,10 +24,16 @@ WINDOW_SIZE = (1440, 920)
 STARTUP_TIMEOUT_SECONDS = 20.0
 WINDOW_CLOSE_KEY = "desktop.window_close_action"
 
+_force_quit = threading.Event()
+
+
+def _main_window() -> webview.Window | None:
+    return webview.windows[0] if webview.windows else None
+
 
 class DesktopApi:
     def choose_file(self) -> str | None:
-        window = webview.windows[0] if webview.windows else None
+        window = _main_window()
         if window is None:
             return None
         paths = window.create_file_dialog(
@@ -37,6 +43,34 @@ class DesktopApi:
         if not paths:
             return None
         return str(paths[0])
+
+    def close_window(self) -> None:
+        """Apply the user's close-button preference from frontend controls."""
+        window = _main_window()
+        if window is not None:
+            window.destroy()
+
+    def minimize_window(self) -> None:
+        window = _main_window()
+        if window is not None:
+            window.minimize()
+
+    def toggle_maximize_window(self) -> None:
+        window = _main_window()
+        if window is None:
+            return
+        state = getattr(window, "state", None)
+        if state == "maximized":
+            window.restore()
+        else:
+            window.maximize()
+
+    def quit_app(self) -> None:
+        """Exit Trace even when close-button behavior is set to minimize."""
+        _force_quit.set()
+        window = _main_window()
+        if window is not None:
+            window.destroy()
 
 
 def _window_close_action() -> str:
@@ -52,7 +86,7 @@ def _window_close_action() -> str:
 
 
 def _handle_window_closing(window: webview.Window) -> bool:
-    if _window_close_action() != "minimize":
+    if _force_quit.is_set() or _window_close_action() != "minimize":
         return True
     try:
         window.minimize()

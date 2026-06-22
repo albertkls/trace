@@ -7,7 +7,7 @@ import AttachmentPanel from "@/components/AttachmentPanel";
 import DateTimeField from "@/components/DateTimeField";
 import ProjectSelect from "@/components/ProjectSelect";
 import { api } from "@/lib/api";
-import type { Category, InboxItem, Project, Thread } from "@/lib/types";
+import type { CaptureAISuggestion, Category, InboxItem, Project, Thread } from "@/lib/types";
 import { recommendProjects } from "@/lib/projectRecommendations";
 import { CategoryChip } from "@/components/EvidenceChip";
 import { useQuickCapture } from "@/lib/quickCapture";
@@ -343,6 +343,7 @@ function InboxCard({
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [promoted, setPromoted] = useState(false);
+  const [suggestion, setSuggestion] = useState<CaptureAISuggestion | null>(null);
   const recommendations = recommendProjects({
     text: [item.source_title, item.text].filter(Boolean).join(" · "),
     projects,
@@ -392,6 +393,51 @@ function InboxCard({
     },
     onError: onMutError,
   });
+  const aiSuggest = useMutation({
+    mutationFn: () => api.captures.aiSuggest(item.id),
+    onSuccess: (result) => {
+      setError(null);
+      setSuggestion(result);
+    },
+    onError: onMutError,
+  });
+  const applySuggestion = useMutation({
+    mutationFn: async (result: CaptureAISuggestion) => {
+      if (result.thread_id) {
+        await api.captures.update(item.id, {
+          category: result.category,
+          thread_id: result.thread_id,
+        });
+      } else if (result.new_thread_title) {
+        await api.threads.create({
+          title: result.new_thread_title,
+          project_id: result.project_id,
+          adopt_evidence_id: item.id,
+        });
+        if (result.category !== item.category) {
+          await api.captures.update(item.id, { category: result.category });
+        }
+      } else if (result.category !== item.category) {
+        await api.captures.update(item.id, { category: result.category });
+      }
+      if (result.todo_text) {
+        await api.captures.promoteToTodo(item.id, { text: result.todo_text });
+      }
+    },
+    onSuccess: () => {
+      setError(null);
+      setSuggestion(null);
+      onChanged();
+    },
+    onError: onMutError,
+  });
+
+  const suggestedProject = suggestion?.project_id
+    ? projects.find((project) => project.id === suggestion.project_id)
+    : null;
+  const suggestedThread = suggestion?.thread_id
+    ? threads.find((thread) => thread.id === suggestion.thread_id)
+    : null;
 
   return (
     <li className={clsx("panel p-4", selected && "border-accent/70 shadow-glow")}>
@@ -446,6 +492,47 @@ function InboxCard({
             />
           </div>
 
+          {suggestion && (
+            <div className="mt-3 rounded-lg border border-accent/30 bg-accent/10 p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="chip chip-accent">AI 建议</span>
+                <span className="chip">{categoryLabel(suggestion.category)}</span>
+                {suggestedProject && <span className="chip">{suggestedProject.name}</span>}
+                {suggestedThread && <span className="chip">归入：{suggestedThread.title}</span>}
+                {!suggestedThread && suggestion.new_thread_title && (
+                  <span className="chip">新建：{suggestion.new_thread_title}</span>
+                )}
+                {suggestion.todo_text && <span className="chip">转待办</span>}
+                <span className="mono-meta">
+                  {Math.round(suggestion.confidence * 100)}%
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-ink">{suggestion.summary}</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-soft">{suggestion.reason}</p>
+              {suggestion.todo_text && (
+                <p className="mt-2 rounded-md border border-line bg-canvas-sunken/50 px-2 py-1.5 text-xs text-ink-soft">
+                  待办：{suggestion.todo_text}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  className="btn btn-accent text-xs"
+                  disabled={applySuggestion.isPending}
+                  onClick={() => applySuggestion.mutate(suggestion)}
+                >
+                  {applySuggestion.isPending ? "应用中…" : "应用建议"}
+                </button>
+                <button
+                  className="btn btn-ghost text-xs"
+                  onClick={() => setSuggestion(null)}
+                  disabled={applySuggestion.isPending}
+                >
+                  忽略
+                </button>
+              </div>
+            </div>
+          )}
+
           <AttachmentPanel
             ownerType="evidence"
             ownerId={item.id}
@@ -456,6 +543,13 @@ function InboxCard({
         </div>
 
         <div className="relative flex flex-col items-end gap-1.5">
+          <button
+            className="btn btn-accent text-xs"
+            onClick={() => aiSuggest.mutate()}
+            disabled={aiSuggest.isPending || applySuggestion.isPending}
+          >
+            {aiSuggest.isPending ? "分析中…" : "AI 整理"}
+          </button>
           <button className="btn btn-ghost text-xs" onClick={() => setPickerOpen((v) => !v)}>
             归入线程 ▾
           </button>
@@ -504,6 +598,16 @@ function InboxCard({
       </div>
     </li>
   );
+}
+
+function categoryLabel(category: Category): string {
+  return {
+    progress: "进展",
+    decision: "决定",
+    risk: "风险",
+    plan: "计划",
+    support: "协同",
+  }[category];
 }
 
 function PromoteDialog({

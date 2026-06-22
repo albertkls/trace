@@ -5,6 +5,7 @@ import type {
   BackupInfo,
   CaptureBatchInput,
   CaptureBatchResult,
+  CaptureAISuggestion,
   CaptureInput,
   ComposeChunk,
   ComposeRequest,
@@ -186,6 +187,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    aiSuggest: (id: string) =>
+      req<CaptureAISuggestion>(`/captures/${id}/ai-suggest`, { method: "POST" }),
   },
   reports: {
     list: (projectId?: string) =>

@@ -162,14 +162,24 @@ export default function ProjectDetail() {
     mutationFn: async () => {
       const currentWeek = PRESETS.find((preset) => preset.key === "this_week")?.range();
       if (!currentWeek) throw new Error("无法计算本周时间范围");
-      return api.reports.create({
+      const report = await api.reports.create({
         period_start: currentWeek.start,
         period_end: currentWeek.end,
         audience: "boss",
         project_id: safeProjectId,
         title: `${safeProjectName} · 本周项目报告`,
-        body_md: "## 项目综述\n\n-\n\n## 关键推进\n\n-\n\n## 风险与阻塞\n\n-\n\n## 下一步\n\n- ",
       });
+      for await (const chunk of api.reports.compose(report.id, {
+        mode: "executive",
+        length: "medium",
+        structure: "memo",
+        focus: ["项目状态", "关键推进", "风险阻塞", "下一步"],
+      })) {
+        if (chunk.type === "error") {
+          throw new Error(chunk.message || "报告生成失败");
+        }
+      }
+      return api.reports.get(report.id);
     },
     onSuccess: (report) => {
       setActionError(null);
@@ -262,7 +272,7 @@ export default function ProjectDetail() {
               onClick={() => createWeeklyReport.mutate()}
               disabled={createWeeklyReport.isPending}
             >
-              {createWeeklyReport.isPending ? "创建中…" : "一键本周报告"}
+              {createWeeklyReport.isPending ? "生成中…" : "AI 本周报告"}
             </button>
             <button
               className="btn"

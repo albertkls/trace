@@ -425,6 +425,17 @@ export interface InboxItem extends Evidence {
   source_file_path?: string | null;
 }
 
+export interface CaptureAISuggestion {
+  category: Category;
+  project_id: string | null;
+  thread_id: string | null;
+  new_thread_title: string | null;
+  todo_text: string | null;
+  summary: string;
+  reason: string;
+  confidence: number;
+}
+
 export type CaptureBatchAction = "assign_thread" | "category" | "delete" | "promote_todo";
 
 export interface CaptureBatchInput {

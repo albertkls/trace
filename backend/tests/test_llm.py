@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .helpers import create_profile, create_project, create_report, create_thread
+from .helpers import create_capture, create_profile, create_project, create_report, create_thread
 
 
 def test_profiles_start_empty(client):
@@ -205,5 +205,47 @@ def test_project_summarize_updates_summary(client, monkeypatch):
 def test_project_summarize_rejects_when_no_profile(client):
     project = create_project(client, name='项目待总结')
     r = client.post(f"/api/projects/{project['id']}/summarize")
+    assert r.status_code == 400
+    assert 'no llm profile configured' in r.json()['detail']
+
+
+def test_capture_ai_suggest_returns_cleaned_json(client, monkeypatch):
+    from trace_api.llm import base as llm_base
+    import trace_api.routers.captures as captures_module
+
+    class FakeProvider:
+        def __init__(self, profile):
+            self.profile = profile
+
+        async def stream_chat(self, messages):
+            yield llm_base.ChatChunk(
+                delta=(
+                    '{"category":"risk","project_id":"bad_project","thread_id":"bad_thread",'
+                    '"new_thread_title":"上线风险跟进","todo_text":"确认 3/15 上线风险 owner",'
+                    '"summary":"需要跟进上线风险。","reason":"文本提到上线风险和同步动作。",'
+                    '"confidence":0.82}'
+                )
+            )
+            yield llm_base.ChatChunk(done=True)
+
+    monkeypatch.setattr(captures_module, 'build_provider', lambda profile: FakeProvider(profile))
+
+    create_profile(client, api_key='fake')
+    capture = create_capture(client, text='和平台同步 3/15 上线风险', category='progress')
+
+    r = client.post(f"/api/captures/{capture['id']}/ai-suggest")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body['category'] == 'risk'
+    assert body['project_id'] is None
+    assert body['thread_id'] is None
+    assert body['new_thread_title'] == '上线风险跟进'
+    assert body['todo_text'] == '确认 3/15 上线风险 owner'
+    assert body['confidence'] == 0.82
+
+
+def test_capture_ai_suggest_rejects_when_no_profile(client):
+    capture = create_capture(client, text='待 AI 整理')
+    r = client.post(f"/api/captures/{capture['id']}/ai-suggest")
     assert r.status_code == 400
     assert 'no llm profile configured' in r.json()['detail']

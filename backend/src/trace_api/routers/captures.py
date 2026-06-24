@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,9 +12,12 @@ from pydantic import BaseModel
 from ..db import connect, row_to_dict
 import uuid
 
+from ..llm import LLMError, build_provider
+from ..llm.base import ChatMessage
 from ..utils import local_minute, new_id, now_iso
 from ..workspace import request_workspace_id
 from .attachments import delete_owner_attachments
+from .llm import get_default_profile
 
 router = APIRouter(prefix="/captures", tags=["captures"])
 
@@ -104,6 +108,78 @@ class CaptureBatchResult(BaseModel):
     promoted: int = 0
 
 
+class CaptureAISuggestion(BaseModel):
+    category: str
+    project_id: str | None = None
+    thread_id: str | None = None
+    new_thread_title: str | None = None
+    todo_text: str | None = None
+    summary: str
+    reason: str
+    confidence: float = 0.0
+
+
+def _json_object_from_text(text: str) -> dict:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", cleaned, flags=re.S)
+        if not match:
+            raise HTTPException(502, "LLM did not return JSON") from None
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise HTTPException(502, f"LLM returned invalid JSON: {exc}") from None
+    if not isinstance(parsed, dict):
+        raise HTTPException(502, "LLM returned non-object JSON")
+    return parsed
+
+
+def _clean_suggestion(raw: dict, *, project_ids: set[str], thread_ids: set[str]) -> dict:
+    category = str(raw.get("category") or "progress").strip()
+    if category not in VALID_CATEGORIES:
+        category = "progress"
+
+    project_id = raw.get("project_id")
+    project_id = str(project_id).strip() if project_id else None
+    if project_id not in project_ids:
+        project_id = None
+
+    thread_id = raw.get("thread_id")
+    thread_id = str(thread_id).strip() if thread_id else None
+    if thread_id not in thread_ids:
+        thread_id = None
+
+    if thread_id:
+        new_thread_title = None
+    else:
+        new_thread_title = str(raw.get("new_thread_title") or "").strip()[:80] or None
+
+    todo_text = str(raw.get("todo_text") or "").strip()[:240] or None
+    summary = str(raw.get("summary") or "").strip()[:240]
+    reason = str(raw.get("reason") or "").strip()[:240]
+    try:
+        confidence = float(raw.get("confidence") or 0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    return CaptureAISuggestion(
+        category=category,
+        project_id=project_id,
+        thread_id=thread_id,
+        new_thread_title=new_thread_title,
+        todo_text=todo_text,
+        summary=summary or "建议已生成，但模型没有给出摘要。",
+        reason=reason or "根据证据文本和当前项目/线程上下文推断。",
+        confidence=confidence,
+    ).model_dump()
+
+
 @router.get("/inbox")
 def list_inbox(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
     conn = connect()
@@ -127,6 +203,112 @@ def list_inbox(workspace_id: str = Depends(request_workspace_id)) -> list[dict]:
         return out
     finally:
         conn.close()
+
+
+@router.post("/{evidence_id}/ai-suggest")
+async def suggest_capture_organization(
+    evidence_id: str,
+    workspace_id: str = Depends(request_workspace_id),
+) -> dict:
+    conn = connect()
+    try:
+        evidence_row = conn.execute(
+            """SELECT e.*, s.title AS source_title, s.kind AS source_kind
+               FROM evidence e
+               LEFT JOIN capture c ON c.id = e.capture_id
+               LEFT JOIN source s ON s.id = c.source_id
+               WHERE e.id = ? AND e.workspace_id = ?""",
+            (evidence_id, workspace_id),
+        ).fetchone()
+        if not evidence_row:
+            raise HTTPException(404, "capture not found")
+        evidence = row_to_dict(evidence_row)
+        project_rows = conn.execute(
+            "SELECT id, name, status, summary FROM project WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT 24",
+            (workspace_id,),
+        ).fetchall()
+        thread_rows = conn.execute(
+            """SELECT t.id, t.title, t.project_id, COALESCE(p.name, t.project) AS project_name,
+                      t.status, t.summary, COUNT(e.id) AS evidence_count
+               FROM thread t
+               LEFT JOIN project p ON p.id = t.project_id
+               LEFT JOIN evidence e ON e.thread_id = t.id
+               WHERE t.workspace_id = ?
+               GROUP BY t.id
+               ORDER BY t.pinned DESC, t.last_active_at DESC
+               LIMIT 36""",
+            (workspace_id,),
+        ).fetchall()
+        projects = [row_to_dict(row) for row in project_rows]
+        threads = [row_to_dict(row) for row in thread_rows]
+    finally:
+        conn.close()
+
+    profile = get_default_profile()
+    if not profile:
+        raise HTTPException(400, "no llm profile configured")
+    if not profile.api_key:
+        raise HTTPException(400, f"profile '{profile.name}' has no api_key configured")
+
+    project_lines = [
+        f"- id={p['id']} name={p['name']} status={p['status']} summary={p.get('summary') or ''}"
+        for p in projects
+    ]
+    thread_lines = [
+        f"- id={t['id']} title={t['title']} project_id={t.get('project_id') or ''} "
+        f"project={t.get('project_name') or ''} status={t['status']} evidence_count={t['evidence_count']} "
+        f"summary={t.get('summary') or ''}"
+        for t in threads
+    ]
+    messages = [
+        ChatMessage(
+            role="system",
+            content=(
+                "你是 Trace 的收件箱整理员。你的任务是把一条工作证据整理成可执行建议。"
+                "只能返回 JSON 对象，不能输出 Markdown 或解释文字。"
+                "category 只能是 progress/decision/risk/plan/support。"
+                "project_id 和 thread_id 只能使用用户给出的现有 id；如果没有合适对象就返回 null。"
+                "如果没有合适 thread_id，但适合创建新线程，请给 new_thread_title。"
+                "如果证据明显包含待办动作，请给 todo_text，否则为 null。"
+            ),
+        ),
+        ChatMessage(
+            role="user",
+            content=(
+                "证据：\n"
+                f"id={evidence['id']}\n"
+                f"source={evidence.get('source_title') or evidence.get('source_kind') or '未知'}\n"
+                f"date={evidence.get('event_date') or '未定日期'}\n"
+                f"text={evidence['text']}\n\n"
+                "现有项目：\n"
+                + ("\n".join(project_lines) if project_lines else "（无）")
+                + "\n\n现有线程：\n"
+                + ("\n".join(thread_lines) if thread_lines else "（无）")
+                + "\n\n请返回 JSON，字段："
+                '{"category":"progress","project_id":null,"thread_id":null,'
+                '"new_thread_title":null,"todo_text":null,"summary":"一句话摘要",'
+                '"reason":"为什么这样整理","confidence":0.0}'
+            ),
+        ),
+    ]
+
+    provider = build_provider(profile)
+    text = ""
+    try:
+        async for chunk in provider.stream_chat(messages):
+            if chunk.delta:
+                text += chunk.delta
+            if chunk.done:
+                break
+    except LLMError as e:
+        raise HTTPException(502, f"LLM error: {e}") from e
+
+    raw = _json_object_from_text(text)
+    return _clean_suggestion(
+        raw,
+        project_ids={p["id"] for p in projects},
+        thread_ids={t["id"] for t in threads},
+    )
 
 
 @router.post("/batch")

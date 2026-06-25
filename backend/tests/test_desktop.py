@@ -44,14 +44,21 @@ def test_window_closing_allows_forced_quit(monkeypatch):
     assert window.minimized is False
 
 
-def test_desktop_api_quit_sets_force_quit_and_destroys_window(monkeypatch):
+def test_desktop_api_quit_sets_force_quit_and_schedules_window_destroy(monkeypatch):
     window = FakeWindow()
     monkeypatch.setattr(desktop, "_main_window", lambda: window)
+    scheduled = []
+    monkeypatch.setattr(
+        desktop,
+        "_schedule_main_window_destroy",
+        lambda: scheduled.append("destroy"),
+    )
 
     desktop.DesktopApi().quit_app()
 
     assert desktop._force_quit.is_set()
-    assert window.destroyed is True
+    assert scheduled == ["destroy"]
+    assert window.destroyed is False
 
 
 def test_request_quit_sets_force_quit():
@@ -93,24 +100,38 @@ def test_close_window_minimizes_when_preference_is_minimize(monkeypatch):
     assert window.destroyed is False
 
 
-def test_close_window_destroys_when_preference_is_quit(monkeypatch):
+def test_close_window_schedules_destroy_when_preference_is_quit(monkeypatch):
     window = FakeWindow()
     monkeypatch.setattr(desktop, "_main_window", lambda: window)
     monkeypatch.setattr(desktop, "_window_close_action", lambda: "quit")
+    scheduled = []
+    monkeypatch.setattr(
+        desktop,
+        "_schedule_main_window_destroy",
+        lambda: scheduled.append("destroy"),
+    )
 
     desktop.DesktopApi().close_window()
 
-    assert window.destroyed is True
+    assert scheduled == ["destroy"]
+    assert window.destroyed is False
     assert window.minimized is False
 
 
-def test_close_window_destroys_when_force_quit(monkeypatch):
+def test_close_window_schedules_destroy_when_force_quit(monkeypatch):
     window = FakeWindow()
     monkeypatch.setattr(desktop, "_main_window", lambda: window)
     monkeypatch.setattr(desktop, "_window_close_action", lambda: "minimize")
+    scheduled = []
+    monkeypatch.setattr(
+        desktop,
+        "_schedule_main_window_destroy",
+        lambda: scheduled.append("destroy"),
+    )
     desktop._force_quit.set()
 
     desktop.DesktopApi().close_window()
 
-    assert window.destroyed is True
+    assert scheduled == ["destroy"]
+    assert window.destroyed is False
     assert window.minimized is False

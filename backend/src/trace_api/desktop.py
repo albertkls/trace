@@ -32,6 +32,28 @@ def _main_window() -> webview.Window | None:
     return webview.windows[0] if webview.windows else None
 
 
+def _destroy_main_window() -> None:
+    window = _main_window()
+    if window is not None:
+        window.destroy()
+
+
+def _schedule_main_window_destroy(delay: float = 0.05) -> None:
+    """Destroy the window after the pywebview JS bridge response returns."""
+    if sys.platform == "darwin":
+        try:
+            from PyObjCTools import AppHelper  # type: ignore
+
+            AppHelper.callLater(delay, _destroy_main_window)
+            return
+        except Exception:
+            pass
+
+    timer = threading.Timer(delay, _destroy_main_window)
+    timer.daemon = True
+    timer.start()
+
+
 class DesktopApi:
     def choose_file(self) -> str | None:
         window = _main_window()
@@ -62,7 +84,7 @@ class DesktopApi:
                 return
             except Exception:
                 pass
-        window.destroy()
+        _schedule_main_window_destroy()
 
     def minimize_window(self) -> None:
         window = _main_window()
@@ -82,9 +104,7 @@ class DesktopApi:
     def quit_app(self) -> None:
         """Exit Trace even when close-button behavior is set to minimize."""
         _force_quit.set()
-        window = _main_window()
-        if window is not None:
-            window.destroy()
+        _schedule_main_window_destroy()
 
 
 def _window_close_action() -> str:

@@ -25,6 +25,7 @@ STARTUP_TIMEOUT_SECONDS = 20.0
 WINDOW_CLOSE_KEY = "desktop.window_close_action"
 
 _force_quit = threading.Event()
+_quit_delegate: object | None = None
 
 
 def _main_window() -> webview.Window | None:
@@ -45,10 +46,23 @@ class DesktopApi:
         return str(paths[0])
 
     def close_window(self) -> None:
-        """Apply the user's close-button preference from frontend controls."""
+        """Apply the user's close-button preference from frontend controls.
+
+        The custom traffic-light close button calls this directly, bypassing
+        pywebview's ``windowShouldClose_``/``closing`` path (the native title
+        bar is hidden). So we apply the ``desktop.window_close_action``
+        preference here: minimize, or actually destroy when set to quit.
+        """
         window = _main_window()
-        if window is not None:
-            window.destroy()
+        if window is None:
+            return
+        if not _force_quit.is_set() and _window_close_action() == "minimize":
+            try:
+                window.minimize()
+                return
+            except Exception:
+                pass
+        window.destroy()
 
     def minimize_window(self) -> None:
         window = _main_window()
@@ -95,8 +109,64 @@ def _handle_window_closing(window: webview.Window) -> bool:
     return False
 
 
+def _request_quit() -> None:
+    """Mark the app as quitting so the closing handler stops minimizing.
+
+    macOS routes Dock -> Quit, Cmd+Q and the app menu's Quit through
+    ``applicationShouldTerminate_`` (never through the window close button),
+    so flipping ``_force_quit`` here lets those paths actually exit even when
+    the close-button preference is ``minimize``.
+    """
+    _force_quit.set()
+
+
+def _install_quit_handler() -> None:
+    """Make genuine app-quit requests bypass the minimize-on-close behavior.
+
+    pywebview implements ``applicationShouldTerminate_`` by firing each
+    window's ``closing`` event, which our ``_handle_window_closing`` turns into
+    a minimize when the preference is ``minimize``. That swallows Dock -> Quit
+    and Cmd+Q. We subclass pywebview's AppDelegate so termination requests set
+    ``_force_quit`` first, then defer to the original implementation.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        import objc  # type: ignore
+        from webview.platforms.cocoa import BrowserView  # type: ignore
+    except Exception:
+        return
+
+    current = BrowserView.app.delegate()
+    if current is None:
+        return
+    # Idempotent: don't wrap our own delegate twice.
+    if getattr(type(current), "_trace_quit_handler", False):
+        return
+
+    base_cls = type(current)
+    try:
+        class _TraceAppDelegate(base_cls):  # type: ignore[misc, valid-type]
+            _trace_quit_handler = True
+
+            def applicationShouldTerminate_(self, app):  # noqa: N802
+                _request_quit()
+                return objc.super(_TraceAppDelegate, self).applicationShouldTerminate_(app)
+
+        delegate = _TraceAppDelegate.alloc().init()
+    except Exception:
+        return
+
+    # Keep a strong reference so the delegate isn't garbage collected.
+    global _quit_delegate
+    _quit_delegate = delegate
+    BrowserView._shared_app_delegate = delegate
+    BrowserView.app.setDelegate_(delegate)
+
+
 def _ensure_window_visible(window: webview.Window) -> None:
     """Bring the pywebview window back if macOS launches the app without a key window."""
+    _install_quit_handler()
     try:
         window.show()
         window.restore()

@@ -30,16 +30,16 @@ import { isoWeekLabel, toISODateTimeMinute } from "@/lib/periods";
 import { QuickCaptureContext } from "@/lib/quickCapture";
 import { useThemePreference } from "@/lib/theme";
 
-const NAV: { to: string; label: string; key: string; icon: LucideIcon }[] = [
-  { to: "/", label: "今日", key: "1", icon: Home },
-  { to: "/inbox", label: "收件箱", key: "2", icon: Inbox },
-  { to: "/projects", label: "项目", key: "3", icon: FolderKanban },
-  { to: "/threads", label: "工作线", key: "4", icon: GitBranch },
-  { to: "/timeline", label: "时间线", key: "5", icon: Clock3 },
-  { to: "/notes", label: "记事", key: "6", icon: NotebookText },
-  { to: "/todos", label: "待办", key: "7", icon: CheckSquare },
-  { to: "/reports", label: "汇报", key: "8", icon: FileText },
-  { to: "/settings", label: "设置", key: "0", icon: Settings },
+const NAV: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: "/", label: "今日", icon: Home },
+  { to: "/inbox", label: "收件箱", icon: Inbox },
+  { to: "/projects", label: "项目", icon: FolderKanban },
+  { to: "/threads", label: "工作线", icon: GitBranch },
+  { to: "/timeline", label: "时间线", icon: Clock3 },
+  { to: "/notes", label: "记事", icon: NotebookText },
+  { to: "/todos", label: "待办", icon: CheckSquare },
+  { to: "/reports", label: "汇报", icon: FileText },
+  { to: "/settings", label: "设置", icon: Settings },
 ];
 
 export default function Shell() {
@@ -173,7 +173,6 @@ export default function Shell() {
                             <Icon size={15} strokeWidth={2} />
                           </span>
                           <span className="nav-label flex-1">{item.label}</span>
-                          <span className="nav-label mono-meta text-[10px]">{item.key}</span>
                         </>
                       )}
                     </NavLink>

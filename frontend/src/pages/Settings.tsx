@@ -669,7 +669,6 @@ export default function Settings() {
       <section className="mb-10">
         <h2 className="mb-4 flex items-center gap-2">
           <span className="eyebrow">LOCAL · LIBRARY</span>
-          <span className="chip">默认工作台</span>
         </h2>
 
         <div className="panel p-6">

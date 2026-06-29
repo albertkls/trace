@@ -15,7 +15,6 @@ import {
   NotebookText,
   Plus,
   Settings,
-  Sparkles,
   Sun,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -227,10 +226,6 @@ export default function Shell() {
                   <Plus size={15} />
                   <span className="topbar-capture-label">写一笔</span>
                 </button>
-                <div className="hidden items-center gap-2 rounded-lg border border-line bg-canvas-raised/45 px-3 py-2 text-xs text-ink-soft lg:flex">
-                  <Sparkles size={14} className="text-iris" />
-                  <span>默认工作台</span>
-                </div>
                 <div
                   className={clsx(
                     "hidden items-center gap-2 rounded-lg border px-3 py-2 text-xs lg:flex",

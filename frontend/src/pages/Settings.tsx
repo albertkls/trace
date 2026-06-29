@@ -130,11 +130,12 @@ export default function Settings() {
       .check()
       .then((info) => {
         setUpdateInfo(info);
+        qc.setQueryData(["updater", "check"], info);
         setUpdateError(null);
       })
       .catch((e: Error) => setUpdateError(e.message))
       .finally(() => setCheckingUpdate(false));
-  }, [isDesktop]);
+  }, [isDesktop, qc]);
 
   useEffect(() => {
     if (!isDesktop) return;
@@ -154,6 +155,7 @@ export default function Settings() {
       .check()
       .then((info) => {
         setUpdateInfo(info);
+        qc.setQueryData(["updater", "check"], info);
       })
       .catch((e: Error) => setUpdateError(e.message))
       .finally(() => setCheckingUpdate(false));

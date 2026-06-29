@@ -54,12 +54,27 @@ export default function Shell() {
   const dateLabel = toISODateTimeMinute(now).replace("T", " ");
   const quickCaptureContext = useMemo(() => ({ open: () => setCaptureOpen(true) }), []);
 
-  const { data: updateInfo } = useQuery({
+  const {
+    data: updateInfo,
+    isError: updateError,
+    isFetching: updateFetching,
+    isLoading: updateLoading,
+  } = useQuery({
     queryKey: ["updater", "check"],
     queryFn: api.updater.check,
     retry: 1,
-    staleTime: 15 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    staleTime: 60 * 1000,
   });
+  const updateAvailable = updateInfo?.update_available === true;
+  const updateStatusLabel = updateAvailable
+    ? "有新版本"
+    : updateLoading || updateFetching
+      ? "检查更新"
+      : updateError
+        ? "更新未知"
+        : "已是最新";
   useEffect(() => {
     const tick = () => setNow(new Date());
     const ms = 60_000 - (Date.now() % 60_000);
@@ -228,13 +243,13 @@ export default function Shell() {
                 <div
                   className={clsx(
                     "hidden items-center gap-2 rounded-lg border px-3 py-2 text-xs lg:flex",
-                    updateInfo?.update_available
+                    updateAvailable
                       ? "border-iris/40 bg-iris/10 text-iris"
                       : "border-line bg-canvas-raised/45 text-ink-soft"
                   )}
                 >
                   <Bell size={14} />
-                  <span>{updateInfo?.update_available ? "有新版本" : "已是最新"}</span>
+                  <span>{updateStatusLabel}</span>
                 </div>
                 <div className="hidden rounded-lg border border-line bg-canvas-raised/45 px-3 py-2 text-right lg:block">
                   <div className="mono-meta text-[10px]">W{week}</div>
